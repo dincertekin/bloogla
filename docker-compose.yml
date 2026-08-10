@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  bloogla:
+    build: .
+    container_name: bloogla_cms
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./bloogla.db:/app/bloogla.db
+      - ./bloogla.json:/app/bloogla.json
+      - ./static:/app/static
+    environment:
+      - RUST_LOG=info

@@ -1,0 +1,53 @@
+<div class="article-item" id="article-{{ post.id }}">
+    <div class="article-info">
+        {% if let Some(cover) = post.cover_image %}
+        <img
+            src="{{ cover }}"
+            alt="{{ post.title }}"
+            class="article-cover-preview"
+        />
+        {% else %}
+        <div class="article-cover-preview no-img-placeholder">No Img</div>
+        {% endif %}
+        <div>
+            <strong>{{ post.title }}</strong>
+            <div class="article-meta">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                    <circle cx="12" cy="12" r="3" />
+                </svg>
+                {{ post.views }} views
+            </div>
+            {% if !post.tags.is_empty() %}
+            <div class="article-tags">
+                {% for tag in post.tags %}
+                <span class="tag-chip">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div>
+        <a href="/admin/posts/{{ post.id }}/edit" class="link-edit">Edit</a>
+        <button
+            type="button"
+            class="btn-delete"
+            hx-delete="/admin/posts/{{ post.id }}"
+            hx-target="#article-{{ post.id }}"
+            hx-swap="delete"
+            hx-confirm="Are you sure you want to delete this article?"
+        >
+            Delete
+        </button>
+    </div>
+</div>

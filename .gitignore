@@ -1,0 +1,6 @@
+# Rust
+/target
+
+# Bloogla
+bloogla.json
+bloogla.db

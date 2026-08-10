@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>#{{ tag_name }} - {{ blog_name }}</title>
+        <link rel="stylesheet" href="/static/style.css" />
+    </head>
+    <body>
+        <header>
+            <a href="/" class="brand">{{ blog_name }}</a>
+            <nav>
+                <a href="/">&larr; All Posts</a>
+            </nav>
+        </header>
+
+        <main class="container">
+            <h2 class="mb-lg">Posts tagged "{{ tag_name }}"</h2>
+
+            {% if posts.is_empty() %}
+            <p class="text-secondary">No posts with this tag yet.</p>
+            {% endif %} {% for post in posts %}
+            <article class="post-card">
+                {% if let Some(cover) = post.cover_image %}
+                <img
+                    src="{{ cover }}"
+                    alt="{{ post.title }}"
+                    class="post-cover"
+                />
+                {% endif %}
+                <h3><a href="/post/{{ post.slug }}">{{ post.title }}</a></h3>
+                <div class="reading-time">
+                    <span>{{ post.created_at }}</span> •
+                    <span>{{ post.reading_time }} min. reading time</span>
+                </div>
+                {% if !post.tags.is_empty() %}
+                <div class="tag-list">
+                    {% for tag in post.tags %}
+                    <a href="/tag/{{ tag.slug }}" class="tag-chip"
+                        >{{ tag.name }}</a
+                    >
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <p>{{ post.content }}</p>
+            </article>
+            {% endfor %}
+        </main>
+    </body>
+</html>

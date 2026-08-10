@@ -1,0 +1,68 @@
+{% extends "admin_base.html" %} {% block title %}Tags{% endblock %} {% block
+content %}
+<div class="page-header">
+    <h1>Tags</h1>
+</div>
+
+<section class="card">
+    <h2>Create New Tag</h2>
+    <form action="/admin/tags/new" method="POST">
+        <div class="form-group">
+            <label for="name">Tag Name</label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="e.g. rust"
+                required
+            />
+        </div>
+        <button type="submit" class="btn-submit">Add Tag</button>
+    </form>
+</section>
+
+<section class="card">
+    <div id="tags-list">
+        {% if tags.is_empty() %}
+        <p id="empty-state" class="empty-state">No tags yet.</p>
+        {% endif %} {% for tag in tags %}
+        <div class="article-item" id="tag-{{ tag.id }}">
+            <div class="article-info">
+                <strong style="color: #111827">{{ tag.name }}</strong>
+            </div>
+            <div>
+                <button
+                    type="button"
+                    class="btn-delete"
+                    hx-delete="/admin/tags/{{ tag.id }}"
+                    hx-target="#tag-{{ tag.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Delete this tag? It will be removed from all posts that use it."
+                >
+                    Delete
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %} {% block scripts %}
+<script>
+    document.body.addEventListener("htmx:afterRequest", function (evt) {
+        const verb = evt.detail.requestConfig && evt.detail.requestConfig.verb;
+        if (verb !== "delete") return;
+
+        const list = document.getElementById("tags-list");
+        if (!list) return;
+
+        const hasItems = list.querySelectorAll(".article-item").length > 0;
+        if (!hasItems && !document.getElementById("empty-state")) {
+            const emptyMsg = document.createElement("p");
+            emptyMsg.id = "empty-state";
+            emptyMsg.className = "empty-state";
+            emptyMsg.textContent = "No tags yet.";
+            list.prepend(emptyMsg);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,168 @@
+{% extends "admin_base.html" %} {% block title %}Posts{% endblock %} {% block
+content %}
+<div class="page-header">
+    <h1>Posts</h1>
+</div>
+
+<!-- Create Post Form -->
+<section class="card">
+    <h2>Create New Post</h2>
+    <form
+        action="/admin/posts/new"
+        method="POST"
+        hx-post="/admin/posts/new"
+        hx-target="#posts-list"
+        hx-swap="afterbegin"
+        hx-on::after-request="if(event.detail.successful) this.reset()"
+    >
+        <div class="form-group">
+            <label for="title">Post Title</label>
+            <input
+                type="text"
+                id="title"
+                name="title"
+                placeholder="Enter post title..."
+                required
+            />
+        </div>
+
+        <div class="form-group">
+            <label for="cover_image">Cover Image URL</label>
+            <input
+                type="url"
+                id="cover_image"
+                name="cover_image"
+                placeholder="https://images.unsplash.com/photo-..."
+            />
+        </div>
+
+        <div class="form-group">
+            <label for="content">Content (Markdown Supported)</label>
+            <textarea
+                id="content"
+                name="content"
+                rows="10"
+                placeholder="Write your thoughts..."
+                required
+            ></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Tags</label>
+            <div class="tag-chip-input">
+                {% for tag in all_tags %}
+                <label class="tag-chip-option">
+                    <input
+                        type="checkbox"
+                        name="tag_ids"
+                        value="{{ tag.id }}"
+                    />
+                    {{ tag.name }}
+                </label>
+                {% endfor %} {% if all_tags.is_empty() %}
+                <span class="text-muted"
+                    >No tags yet —
+                    <a href="/admin/tags">create some first</a>.</span
+                >
+                {% endif %}
+            </div>
+        </div>
+
+        <button type="submit" class="btn-submit">Publish Post</button>
+    </form>
+</section>
+
+<section class="card">
+    <div id="posts-list">
+        {% if posts.is_empty() %}
+        <p id="empty-state" class="empty-state">No posts published yet.</p>
+        {% endif %} {% for post in posts %}
+        <div class="article-item" id="article-{{ post.id }}">
+            <div class="article-info">
+                {% if let Some(cover) = post.cover_image %}
+                <img
+                    src="{{ cover }}"
+                    alt="{{ post.title }}"
+                    class="article-cover-preview"
+                />
+                {% else %}
+                <div class="article-cover-preview no-img-placeholder">
+                    No Img
+                </div>
+                {% endif %}
+                <div>
+                    <strong>{{ post.title }}</strong>
+                    <div class="article-meta">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path
+                                d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"
+                            />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        {{ post.views }} views
+                    </div>
+                    {% if !post.tags.is_empty() %}
+                    <div class="article-tags">
+                        {% for tag in post.tags %}
+                        <span class="tag-chip">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <a href="/admin/posts/{{ post.id }}/edit" class="link-edit"
+                    >Edit</a
+                >
+                <button
+                    type="button"
+                    class="btn-delete"
+                    hx-delete="/admin/posts/{{ post.id }}"
+                    hx-target="#article-{{ post.id }}"
+                    hx-swap="delete"
+                    hx-confirm="Are you sure you want to delete this article?"
+                >
+                    Delete
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %} {% block scripts %}
+<script>
+    document
+        .getElementById("posts-list")
+        .addEventListener("htmx:afterSwap", function () {
+            const empty = document.getElementById("empty-state");
+            if (empty) empty.remove();
+        });
+
+    document.body.addEventListener("htmx:afterRequest", function (evt) {
+        const verb = evt.detail.requestConfig && evt.detail.requestConfig.verb;
+        if (verb !== "delete") return;
+
+        const list = document.getElementById("posts-list");
+        if (!list) return;
+
+        const hasItems = list.querySelectorAll(".article-item").length > 0;
+        if (!hasItems && !document.getElementById("empty-state")) {
+            const emptyMsg = document.createElement("p");
+            emptyMsg.id = "empty-state";
+            emptyMsg.className = "empty-state";
+            emptyMsg.textContent = "No posts published yet.";
+            list.prepend(emptyMsg);
+        }
+    });
+</script>
+{% endblock %}

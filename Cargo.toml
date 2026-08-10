@@ -1,0 +1,60 @@
+[package]
+name = "bloogla"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web Framework & Async Runtime
+axum = "0.7"
+# axum'un varsayılan Form extractor'ı (serde_urlencoded tabanlı) aynı isimde
+# tekrarlayan form alanlarını (örn. birden fazla seçili checkbox: tag_ids)
+# Vec<T>'ye çeviremiyor. axum-extra'nın Form'u (serde_html_form tabanlı) bunu
+# destekliyor, tag checkbox'ları için bu yüzden ekliyoruz.
+axum-extra = { version = "0.9", features = ["form"] }
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal"] }
+
+# Database (SQLite)
+# rustls yerine native-tls kullanılmıyor: sistemde OpenSSL bağımlılığı olmadan
+# tamamen statik, taşınabilir tek binary hedefine uyuyor. SQLite zaten local
+# dosya erişimi kullandığı için TLS gerçek anlamda kullanılmıyor ama sqlx
+# bir backend seçimi zorunlu kılıyor, rustls burada en hafif seçenek.
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "macros"] }
+
+# CLI Terminal Setup Wizard
+dialoguer = "0.11"
+console = "0.15"
+
+# Password Hashing & Security
+argon2 = { version = "0.5", features = ["password-hash"] }
+rand = "0.8"
+ammonia = "4.0"
+tower_governor = "0.4"
+
+# Serialization & Config
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Session management & cookies for authentication
+tower-sessions = "0.12"
+
+# Date handling for post timestamps
+chrono = { version = "0.4", features = ["serde"] }
+
+# Compile-time HTML Templating
+askama = "0.12"
+askama_axum = "0.4"
+
+# Markdown Parsing & Static Serving
+comrak = "0.18"
+tower-http = { version = "0.5", features = ["compression-gzip", "fs", "set-header"] }
+
+[profile.release]
+opt-level = 3       # Maksimum çalışma zamanı performansı (z yerine 3)
+lto = true          # Link-Time Optimization (Tüm projeyi tek blokta optimize eder)
+codegen-units = 1   # Derleyicinin en derin optimizasyonları yapmasını sağlar
+# panic = "abort" KALDIRILDI: tokio her request'i ayrı bir task olarak
+# çalıştırır ve "unwind" (varsayılan) sayesinde bir task'taki panic sadece o
+# isteği düşürür, sunucu ayakta kalır. "abort" bu izolasyonu tamamen iptal
+# eder, herhangi bir yerdeki tek bir panic tüm process'i öldürür ve tüm
+# kullanıcıları etkiler. Web sunucusu için varsayılan "unwind" çok daha güvenli.
+strip = true        # Debug sembollerini silip binary boyutunu küçültür

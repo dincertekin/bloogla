@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Admin Login</title>
+        <link rel="stylesheet" href="/static/style.css" />
+    </head>
+    <body>
+        <main class="container" style="max-width: 400px; margin-top: 10vh">
+            <div class="post-card">
+                <h2 style="margin-bottom: 1.5rem; text-align: center">
+                    Sign In
+                </h2>
+                {% if let Some(err) = error %}
+                <p
+                    style="
+                        color: #ef4444;
+                        font-size: 0.85rem;
+                        margin-bottom: 1rem;
+                        text-align: center;
+                    "
+                >
+                    {{ err }}
+                </p>
+                {% endif %}
+                <form method="POST" action="/admin/login">
+                    <div style="margin-bottom: 1rem">
+                        <label
+                            for="email"
+                            style="
+                                display: block;
+                                margin-bottom: 0.3rem;
+                                font-weight: 500;
+                            "
+                            >Email</label
+                        >
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            required
+                            placeholder="admin@bloogla.com"
+                        />
+                    </div>
+                    <div style="margin-bottom: 1.5rem">
+                        <label
+                            for="password"
+                            style="
+                                display: block;
+                                margin-bottom: 0.3rem;
+                                font-weight: 500;
+                            "
+                            >Password</label
+                        >
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="*******"
+                            required
+                        />
+                    </div>
+                    <button type="submit" style="width: 100%">Login</button>
+                </form>
+            </div>
+        </main>
+    </body>
+</html>
