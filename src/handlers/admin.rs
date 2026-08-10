@@ -3,9 +3,10 @@ use axum::response::{Html, IntoResponse, Redirect};
 use axum_extra::extract::Form;
 use tower_sessions::Session;
 
-use crate::models::{AppState, CreatePostForm, CreateTagForm, Post};
+use crate::models::{AppState, Article, CreateArticleForm, CreateTagForm, Tag};
 use crate::templates::{
-    AdminTemplate, EditPostTemplate, PostItemTemplate, PostsTemplate, TagsTemplate,
+    AdminTemplate, ArticleItemTemplate, ArticlesTemplate, EditArticleTemplate, TagItemTemplate,
+    TagsTemplate,
 };
 
 fn slugify(title: &str) -> String {
@@ -24,7 +25,7 @@ fn slugify(title: &str) -> String {
 
     let trimmed = slug.trim_matches('-').to_string();
     if trimmed.is_empty() {
-        "post".to_string()
+        "article".to_string()
     } else {
         trimmed
     }
@@ -40,13 +41,14 @@ async fn generate_unique_slug(
     let mut counter = 2;
 
     loop {
-        let exists: Option<i64> =
-            sqlx::query_scalar("SELECT id FROM posts WHERE slug = ? AND (?2 IS NULL OR id != ?2)")
-                .bind(&candidate)
-                .bind(exclude_id)
-                .fetch_optional(pool)
-                .await
-                .unwrap_or(None);
+        let exists: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM articles WHERE slug = ? AND (?2 IS NULL OR id != ?2)",
+        )
+        .bind(&candidate)
+        .bind(exclude_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None);
 
         match exists {
             None => return candidate,
@@ -65,24 +67,24 @@ pub async fn admin_dashboard(State(state): State<AppState>, session: Session) ->
         return Redirect::to("/admin/login").into_response();
     }
 
-    let posts = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts ORDER BY id DESC"
+    let articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
     )
     .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
-    let total_posts = posts.len() as i64;
-    let total_views: i64 = posts.iter().map(|p| p.views).sum();
+    let total_articles = articles.len() as i64;
+    let total_views: i64 = articles.iter().map(|p| p.views).sum();
 
-    let mut top_posts = posts.clone();
-    top_posts.sort_by(|a, b| b.views.cmp(&a.views));
-    top_posts.truncate(5);
+    let mut top_articles = articles.clone();
+    top_articles.sort_by(|a, b| b.views.cmp(&a.views));
+    top_articles.truncate(5);
 
-    let max_views = top_posts.first().map(|p| p.views).unwrap_or(0).max(1);
+    let max_views = top_articles.first().map(|p| p.views).unwrap_or(0).max(1);
 
     let daily_counts: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT date(created_at) as day, COUNT(*) as count FROM posts GROUP BY day ORDER BY day ASC"
+        "SELECT date(created_at) as day, COUNT(*) as count FROM articles GROUP BY day ORDER BY day ASC"
     )
     .fetch_all(&state.pool)
     .await
@@ -133,10 +135,10 @@ pub async fn admin_dashboard(State(state): State<AppState>, session: Session) ->
     AdminTemplate {
         blog_name: state.config.blog_name,
         active_page: "dashboard",
-        total_posts,
+        total_articles,
         total_views,
-        posts,
-        top_posts,
+        articles,
+        top_articles,
         max_views,
         growth_points,
         growth_max,
@@ -146,42 +148,42 @@ pub async fn admin_dashboard(State(state): State<AppState>, session: Session) ->
     .into_response()
 }
 
-/// GET /admin/posts -> List all posts.
-pub async fn posts_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {
+/// GET /admin/articles -> List all articles.
+pub async fn list_articles(State(state): State<AppState>, session: Session) -> impl IntoResponse {
     let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
     if logged_in != Some(true) {
         return Redirect::to("/admin/login").into_response();
     }
 
-    let mut posts = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts ORDER BY id DESC"
+    let mut articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
     )
     .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
-    let post_ids: Vec<i64> = posts.iter().map(|p| p.id).collect();
-    let tag_map = crate::tags::get_tags_for_posts(&state.pool, &post_ids).await;
-    for post in posts.iter_mut() {
-        post.tags = tag_map.get(&post.id).cloned().unwrap_or_default();
+    let article_ids: Vec<i64> = articles.iter().map(|p| p.id).collect();
+    let tag_map = crate::tags::get_tags_for_articles(&state.pool, &article_ids).await;
+    for article in articles.iter_mut() {
+        article.tags = tag_map.get(&article.id).cloned().unwrap_or_default();
     }
 
     let all_tags = crate::tags::get_all_tags(&state.pool).await;
 
-    PostsTemplate {
+    ArticlesTemplate {
         blog_name: state.config.blog_name,
-        active_page: "posts",
-        posts,
+        active_page: "articles",
+        articles,
         all_tags,
     }
     .into_response()
 }
 
-/// POST /admin/posts/new -> Create new post.
-pub async fn create_post(
+/// POST /admin/articles/new -> Create new article.
+pub async fn create_article(
     State(state): State<AppState>,
     session: Session,
-    Form(form): Form<CreatePostForm>,
+    Form(form): Form<CreateArticleForm>,
 ) -> impl IntoResponse {
     let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
     if logged_in != Some(true) {
@@ -196,7 +198,7 @@ pub async fn create_post(
     };
 
     let result =
-        sqlx::query("INSERT INTO posts (title, slug, content, cover_image) VALUES (?, ?, ?, ?)")
+        sqlx::query("INSERT INTO articles (title, slug, content, cover_image) VALUES (?, ?, ?, ?)")
             .bind(&form.title)
             .bind(&slug)
             .bind(&form.content)
@@ -207,35 +209,37 @@ pub async fn create_post(
     let insert_result = match result {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("Failed to insert post: {e}");
-            return Html("Database error while creating post").into_response();
+            eprintln!("Failed to insert article: {e}");
+            return Html("Database error while creating article").into_response();
         }
     };
 
     let new_id = insert_result.last_insert_rowid();
 
-    crate::tags::set_post_tags(&state.pool, new_id, &form.tag_ids).await;
+    crate::tags::set_article_tags(&state.pool, new_id, &form.tag_ids).await;
 
-    let new_post = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts WHERE id = ?"
+    let new_article = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles WHERE id = ?"
     )
     .bind(new_id)
     .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
-    match new_post {
+    match new_article {
         Some(mut p) => {
             p.reading_time = crate::utils::calculate_reading_time(&p.content);
-            p.tags = crate::tags::get_tags_for_post(&state.pool, new_id).await;
-            PostItemTemplate { post: p }.into_response()
+            p.tags = crate::tags::get_tags_for_article(&state.pool, new_id).await;
+            ArticleItemTemplate { article: p }.into_response()
         }
-        None => Html("Post created, but failed to load it back. Refresh the page.").into_response(),
+        None => {
+            Html("Article created, but failed to load it back. Refresh the page.").into_response()
+        }
     }
 }
 
-/// GET /admin/posts/:id/edit -> Show Edit Post page.
-pub async fn edit_post_page(
+/// GET /admin/articles/:id/edit -> Show edit article page.
+pub async fn edit_article_page(
     State(state): State<AppState>,
     session: Session,
     Path(id): Path<i64>,
@@ -245,19 +249,19 @@ pub async fn edit_post_page(
         return Redirect::to("/admin/login").into_response();
     }
 
-    let post = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts WHERE id = ?"
+    let article = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles WHERE id = ?"
     )
     .bind(id)
     .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
-    match post {
+    match article {
         Some(p) => {
-            let post_tags = crate::tags::get_tags_for_post(&state.pool, id).await;
+            let article_tags = crate::tags::get_tags_for_article(&state.pool, id).await;
             let selected_ids: std::collections::HashSet<i64> =
-                post_tags.iter().map(|t| t.id).collect();
+                article_tags.iter().map(|t| t.id).collect();
 
             let all_tags = crate::tags::get_all_tags(&state.pool).await;
             let tag_checkboxes = all_tags
@@ -268,25 +272,25 @@ pub async fn edit_post_page(
                 })
                 .collect();
 
-            EditPostTemplate {
+            EditArticleTemplate {
                 blog_name: state.config.blog_name,
-                active_page: "posts",
-                post: p,
+                active_page: "articles",
+                article: p,
                 error: None,
                 tag_checkboxes,
             }
             .into_response()
         }
-        None => Html("Post not found").into_response(),
+        None => Html("Article not found").into_response(),
     }
 }
 
-/// POST /admin/posts/:id/edit -> Update the edited post.
-pub async fn handle_edit_post(
+/// POST /admin/articles/:id/edit -> Update article.
+pub async fn edit_article(
     State(state): State<AppState>,
     session: Session,
     Path(id): Path<i64>,
-    Form(form): Form<CreatePostForm>,
+    Form(form): Form<CreateArticleForm>,
 ) -> impl IntoResponse {
     let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
     if logged_in != Some(true) {
@@ -301,7 +305,7 @@ pub async fn handle_edit_post(
     };
 
     let result = sqlx::query(
-        "UPDATE posts SET title = ?, slug = ?, content = ?, cover_image = ? WHERE id = ?",
+        "UPDATE articles SET title = ?, slug = ?, content = ?, cover_image = ? WHERE id = ?",
     )
     .bind(&form.title)
     .bind(&slug)
@@ -312,16 +316,16 @@ pub async fn handle_edit_post(
     .await;
 
     if result.is_err() {
-        return Html("Database error while updating post").into_response();
+        return Html("Database error while updating article").into_response();
     }
 
-    crate::tags::set_post_tags(&state.pool, id, &form.tag_ids).await;
+    crate::tags::set_article_tags(&state.pool, id, &form.tag_ids).await;
 
-    Redirect::to("/admin/posts").into_response()
+    Redirect::to("/admin/articles").into_response()
 }
 
-/// DELETE /admin/posts/:id -> Remove the post.
-pub async fn delete_post(
+/// DELETE /admin/articles/:id -> Remove article.
+pub async fn delete_article(
     State(state): State<AppState>,
     session: Session,
     Path(id): Path<i64>,
@@ -331,7 +335,7 @@ pub async fn delete_post(
         return axum::http::StatusCode::UNAUTHORIZED.into_response();
     }
 
-    let _ = sqlx::query("DELETE FROM posts WHERE id = ?")
+    let _ = sqlx::query("DELETE FROM articles WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await;
@@ -369,18 +373,37 @@ pub async fn create_tag(
 
     let name = form.name.trim().to_string();
     if name.is_empty() {
-        return Redirect::to("/admin/tags").into_response();
+        return Html("Tag name cannot be empty").into_response();
     }
 
     let slug = crate::tags::slugify(&name);
 
-    let _ = sqlx::query("INSERT OR IGNORE INTO tags (name, slug) VALUES (?, ?)")
+    let result = sqlx::query("INSERT OR IGNORE INTO tags (name, slug) VALUES (?, ?)")
         .bind(&name)
         .bind(&slug)
         .execute(&state.pool)
         .await;
 
-    Redirect::to("/admin/tags").into_response()
+    let insert_result = match result {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Failed to insert tag: {e}");
+            return Html("Database error while creating tag").into_response();
+        }
+    };
+
+    let new_id = insert_result.last_insert_rowid();
+
+    let new_tag = sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags WHERE id = ?")
+        .bind(new_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+
+    match new_tag {
+        Some(tag) => TagItemTemplate { tag }.into_response(),
+        None => Html("Tag created, but failed to load it back.").into_response(),
+    }
 }
 
 /// DELETE /admin/tags/:id -> Remove the tag.

@@ -1,46 +1,101 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{{ blog_name }}</title>
-        <link rel="stylesheet" href="/static/style.css" />
-    </head>
-    <body>
-        <header>
-            <a href="/" class="brand">{{ blog_name }}</a>
-            <nav>
-                <a href="/admin">Admin Panel</a>
-            </nav>
-        </header>
+{% extends "base.html" %} {% block title %}{{ blog_name }} - Home{% endblock %}
+{% block content %} {% if !search_query.is_empty() %}
+<a href="/" class="back-link">
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="m15 18-6-6 6-6" />
+    </svg>
+    Back to Articles
+</a>
 
-        <main class="container">
-            {% for post in posts %}
-            <article class="post-card">
-                {% if let Some(cover) = post.cover_image %}
-                <img
-                    src="{{ cover }}"
-                    alt="{{ post.title }}"
-                    class="post-cover"
-                />
-                {% endif %}
-                <h3><a href="/post/{{ post.slug }}">{{ post.title }}</a></h3>
-                <div class="reading-time">
-                    <span>{{ post.created_at }}</span> •
-                    <span>{{ post.reading_time }} min. reading time</span>
-                </div>
-                {% if !post.tags.is_empty() %}
-                <div class="tag-list">
-                    {% for tag in post.tags %}
-                    <a href="/tag/{{ tag.slug }}" class="tag-chip"
-                        >{{ tag.name }}</a
-                    >
-                    {% endfor %}
-                </div>
-                {% endif %}
-                <p>{{ post.content }}</p>
-            </article>
+<h2 class="mb-lg">Search results for "{{ search_query }}"</h2>
+{% endif %}
+
+<div class="articles-list">
+    {% for article in articles %}
+    <article class="article-card">
+        {% if let Some(cover) = article.cover_image %}
+        <img
+            src="{{ cover }}"
+            alt="{{ article.title }}"
+            class="article-cover"
+        />
+        {% endif %}
+
+        <h3><a href="/article/{{ article.slug }}">{{ article.title }}</a></h3>
+
+        <div class="article-meta">
+            <span class="meta-item">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-calendar"
+                >
+                    <path d="M8 2v4" />
+                    <path d="M16 2v4" />
+                    <rect width="18" height="18" x="3" y="4" rx="2" />
+                    <path d="M3 10h18" />
+                </svg>
+                <span>{{ article.created_at }}</span>
+            </span>
+
+            <span class="meta-dot">•</span>
+
+            <span class="meta-item">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-clock"
+                >
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{{ article.reading_time }} min</span>
+            </span>
+        </div>
+
+        {% if !article.tags.is_empty() %}
+        <div class="tag-list">
+            {% for tag in article.tags %}
+            <a href="/tag/{{ tag.slug }}" class="tag-chip">{{ tag.name }}</a>
             {% endfor %}
-        </main>
-    </body>
-</html>
+        </div>
+        {% endif %}
+
+        <p>{{ article.content }}</p>
+    </article>
+    {% else %}
+    <div class="empty-state" style="text-align: center; padding: 3rem 0">
+        {% if !search_query.is_empty() %}
+        <p class="text-secondary">
+            No articles found matching <strong>"{{ search_query }}"</strong>.
+        </p>
+        {% else %}
+        <p class="text-secondary">
+            No articles published yet. Check back soon!
+        </p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

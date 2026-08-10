@@ -1,11 +1,11 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{Html, IntoResponse, Response},
 };
 use comrak::{markdown_to_html, ComrakOptions};
 
-use crate::models::Post;
-use crate::templates::{IndexTemplate, PostTemplate, TagPageTemplate};
+use crate::models::{Article, SearchQuery, Tag};
+use crate::templates::{ArticleTemplate, IndexTemplate, TagPageTemplate};
 use crate::AppState;
 
 fn xml_escape(input: &str) -> String {
@@ -17,16 +17,20 @@ fn xml_escape(input: &str) -> String {
         .replace('\'', "&apos;")
 }
 
-async fn format_posts_for_listing(pool: &sqlx::Pool<sqlx::Sqlite>, posts: Vec<Post>) -> Vec<Post> {
+async fn format_articles_for_listing(
+    pool: &sqlx::Pool<sqlx::Sqlite>,
+    articles: Vec<Article>,
+) -> Vec<Article> {
     let mut options = ComrakOptions::default();
     options.render.unsafe_ = true;
 
-    let mut formatted: Vec<Post> = posts
+    let mut formatted: Vec<Article> = articles
         .into_iter()
-        .map(|mut post| {
-            post.reading_time = crate::utils::calculate_reading_time(&post.content);
+        .map(|mut article| {
+            article.reading_time = crate::utils::calculate_reading_time(&article.content);
+            article.created_at = crate::utils::format_display_date(&article.created_at);
 
-            let raw_html = markdown_to_html(&post.content, &options);
+            let raw_html = markdown_to_html(&article.content, &options);
 
             let plain_text = ammonia::Builder::new()
                 .tags(std::collections::HashSet::new())
@@ -39,63 +43,78 @@ async fn format_posts_for_listing(pool: &sqlx::Pool<sqlx::Sqlite>, posts: Vec<Po
                 plain_text
             };
 
-            post.content = snippet;
-            post
+            article.content = snippet;
+            article
         })
         .collect();
 
-    let post_ids: Vec<i64> = formatted.iter().map(|p| p.id).collect();
-    let tag_map = crate::tags::get_tags_for_posts(pool, &post_ids).await;
-    for post in formatted.iter_mut() {
-        post.tags = tag_map.get(&post.id).cloned().unwrap_or_default();
+    let article_ids: Vec<i64> = formatted.iter().map(|p| p.id).collect();
+    let tag_map = crate::tags::get_tags_for_articles(pool, &article_ids).await;
+    for article in formatted.iter_mut() {
+        article.tags = tag_map.get(&article.id).cloned().unwrap_or_default();
     }
 
     formatted
 }
 
 pub async fn home_page(State(state): State<AppState>) -> impl IntoResponse {
-    let posts = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts ORDER BY id DESC"
+    let articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
     )
     .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
-    let formatted_posts = format_posts_for_listing(&state.pool, posts).await;
+    let tags = sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
 
     IndexTemplate {
         blog_name: state.config.blog_name,
-        posts: formatted_posts,
+        articles: formatted_articles,
+        tags,
+        search_query: String::new(),
     }
 }
 
-pub async fn show_post(
+pub async fn show_article(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> impl IntoResponse {
-    let _ = sqlx::query("UPDATE posts SET views = views + 1 WHERE slug = ?")
+    let _ = sqlx::query("UPDATE articles SET views = views + 1 WHERE slug = ?")
         .bind(&slug)
         .execute(&state.pool)
         .await;
 
-    let post = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts WHERE slug = ?"
+    let article = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles WHERE slug = ?"
     )
     .bind(&slug)
     .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
-    match post {
+    let tags = sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    match article {
         Some(mut p) => {
             let content_html = crate::utils::render_safe_markdown(&p.content);
             p.reading_time = crate::utils::calculate_reading_time(&p.content);
-            p.tags = crate::tags::get_tags_for_post(&state.pool, p.id).await;
+            p.created_at = crate::utils::format_display_date(&p.created_at);
+            p.tags = crate::tags::get_tags_for_article(&state.pool, p.id).await;
 
-            PostTemplate {
+            ArticleTemplate {
                 blog_name: state.config.blog_name,
                 content_html,
-                post: p,
+                article: p,
+                tags,
+                search_query: String::new(),
             }
             .into_response()
         }
@@ -103,7 +122,7 @@ pub async fn show_post(
     }
 }
 
-/// GET /tag/:slug -> List posts with specified tag.
+/// GET /tag/:slug -> List articles by tag.
 pub async fn tag_page(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -113,17 +132,25 @@ pub async fn tag_page(
             .bind(&slug)
             .fetch_optional(&state.pool)
             .await
-            .unwrap_or(None);
+            .ok()
+            .flatten();
 
     let tag = match tag {
         Some(t) => t,
         None => return Html("<h1>404 Not Found</h1>".to_string()).into_response(),
     };
 
-    let posts = sqlx::query_as::<_, Post>(
+    let all_tags = sqlx::query_as::<_, crate::models::Tag>(
+        "SELECT id, name, slug FROM tags ORDER BY name ASC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let articles = sqlx::query_as::<_, Article>(
         "SELECT p.id, p.title, p.slug, p.content, p.cover_image, COALESCE(p.views, 0) as views, COALESCE(p.created_at, CURRENT_TIMESTAMP) as created_at
-         FROM posts p
-         INNER JOIN post_tags pt ON pt.post_id = p.id
+         FROM articles p
+         INNER JOIN article_tags pt ON pt.article_id = p.id
          WHERE pt.tag_id = ?
          ORDER BY p.id DESC"
     )
@@ -132,12 +159,14 @@ pub async fn tag_page(
     .await
     .unwrap_or_default();
 
-    let formatted_posts = format_posts_for_listing(&state.pool, posts).await;
+    let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
 
     TagPageTemplate {
         blog_name: state.config.blog_name,
         tag_name: tag.name,
-        posts: formatted_posts,
+        articles: formatted_articles,
+        tags: all_tags,
+        search_query: String::new(),
     }
     .into_response()
 }
@@ -149,8 +178,8 @@ pub async fn health_check() -> impl IntoResponse {
 
 /// GET /rss.xml -> Dynamic RSS 2.0 Feed output
 pub async fn rss_feed(State(state): State<AppState>) -> Response {
-    let posts = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts ORDER BY id DESC LIMIT 20"
+    let articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC LIMIT 20"
     )
     .fetch_all(&state.pool)
     .await
@@ -159,16 +188,16 @@ pub async fn rss_feed(State(state): State<AppState>) -> Response {
     let base_url = &state.config.base_url;
 
     let mut items = String::new();
-    for post in posts {
-        let title = xml_escape(&post.title);
-        let slug = xml_escape(&post.slug);
-        let pub_date = xml_escape(&post.created_at);
+    for article in articles {
+        let title = xml_escape(&article.title);
+        let slug = xml_escape(&article.slug);
+        let pub_date = xml_escape(&article.created_at);
 
         items.push_str(&format!(
             r#"<item>
                 <title>{}</title>
-                <link>{}/post/{}</link>
-                <guid>{}/post/{}</guid>
+                <link>{}/article/{}</link>
+                <guid>{}/article/{}</guid>
                 <pubDate>{}</pubDate>
             </item>"#,
             title, base_url, slug, base_url, slug, pub_date
@@ -198,8 +227,8 @@ pub async fn rss_feed(State(state): State<AppState>) -> Response {
 
 /// GET /sitemap.xml -> Dynamic Google Sitemap output
 pub async fn sitemap_xml(State(state): State<AppState>) -> Response {
-    let posts = sqlx::query_as::<_, Post>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM posts ORDER BY id DESC"
+    let articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
     )
     .fetch_all(&state.pool)
     .await
@@ -215,11 +244,11 @@ pub async fn sitemap_xml(State(state): State<AppState>) -> Response {
         base_url
     );
 
-    for post in posts {
-        let slug = xml_escape(&post.slug);
+    for article in articles {
+        let slug = xml_escape(&article.slug);
         urls.push_str(&format!(
             r#"<url>
-                <loc>{}/post/{}</loc>
+                <loc>{}/article/{}</loc>
                 <priority>0.8</priority>
             </url>"#,
             base_url, slug
@@ -238,4 +267,44 @@ pub async fn sitemap_xml(State(state): State<AppState>) -> Response {
         .header("Content-Type", "application/xml; charset=utf-8")
         .body(xml.into())
         .unwrap()
+}
+
+/// GET /search?q=query -> Search query.
+pub async fn search_article(
+    State(state): State<AppState>,
+    Query(query): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let search_term = query.q.unwrap_or_default().trim().to_string();
+
+    if search_term.is_empty() {
+        return axum::response::Redirect::to("/").into_response();
+    }
+
+    let pattern = format!("%{}%", search_term);
+    let articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at
+         FROM articles
+         WHERE title LIKE ? OR content LIKE ?
+         ORDER BY id DESC"
+    )
+    .bind(&pattern)
+    .bind(&pattern)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let tags = sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
+
+    IndexTemplate {
+        blog_name: state.config.blog_name,
+        articles: formatted_articles,
+        tags,
+        search_query: search_term,
+    }
+    .into_response()
 }

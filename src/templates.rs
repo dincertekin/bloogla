@@ -1,4 +1,4 @@
-use crate::models::{Post, Tag};
+use crate::models::{Article, Tag};
 use askama::Template;
 
 /// Homepage template (`templates/index.html`)
@@ -6,7 +6,9 @@ use askama::Template;
 #[template(path = "index.html")]
 pub struct IndexTemplate {
     pub blog_name: String,
-    pub posts: Vec<Post>,
+    pub articles: Vec<Article>,
+    pub tags: Vec<Tag>,
+    pub search_query: String,
 }
 
 /// Admin login page template (`templates/login.html`)
@@ -16,31 +18,33 @@ pub struct LoginTemplate {
     pub error: Option<String>,
 }
 
-/// New post card template (`templates/post_item.html`)
+/// New article card template (`templates/article_item.html`)
 #[derive(Template)]
-#[template(path = "post_item.html")]
-pub struct PostItemTemplate {
-    pub post: Post,
+#[template(path = "article_item.html")]
+pub struct ArticleItemTemplate {
+    pub article: Article,
 }
 
-/// Post edit page template (`templates/edit_post.html`)
+/// Article edit page template (`templates/edit_article.html`)
 #[derive(Template)]
-#[template(path = "edit_post.html")]
-pub struct EditPostTemplate {
+#[template(path = "edit_article.html")]
+pub struct EditArticleTemplate {
     pub blog_name: String,
     pub active_page: &'static str,
-    pub post: Post,
+    pub article: Article,
     pub error: Option<String>,
     pub tag_checkboxes: Vec<(Tag, bool)>,
 }
 
-/// Post details page template (`templates/post.html`)
+/// Article details page template (`templates/article.html`)
 #[derive(Template)]
-#[template(path = "post.html")]
-pub struct PostTemplate {
+#[template(path = "article.html")]
+pub struct ArticleTemplate {
     pub blog_name: String,
     pub content_html: String,
-    pub post: Post,
+    pub article: Article,
+    pub tags: Vec<Tag>,
+    pub search_query: String,
 }
 
 /// Admin dashboard template (`templates/admin.html`)
@@ -49,10 +53,10 @@ pub struct PostTemplate {
 pub struct AdminTemplate {
     pub blog_name: String,
     pub active_page: &'static str,
-    pub total_posts: i64,
+    pub total_articles: i64,
     pub total_views: i64,
-    pub posts: Vec<Post>,
-    pub top_posts: Vec<Post>,
+    pub articles: Vec<Article>,
+    pub top_articles: Vec<Article>,
     pub max_views: i64,
     pub growth_points: String,
     pub growth_max: i64,
@@ -60,13 +64,13 @@ pub struct AdminTemplate {
     pub growth_last_date: String,
 }
 
-/// Admin all posts page template (`templates/posts.html`)
+/// Admin all articles page template (`templates/articles.html`)
 #[derive(Template)]
-#[template(path = "posts.html")]
-pub struct PostsTemplate {
+#[template(path = "articles.html")]
+pub struct ArticlesTemplate {
     pub blog_name: String,
     pub active_page: &'static str,
-    pub posts: Vec<Post>,
+    pub articles: Vec<Article>,
     pub all_tags: Vec<Tag>,
 }
 
@@ -85,5 +89,14 @@ pub struct TagsTemplate {
 pub struct TagPageTemplate {
     pub blog_name: String,
     pub tag_name: String,
-    pub posts: Vec<Post>,
+    pub articles: Vec<Article>,
+    pub tags: Vec<Tag>,
+    pub search_query: String,
+}
+
+/// New tag item template (`templates/tag_item.html`)
+#[derive(Template)]
+#[template(path = "tag_item.html")]
+pub struct TagItemTemplate {
+    pub tag: Tag,
 }

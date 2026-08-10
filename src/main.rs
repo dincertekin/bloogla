@@ -114,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap(),
     );
 
-    // 1 year caching for static files
+    // 1 Year Cache for Static Files
     let static_cache_layer = SetResponseHeaderLayer::overriding(
         header::CACHE_CONTROL,
         HeaderValue::from_static("public, max-age=31536000, immutable"),
@@ -129,7 +129,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(static_cache_layer),
         )
         .route("/", get(handlers::public::home_page))
-        .route("/post/:slug", get(handlers::public::show_post))
+        .route("/search", get(handlers::public::search_article))
+        .route("/article/:slug", get(handlers::public::show_article))
         .route("/tag/:slug", get(handlers::public::tag_page))
         .route("/health", get(handlers::public::health_check))
         .route("/rss.xml", get(handlers::public::rss_feed))
@@ -143,15 +144,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }),
         )
         .route("/admin/logout", get(handlers::auth::handle_logout))
-        // Post Management (CRUD) Routes
+        // Article Management (CRUD) Routes
         .route("/admin", get(handlers::admin::admin_dashboard))
-        .route("/admin/posts", get(handlers::admin::posts_page))
-        .route("/admin/posts/new", post(handlers::admin::create_post))
+        .route("/admin/articles", get(handlers::admin::list_articles))
+        .route("/admin/articles/new", post(handlers::admin::create_article))
         .route(
-            "/admin/posts/:id/edit",
-            get(handlers::admin::edit_post_page).post(handlers::admin::handle_edit_post),
+            "/admin/articles/:id/edit",
+            get(handlers::admin::edit_article_page).post(handlers::admin::edit_article),
         )
-        .route("/admin/posts/:id", delete(handlers::admin::delete_post))
+        .route(
+            "/admin/articles/:id",
+            delete(handlers::admin::delete_article),
+        )
         // Tag Management (CRUD) Routes
         .route("/admin/tags", get(handlers::admin::tags_page))
         .route("/admin/tags/new", post(handlers::admin::create_tag))

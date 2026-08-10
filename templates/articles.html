@@ -1,27 +1,44 @@
-{% extends "admin_base.html" %} {% block title %}Posts{% endblock %} {% block
+{% extends "admin_base.html" %} {% block title %}Articles{% endblock %} {% block
 content %}
 <div class="page-header">
-    <h1>Posts</h1>
+    <h1>Articles</h1>
 </div>
 
-<!-- Create Post Form -->
-<section class="card">
-    <h2>Create New Post</h2>
+<details class="card collapsible-card">
+    <summary class="card-header">
+        <h2>Create New Article</h2>
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="chevron-icon"
+        >
+            <path d="m6 9 6 6 6-6" />
+        </svg>
+    </summary>
+
     <form
-        action="/admin/posts/new"
+        action="/admin/articles/new"
         method="POST"
-        hx-post="/admin/posts/new"
-        hx-target="#posts-list"
+        hx-post="/admin/articles/new"
+        hx-target="#articles-list"
         hx-swap="afterbegin"
         hx-on::after-request="if(event.detail.successful) this.reset()"
+        style="margin-top: 1rem"
     >
         <div class="form-group">
-            <label for="title">Post Title</label>
+            <label for="title">Title</label>
             <input
                 type="text"
                 id="title"
                 name="title"
-                placeholder="Enter post title..."
+                placeholder="Enter title..."
                 required
             />
         </div>
@@ -62,27 +79,29 @@ content %}
                 {% endfor %} {% if all_tags.is_empty() %}
                 <span class="text-muted"
                     >No tags yet —
-                    <a href="/admin/tags">create some first</a>.</span
+                    <a class="text-muted" href="/admin/tags"
+                        >create some first</a
+                    >.</span
                 >
                 {% endif %}
             </div>
         </div>
 
-        <button type="submit" class="btn-submit">Publish Post</button>
+        <button type="submit" class="btn-submit">Publish Article</button>
     </form>
-</section>
+</details>
 
 <section class="card">
-    <div id="posts-list">
-        {% if posts.is_empty() %}
-        <p id="empty-state" class="empty-state">No posts published yet.</p>
-        {% endif %} {% for post in posts %}
-        <div class="article-item" id="article-{{ post.id }}">
+    <div id="articles-list">
+        {% if articles.is_empty() %}
+        <p id="empty-state" class="empty-state">No articles published yet.</p>
+        {% endif %} {% for article in articles %}
+        <div class="article-item" id="article-{{ article.id }}">
             <div class="article-info">
-                {% if let Some(cover) = post.cover_image %}
+                {% if let Some(cover) = article.cover_image %}
                 <img
                     src="{{ cover }}"
-                    alt="{{ post.title }}"
+                    alt="{{ article.title }}"
                     class="article-cover-preview"
                 />
                 {% else %}
@@ -91,7 +110,7 @@ content %}
                 </div>
                 {% endif %}
                 <div>
-                    <strong>{{ post.title }}</strong>
+                    <strong>{{ article.title }}</strong>
                     <div class="article-meta">
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -109,11 +128,11 @@ content %}
                             />
                             <circle cx="12" cy="12" r="3" />
                         </svg>
-                        {{ post.views }} views
+                        {{ article.views }} views
                     </div>
-                    {% if !post.tags.is_empty() %}
+                    {% if !article.tags.is_empty() %}
                     <div class="article-tags">
-                        {% for tag in post.tags %}
+                        {% for tag in article.tags %}
                         <span class="tag-chip">{{ tag.name }}</span>
                         {% endfor %}
                     </div>
@@ -121,16 +140,15 @@ content %}
                 </div>
             </div>
             <div>
-                <a href="/admin/posts/{{ post.id }}/edit" class="link-edit"
+                <a
+                    href="/admin/articles/{{ article.id }}/edit"
+                    class="link-edit"
                     >Edit</a
                 >
                 <button
                     type="button"
                     class="btn-delete"
-                    hx-delete="/admin/posts/{{ post.id }}"
-                    hx-target="#article-{{ post.id }}"
-                    hx-swap="delete"
-                    hx-confirm="Are you sure you want to delete this article?"
+                    onclick="openDeleteModal('{{ article.id }}')"
                 >
                     Delete
                 </button>
@@ -139,10 +157,34 @@ content %}
         {% endfor %}
     </div>
 </section>
+
+<!-- Custom Delete Modal -->
+<div id="delete-modal" class="modal-overlay">
+    <div class="modal-card">
+        <h3>Delete Article</h3>
+        <p>
+            Are you sure you want to delete this article? This action cannot be
+            undone.
+        </p>
+        <div class="modal-actions">
+            <button
+                type="button"
+                class="btn-secondary"
+                onclick="closeDeleteModal()"
+            >
+                Cancel
+            </button>
+            <button type="button" id="confirm-delete-btn" class="btn-danger">
+                Delete
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %} {% block scripts %}
 <script>
     document
-        .getElementById("posts-list")
+        .getElementById("articles-list")
         .addEventListener("htmx:afterSwap", function () {
             const empty = document.getElementById("empty-state");
             if (empty) empty.remove();
@@ -152,7 +194,7 @@ content %}
         const verb = evt.detail.requestConfig && evt.detail.requestConfig.verb;
         if (verb !== "delete") return;
 
-        const list = document.getElementById("posts-list");
+        const list = document.getElementById("articles-list");
         if (!list) return;
 
         const hasItems = list.querySelectorAll(".article-item").length > 0;
@@ -160,8 +202,41 @@ content %}
             const emptyMsg = document.createElement("p");
             emptyMsg.id = "empty-state";
             emptyMsg.className = "empty-state";
-            emptyMsg.textContent = "No posts published yet.";
+            emptyMsg.textContent = "No articles published yet.";
             list.prepend(emptyMsg);
+        }
+    });
+
+    function openDeleteModal(articleId) {
+        const modal = document.getElementById("delete-modal");
+        const confirmBtn = document.getElementById("confirm-delete-btn");
+
+        confirmBtn.setAttribute("hx-delete", `/admin/articles/${articleId}`);
+        confirmBtn.setAttribute("hx-target", `#article-${articleId}`);
+        confirmBtn.setAttribute("hx-swap", "delete");
+
+        htmx.process(confirmBtn);
+
+        modal.classList.add("active");
+    }
+
+    function closeDeleteModal() {
+        const modal = document.getElementById("delete-modal");
+        if (modal) modal.classList.remove("active");
+    }
+
+    document
+        .getElementById("delete-modal")
+        .addEventListener("click", function (evt) {
+            if (evt.target === this) {
+                closeDeleteModal();
+            }
+        });
+
+    document.body.addEventListener("htmx:afterOnLoad", function (evt) {
+        const verb = evt.detail.requestConfig && evt.detail.requestConfig.verb;
+        if (verb === "delete" && evt.detail.successful) {
+            closeDeleteModal();
         }
     });
 </script>

@@ -1,3 +1,7 @@
+/* ============================================================
+   1. VARIABLES & BASE RESET
+   ============================================================ */
+
 :root {
     --bg-main: #fafafa;
     --bg-card: #ffffff;
@@ -33,18 +37,40 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* Header */
-header {
+/* ============================================================
+   2. LAYOUT & CONTAINER
+   ============================================================ */
+
+.container {
+    max-width: 680px;
+    margin: 3rem auto;
+    padding: 0 1.25rem;
+}
+
+/* ============================================================
+   3. SITE HEADER & NAVIGATION
+   ============================================================ */
+
+header.site-header {
     background-color: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border-light);
     position: sticky;
     top: 0;
     z-index: 10;
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
+    padding: 0.75rem 2rem;
+
+    display: grid;
+    grid-template-columns: 1fr minmax(300px, 480px) 1fr;
     align-items: center;
+    gap: 1.5rem;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-shrink: 0;
 }
 
 header a.brand {
@@ -55,27 +81,168 @@ header a.brand {
     letter-spacing: -0.02em;
 }
 
-header nav a {
+.main-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-link {
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.9rem;
-    margin-left: 1.25rem;
-    transition: color 0.15s;
+    font-weight: 500;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    transition: all 0.15s ease;
 }
 
-header nav a:hover {
+.nav-link:hover {
     color: var(--text-primary);
+    background-color: var(--chip-bg);
 }
 
-/* Layout */
-.container {
-    max-width: 680px;
-    margin: 3rem auto;
-    padding: 0 1.25rem;
+/* Header Center - Search Bar */
+.header-center {
+    justify-self: center;
+    width: 100%;
 }
 
-/* Cards */
-.post-card {
+.search-form {
+    position: relative;
+    width: 100%;
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.search-input {
+    width: 100% !important;
+    padding: 0.45rem 1rem 0.45rem 2.4rem !important;
+    font-size: 0.875rem !important;
+    background-color: var(--chip-bg) !important;
+    border: 1px solid transparent !important;
+    border-radius: 999px !important;
+    transition: all 0.15s ease !important;
+}
+
+.search-input:focus {
+    background-color: var(--bg-card) !important;
+    border-color: var(--border-light) !important;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Header Right */
+.header-right {
+    display: flex;
+    align-items: center;
+    justify-self: end;
+    flex-shrink: 0;
+}
+
+.btn-login {
+    background-color: var(--accent-black);
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+}
+
+.btn-login:hover {
+    background-color: var(--accent-hover);
+}
+
+/* Navigation Dropdown */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-trigger {
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.dropdown-trigger:hover,
+.dropdown:hover .dropdown-trigger {
+    color: var(--text-primary);
+    background-color: var(--chip-bg);
+}
+
+.dropdown-trigger svg {
+    transition: transform 0.2s ease;
+}
+
+.dropdown:hover .dropdown-trigger svg {
+    transform: rotate(180deg);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 0.4rem;
+    min-width: 160px;
+    box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.08),
+        0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: all 0.2s ease;
+    z-index: 20;
+}
+
+.dropdown:hover .dropdown-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.dropdown-item {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-radius: 6px;
+    transition: background-color 0.12s ease;
+    margin: 0 !important;
+}
+
+.dropdown-item:hover {
+    background-color: var(--chip-bg);
+    color: var(--accent-black);
+}
+
+/* ============================================================
+   4. ARTICLE CARDS & FEEDS
+   ============================================================ */
+
+.article-card {
     background: var(--bg-card);
     border: 1px solid var(--border-light);
     border-radius: 12px;
@@ -87,35 +254,34 @@ header nav a:hover {
         box-shadow 0.15s ease;
 }
 
-.post-card:hover {
+.article-card:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05);
 }
 
-.post-card h3 {
+.article-card h3 {
     font-size: 1.25rem;
     font-weight: 600;
     letter-spacing: -0.02em;
     margin-bottom: 0.4rem;
 }
 
-.post-card h3 a {
+.article-card h3 a {
     color: var(--text-primary);
     text-decoration: none;
 }
 
-.post-card h3 a:hover {
+.article-card h3 a:hover {
     text-decoration: underline;
 }
 
-.post-card p {
+.article-card p {
     color: var(--text-secondary);
     font-size: 0.95rem;
     line-height: 1.5;
 }
 
-/* Post cover images (index/tag listings + post detail) */
-.post-cover {
+.article-cover {
     width: 100%;
     height: 300px;
     object-fit: cover;
@@ -123,30 +289,49 @@ header nav a:hover {
     margin-bottom: 1.5rem;
 }
 
-.post-cover-detail {
+.article-cover-detail {
     margin: 1.5rem 0;
 }
 
-/* Reading time / meta line under a post title */
+.article-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-top: 0.35rem;
+    margin-bottom: 0.75rem;
+}
+
 .reading-time {
     font-size: 0.85rem;
     color: var(--text-secondary);
 }
 
-/* Back-to-list link above the post-card on the detail page */
 .back-link {
-    display: inline-block;
-    margin-bottom: 1.25rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
     text-decoration: none;
+    color: #4b5563;
+    font-size: 0.9rem;
+    font-weight: 500;
+
+    margin-bottom: 0.875rem;
+}
+
+.back-link svg {
+    width: 1.1em;
+    height: 1.1em;
+    stroke-width: 2.2;
+    display: block;
 }
 
 .back-link:hover {
-    color: var(--text-primary);
+    color: #111827;
 }
 
-/* Tag chips: shown under post titles, clickable, link to /tag/:slug */
+/* Tag Chips */
 .tag-list {
     display: flex;
     flex-wrap: wrap;
@@ -165,83 +350,26 @@ header nav a:hover {
     text-decoration: none;
 }
 
-/* Generic small secondary/muted text helpers */
-.text-secondary {
-    color: var(--text-secondary);
+.meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
-.text-muted {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+.meta-dot {
+    opacity: 0.5;
 }
 
-.empty-state {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-}
+/* ============================================================
+   5. ARTICLE CONTENT (DETAIL PAGE)
+   ============================================================ */
 
-.mb-lg {
-    margin-bottom: 1.5rem;
-}
-
-.error-message {
-    color: var(--danger);
-    font-size: 0.85rem;
-    margin-bottom: 1rem;
-}
-
-/* Form Controls */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="url"],
-textarea {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    background-color: var(--bg-card);
-    font-family: inherit;
-    font-size: 0.95rem;
-    outline: none;
-    transition: border-color 0.15s;
-}
-
-input:focus,
-textarea:focus {
-    border-color: var(--accent-black);
-}
-
-button {
-    background-color: var(--accent-black);
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    padding: 0.65rem 1.25rem;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.15s;
-}
-
-button:hover {
-    background-color: var(--accent-hover);
-}
-
-button.btn-danger {
-    background-color: var(--danger);
-}
-
-button.btn-danger:hover {
-    background-color: var(--danger-hover);
-}
-
-/* Article Reading Experience */
 .post-content {
     font-size: 1.125rem;
     line-height: 1.8;
     color: #1f2937;
     margin-top: 1rem;
+    max-width: 68ch; /* İdeal satır okuma genişliği (~68 karakter) */
 }
 
 .post-content p {
@@ -273,7 +401,83 @@ button.btn-danger:hover {
     font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
 }
 
-/* Modal Pop-up Styles */
+.post-content pre {
+    max-width: 100%;
+    overflow-x: auto;
+    background-color: #f3f4f6;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.post-content pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+/* ============================================================
+   6. FORMS & BUTTONS
+   ============================================================ */
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="url"],
+textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background-color: var(--bg-card);
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.15s;
+    resize: vertical;
+}
+
+input:focus,
+textarea:focus {
+    border-color: var(--accent-black);
+}
+
+button {
+    background-color: var(--accent-black);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+button:hover {
+    background-color: var(--accent-hover);
+}
+
+button.btn-danger {
+    background-color: var(--danger);
+}
+
+button.btn-danger:hover {
+    background-color: var(--danger-hover);
+}
+
+.btn-secondary {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+}
+
+.btn-secondary:hover {
+    background: #f3f4f6;
+}
+
+/* ============================================================
+   7. MODALS & OVERLAYS
+   ============================================================ */
+
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -301,7 +505,7 @@ button.btn-danger:hover {
     border: 1px solid var(--border-light);
     border-radius: 16px;
     padding: 1.75rem;
-    max-width: 400px;
+    max-width: 600px;
     width: 90%;
     box-shadow:
         0 20px 25px -5px rgba(0, 0, 0, 0.1),
@@ -333,18 +537,8 @@ button.btn-danger:hover {
     gap: 0.75rem;
 }
 
-.btn-secondary {
-    background: transparent;
-    color: var(--text-primary);
-    border: 1px solid var(--border-light);
-}
-
-.btn-secondary:hover {
-    background: #f3f4f6;
-}
-
 /* ============================================================
-   ADMIN PANEL (admin_base.html'den taşındı)
+   8. ADMIN PANEL
    ============================================================ */
 
 .admin-layout {
@@ -352,6 +546,7 @@ button.btn-danger:hover {
     min-height: 100vh;
 }
 
+/* Admin Sidebar */
 .sidebar {
     width: 260px;
     background: var(--bg-card);
@@ -375,31 +570,50 @@ button.btn-danger:hover {
     display: block;
 }
 
+.sidebar nav {
+    margin-top: 1rem;
+}
+
 .nav-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
     list-style: none;
     padding: 0;
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    color: #4b5563;
+    padding: 0.65rem 0.85rem;
+    color: var(--text-secondary);
     text-decoration: none;
-    border-radius: 8px;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 500;
+    border-radius: 8px;
     transition: all 0.15s ease;
 }
 
-.nav-item:hover,
+.nav-item:hover {
+    color: var(--text-primary);
+    background-color: var(--chip-bg);
+}
+
 .nav-item.active {
-    background-color: #f3f4f6;
+    color: var(--text-primary);
+    background-color: var(--chip-bg);
+    font-weight: 600;
+}
+
+.nav-item svg {
+    color: var(--text-muted);
+    transition: color 0.15s ease;
+}
+
+.nav-item:hover svg,
+.nav-item.active svg {
     color: var(--text-primary);
 }
 
@@ -407,10 +621,16 @@ button.btn-danger:hover {
     color: var(--danger);
 }
 
-.nav-item.text-red:hover {
-    background-color: #fef2f2;
+.nav-item.text-red svg {
+    color: var(--danger);
 }
 
+.nav-item.text-red:hover {
+    background-color: #fef2f2;
+    color: var(--danger-hover);
+}
+
+/* Admin Content Area */
 .main-content {
     flex: 1;
     padding: 2.5rem 3rem;
@@ -427,6 +647,7 @@ button.btn-danger:hover {
     color: var(--text-primary);
 }
 
+/* Admin Dashboard Cards & Stats */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -473,6 +694,7 @@ button.btn-danger:hover {
     color: var(--text-primary);
 }
 
+/* Admin Forms */
 .form-group {
     display: flex;
     flex-direction: column;
@@ -510,13 +732,34 @@ button.btn-danger:hover {
 }
 
 .btn-submit:hover {
-    /* background-color'ı burada AÇIKÇA tekrar veriyoruz. Aksi halde global
-     button:hover kuralı (element+pseudo, class'tan daha yüksek specificity)
-     bunun yerine geçer ve renk fark edilmeden değişir. */
     background: var(--text-primary);
     opacity: 0.9;
 }
 
+.tag-chip-input {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tag-chip-option {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #374151;
+    background: var(--chip-bg);
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.tag-chip-option input {
+    margin: 0;
+}
+
+/* Admin Article List Items */
 .article-item {
     display: flex;
     align-items: center;
@@ -589,17 +832,12 @@ button.btn-danger:hover {
 }
 
 .btn-delete:hover {
-    /* BUG FIX: background ve color'ı burada AÇIKÇA belirtmezsek, global
-     `button:hover { background-color: var(--accent-hover); }` kuralı
-     (element+pseudo specificity'si, .btn-delete'in normal haldeki
-     class specificity'sinden yüksek) devreye girip butonu hover'da
-     neredeyse siyaha (#1f2937) boyuyordu. */
     background: none;
     color: var(--danger);
     text-decoration: underline;
 }
 
-/* Views Bar Chart */
+/* Admin Analytics / Views Bar Chart */
 .chart-row {
     display: flex;
     align-items: center;
@@ -654,26 +892,58 @@ button.btn-danger:hover {
     color: var(--text-primary);
 }
 
-/* Tag Checkbox Chips (create/edit post forms) */
-.tag-chip-input {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+/* ============================================================
+   9. UTILITIES & HELPERS
+   ============================================================ */
+
+.text-secondary {
+    color: var(--text-secondary);
 }
 
-.tag-chip-option {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
+.text-muted {
     font-size: 0.85rem;
-    font-weight: 400;
-    color: #374151;
-    background: var(--chip-bg);
-    padding: 0.35rem 0.7rem;
-    border-radius: 999px;
-    cursor: pointer;
+    color: var(--text-muted);
 }
 
-.tag-chip-option input {
+.empty-state {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.mb-lg {
+    margin-bottom: 1.5rem;
+}
+
+.error-message {
+    color: var(--danger);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+/* Tarayıcının varsayılan detay okunu gizle */
+.collapsible-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible-card summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.collapsible-card summary h2 {
     margin: 0;
+}
+
+/* Lucide Chevron Ikonu animasyonu */
+.collapsible-card .chevron-icon {
+    transition: transform 0.2s ease;
+    color: #6b7280;
+}
+
+.collapsible-card[open] .chevron-icon {
+    transform: rotate(180deg);
 }

@@ -1,0 +1,14 @@
+<div class="article-item" id="tag-{{ tag.id }}">
+    <div class="article-info">
+        <strong style="color: #111827">{{ tag.name }}</strong>
+    </div>
+    <div>
+        <button
+            type="button"
+            class="btn-delete"
+            onclick="openDeleteModal('{{ tag.id }}')"
+        >
+            Delete
+        </button>
+    </div>
+</div>

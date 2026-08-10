@@ -1,5 +1,5 @@
-{% extends "base.html" %} {% block title %}#{{ tag_name }} - {{ blog_name }}{%
-endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}{{ article.title }} - {{ blog_name
+}}{% endblock %} {% block content %}
 <a href="/" class="back-link">
     <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -14,17 +14,8 @@ endblock %} {% block content %}
     Back to Articles
 </a>
 
-<h2 class="mb-lg">Articles tagged "{{ tag_name }}"</h2>
-
-{% if articles.is_empty() %}
-<p class="text-secondary">No articles with this tag yet.</p>
-{% endif %} {% for article in articles %}
 <article class="article-card">
-    {% if let Some(cover) = article.cover_image %}
-    <img src="{{ cover }}" alt="{{ article.title }}" class="article-cover" />
-    {% endif %}
-
-    <h3><a href="/article/{{ article.slug }}">{{ article.title }}</a></h3>
+    <h1>{{ article.title }}</h1>
 
     <div class="article-meta">
         <!-- Date -->
@@ -70,6 +61,30 @@ endblock %} {% block content %}
             </svg>
             <span>{{ article.reading_time }} min</span>
         </span>
+
+        <span class="meta-dot">•</span>
+
+        <!-- Views -->
+        <span class="meta-item">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-eye"
+            >
+                <path
+                    d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                />
+                <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>{{ article.views }} views</span>
+        </span>
     </div>
 
     {% if !article.tags.is_empty() %}
@@ -78,8 +93,14 @@ endblock %} {% block content %}
         <a href="/tag/{{ tag.slug }}" class="tag-chip">{{ tag.name }}</a>
         {% endfor %}
     </div>
+    {% endif %} {% if let Some(cover) = article.cover_image %}
+    <img
+        src="{{ cover }}"
+        alt="{{ article.title }}"
+        class="article-cover article-cover-detail"
+    />
     {% endif %}
 
-    <p>{{ article.content }}</p>
+    <div class="article-content">{{ content_html|safe }}</div>
 </article>
-{% endfor %} {% endblock %}
+{% endblock %}

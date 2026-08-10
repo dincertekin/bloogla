@@ -8,7 +8,7 @@ block content %}
 <div class="stats-grid">
     <div class="stat-card">
         <h3>TOTAL ARTICLES</h3>
-        <p class="stat-number">{{ total_posts }}</p>
+        <p class="stat-number">{{ total_articles }}</p>
     </div>
     <div class="stat-card">
         <h3>TOTAL VIEWS</h3>
@@ -36,18 +36,18 @@ block content %}
         </svg>
         Top Articles by Views
     </h2>
-    {% if top_posts.is_empty() %}
+    {% if top_articles.is_empty() %}
     <p style="color: #6b7280; font-size: 0.95rem">No data yet.</p>
-    {% else %} {% for post in top_posts %}
+    {% else %} {% for article in top_articles %}
     <div class="chart-row">
-        <div class="chart-label">{{ post.title }}</div>
+        <div class="chart-label">{{ article.title }}</div>
         <div class="chart-bar-track">
             <div
                 class="chart-bar-fill"
-                style="width: {{ post.views * 100 / max_views }}%;"
+                style="width: {{ article.views * 100 / max_views }}%;"
             ></div>
         </div>
-        <div class="chart-value">{{ post.views }}</div>
+        <div class="chart-value">{{ article.views }}</div>
     </div>
     {% endfor %} {% endif %}
 </section>
@@ -71,7 +71,7 @@ block content %}
         </svg>
         Growth Over Time
     </h2>
-    {% if posts.is_empty() %}
+    {% if articles.is_empty() %}
     <p style="color: #6b7280; font-size: 0.95rem">No data yet.</p>
     {% else %}
     <svg

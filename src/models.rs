@@ -9,7 +9,7 @@ pub struct AppState {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
-pub struct Post {
+pub struct Article {
     pub id: i64,
     pub title: String,
     pub slug: String,
@@ -37,7 +37,7 @@ pub struct LoginForm {
 }
 
 #[derive(serde::Deserialize)]
-pub struct CreatePostForm {
+pub struct CreateArticleForm {
     pub title: String,
     pub content: String,
     pub cover_image: Option<String>,
@@ -48,4 +48,9 @@ pub struct CreatePostForm {
 #[derive(serde::Deserialize)]
 pub struct CreateTagForm {
     pub name: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct SearchQuery {
+    pub q: Option<String>,
 }

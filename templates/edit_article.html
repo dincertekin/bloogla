@@ -1,21 +1,35 @@
-{% extends "admin_base.html" %} {% block title %}Edit Post{% endblock %} {%
+{% extends "admin_base.html" %} {% block title %}Edit Article{% endblock %} {%
 block content %}
+<a href="/admin/articles" class="back-link"
+    ><svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="m15 18-6-6 6-6" />
+    </svg>
+    Back to Articles</a
+>
+
 <div class="page-header">
-    <h1>Edit Post</h1>
+    <h1>Edit Article</h1>
 </div>
 
 <section class="card">
     {% if let Some(err) = error %}
     <p class="error-message">{{ err }}</p>
     {% endif %}
-    <form method="POST" action="/admin/posts/{{ post.id }}/edit">
+    <form method="POST" action="/admin/articles/{{ article.id }}/edit">
         <div class="form-group">
             <label for="title">Title</label>
             <input
                 type="text"
                 id="title"
                 name="title"
-                value="{{ post.title }}"
+                value="{{ article.title }}"
                 required
             />
         </div>
@@ -26,15 +40,15 @@ block content %}
                 type="url"
                 id="cover_image"
                 name="cover_image"
-                value="{% if let Some(cover) = post.cover_image %}{{ cover }}{% endif %}"
+                value="{% if let Some(cover) = article.cover_image %}{{ cover }}{% endif %}"
                 placeholder="https://images.unsplash.com/photo-..."
             />
         </div>
 
         <div class="form-group">
-            <label for="content">Content (Markdown)</label>
+            <label for="content">Content (Markdown Supported)</label>
             <textarea id="content" name="content" rows="12" required>
-{{ post.content }}</textarea>
+{{ article.content }}</textarea>
         </div>
 
         <div class="form-group">
@@ -58,13 +72,15 @@ block content %}
                 {% endfor %} {% if tag_checkboxes.is_empty() %}
                 <span class="text-muted"
                     >No tags yet —
-                    <a href="/admin/tags">create some first</a>.</span
+                    <a class="text-muted" href="/admin/tags"
+                        >create some first</a
+                    >.</span
                 >
                 {% endif %}
             </div>
         </div>
 
-        <button type="submit" class="btn-submit">Update Post</button>
+        <button type="submit" class="btn-submit">Update Article</button>
     </form>
 </section>
 {% endblock %}
