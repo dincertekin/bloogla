@@ -1,54 +1,71 @@
-<div class="article-item" id="article-{{ article.id }}">
-    <div class="article-info">
+<div class="card" id="article-{{ article.id }}" style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+    ">
+    <div style="display: flex; align-items: center; gap: 1rem">
         {% if let Some(cover) = article.cover_image %}
-        <img
-            src="{{ cover }}"
-            alt="{{ article.title }}"
-            class="article-cover-preview"
-        />
+        <img src="{{ cover }}" alt="{{ article.title }}" style="
+                width: 56px;
+                height: 56px;
+                border-radius: 8px;
+                object-fit: cover;
+            " />
         {% else %}
-        <div class="article-cover-preview no-img-placeholder">No Img</div>
+        <div style="
+                width: 56px;
+                height: 56px;
+                border-radius: 8px;
+                background: var(--chip-bg);
+                color: var(--text-muted);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.75rem;
+                font-weight: 500;
+            ">
+            No Img
+        </div>
         {% endif %}
+
         <div>
-            <strong>{{ article.title }}</strong>
-            <div class="article-meta">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
+            <strong style="
+                    display: block;
+                    font-size: 0.95rem;
+                    color: var(--text-primary);
+                    font-weight: 600;
+                ">
+                {{ article.title }}
+            </strong>
+
+            <div class="article-meta" style="margin: 0.2rem 0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                     <circle cx="12" cy="12" r="3" />
                 </svg>
-                {{ article.views }} views
+                <span>{{ article.views }} views</span>
             </div>
+
             {% if !article.tags.is_empty() %}
-            <div class="article-tags">
+            <div class="tag-list" style="margin-top: 0.25rem">
                 {% for tag in article.tags %}
-                <span class="tag-chip">{{ tag.name }}</span>
+                <span class="tag-chip" style="font-size: 0.7rem; padding: 0.1rem 0.45rem">{{ tag.name }}</span>
                 {% endfor %}
             </div>
             {% endif %}
         </div>
     </div>
-    <div>
-        <a href="/admin/articles/{{ article.id }}/edit" class="link-edit"
-            >Edit</a
-        >
-        <button
-            type="button"
-            class="btn-delete"
-            hx-delete="/admin/articles/{{ article.id }}"
-            hx-target="#article-{{ article.id }}"
-            hx-swap="delete"
-            hx-confirm="Are you sure you want to delete this article?"
-        >
+
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0">
+        <a href="/admin/articles/{{ article.id }}/edit" class="btn btn-secondary btn-sm">
+            Edit
+        </a>
+        <button type="button" class="btn btn-danger btn-sm" hx-delete="/admin/articles/{{ article.id }}"
+            hx-target="#article-{{ article.id }}" hx-swap="delete"
+            hx-confirm="Are you sure you want to delete this article?">
             Delete
         </button>
     </div>

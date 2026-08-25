@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   bloogla:
     build: .
@@ -8,8 +6,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./bloogla.db:/app/bloogla.db
+      - ./data:/app/data
+      - ./uploads:/app/uploads
       - ./bloogla.json:/app/bloogla.json
-      - ./static:/app/static
     environment:
+      - DATABASE_URL=sqlite:///app/data/bloogla.db
       - RUST_LOG=info

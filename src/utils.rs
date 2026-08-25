@@ -3,10 +3,23 @@ use comrak::{markdown_to_html, ComrakOptions};
 
 pub fn render_safe_markdown(markdown_input: &str) -> String {
     let mut options = ComrakOptions::default();
+
+    options.extension.strikethrough = true;
+    options.extension.tagfilter = false;
+    options.extension.table = true;
+    options.extension.autolink = true;
+    options.extension.tasklist = true;
+    options.extension.header_ids = Some("".to_string());
+
     options.render.unsafe_ = true;
 
     let raw_html = markdown_to_html(markdown_input, &options);
-    ammonia::clean(&raw_html)
+    let mut builder = ammonia::Builder::default();
+    builder
+        .add_tags(&["details", "summary", "kbd", "mark", "sub", "sup", "input"])
+        .add_generic_attributes(&["class", "id", "type", "checked", "disabled"]);
+
+    builder.clean(&raw_html).to_string()
 }
 
 pub fn calculate_reading_time(text: &str) -> u32 {

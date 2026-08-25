@@ -1,10 +1,10 @@
-# ⚡ Bloogla
+# Bloogla
 
-A lightweight, high-performance, single-binary CMS built with Rust and SQLite as a WordPress alternative.
+A lightweight, high-performance, single-binary CMS built with Rust and SQLite as a modern WordPress alternative.
 
 ---
 
-## 🎯 Features
+## Features
 
 - **Single Binary:** Server, templates, migrations, and admin panel compiled into one executable (`./bloogla`).
 - **High Performance:** Compile-time HTML templates, sub-millisecond SQLite queries, zero JS heavy frameworks.
@@ -15,21 +15,21 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-| Layer                       | Technology                              |
-| --------------------------- | --------------------------------------- |
-| **Language**                | Rust                                    |
-| **Web Server**              | `axum` + `tokio`                        |
-| **Database**                | SQLite (`sqlx` with WAL mode)           |
-| **Templating**              | `askama`                                |
-| **Frontend**                | HTMX                                    |
-| **Auth**                    | `argon2` + `tower-sessions`             |
-| **Markdown & Sanitization** | `pulldown-cmark` / `comrak` + `ammonia` |
+| Layer                       | Technology                    |
+| --------------------------- | ----------------------------- |
+| **Language**                | Rust                          |
+| **Web Server**              | `axum` + `tokio`              |
+| **Database**                | SQLite (`sqlx` with WAL mode) |
+| **Templating**              | `askama`                      |
+| **Frontend**                | HTMX + Vanilla CSS            |
+| **Auth**                    | `argon2` + `tower-sessions`   |
+| **Markdown & Sanitization** | `comrak` + `ammonia`          |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Development
 
@@ -49,7 +49,7 @@ Executables will be located at `./target/release/bloogla`.
 
 ---
 
-## 🔒 Security & Operations
+## Security & Operations
 
 - **CSRF:** Double Submit Cookie pattern enforced via Axum middleware.
 - **Rate Limiting:** IP-based protection on `/admin/login` via `tower-governor`.
@@ -58,7 +58,7 @@ Executables will be located at `./target/release/bloogla`.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 .

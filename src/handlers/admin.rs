@@ -60,7 +60,7 @@ async fn generate_unique_slug(
     }
 }
 
-/// GET /admin -> Show admin panel/dashboard (statistics + graphics).
+/// GET /admin -> Show admin panel/dashboard.
 pub async fn admin_dashboard(State(state): State<AppState>, session: Session) -> impl IntoResponse {
     let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
     if logged_in != Some(true) {
@@ -406,7 +406,7 @@ pub async fn create_tag(
     }
 }
 
-/// DELETE /admin/tags/:id -> Remove the tag.
+/// DELETE /admin/tags/:id -> Remove tag.
 pub async fn delete_tag(
     State(state): State<AppState>,
     session: Session,

@@ -1,49 +1,35 @@
 {% extends "base.html" %} {% block title %}{{ blog_name }} - Home{% endblock %}
 {% block content %} {% if !search_query.is_empty() %}
-<a href="/" class="back-link">
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
+<a href="/" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="m15 18-6-6 6-6" />
     </svg>
     Back to Articles
 </a>
 
-<h2 class="mb-lg">Search results for "{{ search_query }}"</h2>
+<h2 style="margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: 700">
+    Search results for "{{ search_query }}"
+</h2>
 {% endif %}
 
 <div class="articles-list">
     {% for article in articles %}
     <article class="article-card">
         {% if let Some(cover) = article.cover_image %}
-        <img
-            src="{{ cover }}"
-            alt="{{ article.title }}"
-            class="article-cover"
-        />
+        <a href="/article/{{ article.slug }}">
+            <img src="{{ cover }}" alt="{{ article.title }}" class="article-cover" />
+        </a>
         {% endif %}
 
-        <h3><a href="/article/{{ article.slug }}">{{ article.title }}</a></h3>
+        <h3>
+            <a href="/article/{{ article.slug }}"> {{ article.title }} </a>
+        </h3>
 
         <div class="article-meta">
             <span class="meta-item">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="lucide lucide-calendar"
-                >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M8 2v4" />
                     <path d="M16 2v4" />
                     <rect width="18" height="18" x="3" y="4" rx="2" />
@@ -55,18 +41,8 @@
             <span class="meta-dot">•</span>
 
             <span class="meta-item">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="lucide lucide-clock"
-                >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                 </svg>
@@ -82,18 +58,16 @@
         </div>
         {% endif %}
 
-        <p>{{ article.content }}</p>
+        <p class="text-secondary" style="margin-top: 0.5rem">
+            {{ article.content }}
+        </p>
     </article>
     {% else %}
-    <div class="empty-state" style="text-align: center; padding: 3rem 0">
+    <div class="empty-state" style="text-align: center; padding: 4rem 1rem; color: var(--text-muted)">
         {% if !search_query.is_empty() %}
-        <p class="text-secondary">
-            No articles found matching <strong>"{{ search_query }}"</strong>.
-        </p>
+        <p>No articles found matching <strong>"{{ search_query }}"</strong>.</p>
         {% else %}
-        <p class="text-secondary">
-            No articles published yet. Check back soon!
-        </p>
+        <p>No articles published yet. Check back soon!</p>
         {% endif %}
     </div>
     {% endfor %}

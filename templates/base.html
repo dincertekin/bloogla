@@ -1,17 +1,30 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{% block title %}{{ blog_name }}{% endblock %}</title>
-        <link rel="stylesheet" href="/static/style.css" />
-        {% block extra_head %}{% endblock %}
-    </head>
-    <body>
-        {% include "header.html" %}
 
-        <main class="container">{% block content %}{% endblock %}</main>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}{{ blog_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism-themes/1.8.0/prism-material-light.min.css"
+        integrity="sha512-O5jY0oTgD2Elx8HWIERZc4ZpMfpXeTdmz03FfAWoieGoa940jVMFC4sm183QCcvHlQTmTgoV5im5KFPwj4B5xg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    {% block extra_head %}{% endblock %}
+</head>
 
-        {% block scripts %}{% endblock %}
-    </body>
+<body>
+    {% include "header.html" %}
+
+    <main class="container">{% block content %}{% endblock %}</main>
+
+    {% block scripts %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.30.0/prism.min.js"
+        integrity="sha512-HiD3V4nv8fcjtouznjT9TqDNDm1EXngV331YGbfVGeKUoH+OLkRTCMzA34ecjlgSQZpdHZupdSrqHY+Hz3l6uQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.30.0/plugins/autoloader/prism-autoloader.min.js"
+        integrity="sha512-SkmBfuA2hqjzEVpmnMt/LINrjop3GKWqsuLSSB3e7iBmYK7JuWw4ldmmxwD9mdm2IRTTi0OxSAfEGvgEi0i2Kw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    {% endblock %}
+</body>
+
 </html>

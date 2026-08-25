@@ -1,85 +1,79 @@
 {% extends "base.html" %} {% block title %}#{{ tag_name }} - {{ blog_name }}{%
 endblock %} {% block content %}
-<a href="/" class="back-link">
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
+<a href="/" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="m15 18-6-6 6-6" />
     </svg>
     Back to Articles
 </a>
 
-<h2 class="mb-lg">Articles tagged "{{ tag_name }}"</h2>
+<h2 style="margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: 700">
+    Articles tagged "{{ tag_name }}"
+</h2>
 
 {% if articles.is_empty() %}
-<p class="text-secondary">No articles with this tag yet.</p>
-{% endif %} {% for article in articles %}
-<article class="article-card">
-    {% if let Some(cover) = article.cover_image %}
-    <img src="{{ cover }}" alt="{{ article.title }}" class="article-cover" />
-    {% endif %}
+<div class="empty-state" style="text-align: center; padding: 4rem 1rem; color: var(--text-muted)">
+    <p>No articles with this tag yet.</p>
+</div>
+{% else %}
+<div class="articles-list" style="display: flex; flex-direction: column; gap: 1.5rem">
+    {% for article in articles %}
+    <article class="article-card">
+        {% if let Some(cover) = article.cover_image %}
+        <a href="/article/{{ article.slug }}">
+            <img src="{{ cover }}" alt="{{ article.title }}" class="article-cover" />
+        </a>
+        {% endif %}
 
-    <h3><a href="/article/{{ article.slug }}">{{ article.title }}</a></h3>
+        <h3 style="margin-top: 0.5rem; font-size: 1.35rem; font-weight: 700">
+            <a href="/article/{{ article.slug }}" style="color: inherit; text-decoration: none">
+                {{ article.title }}
+            </a>
+        </h3>
 
-    <div class="article-meta">
-        <!-- Date -->
-        <span class="meta-item">
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="lucide lucide-calendar"
-            >
-                <path d="M8 2v4" />
-                <path d="M16 2v4" />
-                <rect width="18" height="18" x="3" y="4" rx="2" />
-                <path d="M3 10h18" />
-            </svg>
-            <span>{{ article.created_at }}</span>
-        </span>
+        <div class="article-meta" style="margin: 0.5rem 0">
+            <span class="meta-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-calendar">
+                    <path d="M8 2v4" />
+                    <path d="M16 2v4" />
+                    <rect width="18" height="18" x="3" y="4" rx="2" />
+                    <path d="M3 10h18" />
+                </svg>
+                <span>{{ article.created_at }}</span>
+            </span>
 
-        <span class="meta-dot">•</span>
+            <span class="meta-dot">•</span>
 
-        <!-- Reading Time -->
-        <span class="meta-item">
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="lucide lucide-clock"
-            >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <span>{{ article.reading_time }} min</span>
-        </span>
-    </div>
+            <span class="meta-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-clock">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>{{ article.reading_time }} min</span>
+            </span>
+        </div>
 
-    {% if !article.tags.is_empty() %}
-    <div class="tag-list">
-        {% for tag in article.tags %}
-        <a href="/tag/{{ tag.slug }}" class="tag-chip">{{ tag.name }}</a>
-        {% endfor %}
-    </div>
-    {% endif %}
+        {% if !article.tags.is_empty() %}
+        <div class="tag-list" style="margin-bottom: 0.75rem">
+            {% for tag in article.tags %}
+            <a href="/tag/{{ tag.slug }}" class="tag-chip">{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
 
-    <p>{{ article.content }}</p>
-</article>
-{% endfor %} {% endblock %}
+        <p style="
+                color: var(--text-muted);
+                line-height: 1.6;
+                margin-top: 0.5rem;
+            ">
+            {{ article.content }}
+        </p>
+    </article>
+    {% endfor %}
+</div>
+{% endif %} {% endblock %}

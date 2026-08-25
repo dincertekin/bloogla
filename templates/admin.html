@@ -18,18 +18,15 @@ block content %}
 
 <!-- Views Bar Chart -->
 <section class="card">
-    <h2 style="display: flex; align-items: center; gap: 0.5rem">
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-        >
+    <h2 style="
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.125rem;
+            margin-bottom: 1.25rem;
+        ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" x2="12" y1="20" y2="10" />
             <line x1="18" x2="18" y1="20" y2="4" />
             <line x1="6" x2="6" y1="20" y2="16" />
@@ -37,15 +34,12 @@ block content %}
         Top Articles by Views
     </h2>
     {% if top_articles.is_empty() %}
-    <p style="color: #6b7280; font-size: 0.95rem">No data yet.</p>
+    <p class="text-secondary" style="font-size: 0.95rem">No data yet.</p>
     {% else %} {% for article in top_articles %}
     <div class="chart-row">
         <div class="chart-label">{{ article.title }}</div>
         <div class="chart-bar-track">
-            <div
-                class="chart-bar-fill"
-                style="width: {{ article.views * 100 / max_views }}%;"
-            ></div>
+            <div class="chart-bar-fill" style="width: {{ article.views * 100 / max_views }}%;"></div>
         </div>
         <div class="chart-value">{{ article.views }}</div>
     </div>
@@ -54,52 +48,30 @@ block content %}
 
 <!-- Cumulative Growth Line Chart -->
 <section class="card">
-    <h2 style="display: flex; align-items: center; gap: 0.5rem">
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-        >
+    <h2 style="
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.125rem;
+            margin-bottom: 1.25rem;
+        ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
             <polyline points="16 7 22 7 22 13" />
         </svg>
         Growth Over Time
     </h2>
     {% if articles.is_empty() %}
-    <p style="color: #6b7280; font-size: 0.95rem">No data yet.</p>
+    <p class="text-secondary" style="font-size: 0.95rem">No data yet.</p>
     {% else %}
-    <svg
-        viewBox="0 0 600 180"
-        style="width: 100%; height: 180px; overflow: visible"
-    >
-        <polyline
-            points="{{ growth_points }}"
-            fill="none"
-            stroke="#111827"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-        />
+    <svg viewBox="0 0 600 180" style="width: 100%; height: 180px; overflow: visible">
+        <polyline points="{{ growth_points }}" fill="none" stroke="var(--accent-black)" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-    <div
-        style="
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.8rem;
-            color: #6b7280;
-            margin-top: 0.5rem;
-        "
-    >
+    <div class="growth-chart-footer">
         <span>{{ growth_first_date }}</span>
-        <span style="font-weight: 600; color: #111827"
-            >{{ growth_max }} total</span
-        >
+        <span class="growth-total">{{ growth_max }} total</span>
         <span>{{ growth_last_date }}</span>
     </div>
     {% endif %}
