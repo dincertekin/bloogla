@@ -1,21 +1,13 @@
+use crate::models::{Article, SearchQuery, Tag};
+use crate::templates::{ArticleTemplate, IndexTemplate, TagPageTemplate};
+use crate::utils::{get_setting, xml_escape};
+use crate::AppState;
+
 use axum::{
     extract::{Path, Query, State},
     response::{Html, IntoResponse, Response},
 };
 use comrak::{markdown_to_html, ComrakOptions};
-
-use crate::models::{Article, SearchQuery, Tag};
-use crate::templates::{ArticleTemplate, IndexTemplate, TagPageTemplate};
-use crate::AppState;
-
-fn xml_escape(input: &str) -> String {
-    input
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
 
 async fn format_articles_for_listing(
     pool: &sqlx::Pool<sqlx::Sqlite>,
@@ -57,6 +49,7 @@ async fn format_articles_for_listing(
     formatted
 }
 
+/// GET / -> Shows home page.
 pub async fn home_page(State(state): State<AppState>) -> impl IntoResponse {
     let articles = sqlx::query_as::<_, Article>(
         "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
@@ -71,15 +64,17 @@ pub async fn home_page(State(state): State<AppState>) -> impl IntoResponse {
         .unwrap_or_default();
 
     let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
     IndexTemplate {
-        blog_name: state.config.blog_name,
+        blog_name,
         articles: formatted_articles,
         tags,
         search_query: String::new(),
     }
 }
 
+/// GET /article/:id -> Shows article page.
 pub async fn show_article(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -109,8 +104,10 @@ pub async fn show_article(
             p.created_at = crate::utils::format_display_date(&p.created_at);
             p.tags = crate::tags::get_tags_for_article(&state.pool, p.id).await;
 
+            let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
+
             ArticleTemplate {
-                blog_name: state.config.blog_name,
+                blog_name,
                 content_html,
                 article: p,
                 tags,
@@ -160,9 +157,10 @@ pub async fn tag_page(
     .unwrap_or_default();
 
     let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
     TagPageTemplate {
-        blog_name: state.config.blog_name,
+        blog_name,
         tag_name: tag.name,
         articles: formatted_articles,
         tags: all_tags,
@@ -204,7 +202,8 @@ pub async fn rss_feed(State(state): State<AppState>) -> Response {
         ));
     }
 
-    let blog_name = xml_escape(&state.config.blog_name);
+    let raw_blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
+    let blog_name = xml_escape(&raw_blog_name);
 
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8" ?>
@@ -280,7 +279,8 @@ pub async fn search_article(
         return axum::response::Redirect::to("/").into_response();
     }
 
-    let pattern = format!("%{}%", search_term);
+    let sanitized = search_term.replace('%', "\\%").replace('_', "\\_");
+    let pattern = format!("%{}%", sanitized);
     let articles = sqlx::query_as::<_, Article>(
         "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at
          FROM articles
@@ -299,9 +299,10 @@ pub async fn search_article(
         .unwrap_or_default();
 
     let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
     IndexTemplate {
-        blog_name: state.config.blog_name,
+        blog_name,
         articles: formatted_articles,
         tags,
         search_query: search_term,

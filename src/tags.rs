@@ -1,7 +1,7 @@
+use crate::models::Tag;
+
 use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
-
-use crate::models::Tag;
 
 pub fn slugify(name: &str) -> String {
     let mut slug = String::new();

@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS tags (
     slug TEXT NOT NULL UNIQUE
 );
 
--- Article <-> Tag multi-to-multi relationship table.
+-- Article <-> Tag many-to-many relationship table
 CREATE TABLE IF NOT EXISTS article_tags (
     article_id INTEGER NOT NULL,
     tag_id INTEGER NOT NULL,
@@ -33,3 +33,16 @@ CREATE TABLE IF NOT EXISTS article_tags (
     FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
+
+-- Dynamic application settings (key-value store)
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_articles_published_created
+    ON articles(published, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_articles_slug
+    ON articles(slug);

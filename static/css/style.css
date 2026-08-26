@@ -146,6 +146,35 @@ body {
     margin-bottom: 1.25rem;
 }
 
+.alert {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    margin-bottom: 1.25rem;
+    line-height: 1.4;
+    transition: opacity 0.2s ease;
+}
+
+.alert-success {
+    background-color: #ecfdf5;
+    color: #065f46;
+    border-color: #a7f3d0;
+}
+
+.alert-error {
+    background-color: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+
+.alert-info {
+    background-color: #eff6ff;
+    color: #1e40af;
+    border-color: #bfdbfe;
+}
+
 /* ============================================================
    3. LAYOUT & SITE HEADER
    ============================================================ */
@@ -612,9 +641,10 @@ article h1 {
 }
 
 .chart-bar-fill {
+    width: var(--bar-width, 0%);
+    background: var(--accent-black, #000);
     height: 100%;
-    background: var(--text-primary);
-    border-radius: 6px;
+    border-radius: 4px;
 }
 
 /* ============================================================

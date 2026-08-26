@@ -1,64 +1,22 @@
+use crate::models::{
+    AppState, Article, CreateArticleForm, CreateTagForm, Tag, UpdateGeneralSettingsForm,
+    UpdatePasswordForm,
+};
+use crate::templates::{
+    AdminTemplate, ArticleItemTemplate, ArticlesTemplate, EditArticleTemplate, SettingsTemplate,
+    TagItemTemplate, TagsTemplate,
+};
+use crate::utils::{generate_unique_slug, get_setting};
+
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum_extra::extract::Form;
+use rand::thread_rng;
 use tower_sessions::Session;
-
-use crate::models::{AppState, Article, CreateArticleForm, CreateTagForm, Tag};
-use crate::templates::{
-    AdminTemplate, ArticleItemTemplate, ArticlesTemplate, EditArticleTemplate, TagItemTemplate,
-    TagsTemplate,
-};
-
-fn slugify(title: &str) -> String {
-    let mut slug = String::new();
-    let mut last_was_dash = false;
-
-    for c in title.to_lowercase().chars() {
-        if c.is_ascii_alphanumeric() {
-            slug.push(c);
-            last_was_dash = false;
-        } else if !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-
-    let trimmed = slug.trim_matches('-').to_string();
-    if trimmed.is_empty() {
-        "article".to_string()
-    } else {
-        trimmed
-    }
-}
-
-async fn generate_unique_slug(
-    pool: &sqlx::Pool<sqlx::Sqlite>,
-    title: &str,
-    exclude_id: Option<i64>,
-) -> String {
-    let base = slugify(title);
-    let mut candidate = base.clone();
-    let mut counter = 2;
-
-    loop {
-        let exists: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM articles WHERE slug = ? AND (?2 IS NULL OR id != ?2)",
-        )
-        .bind(&candidate)
-        .bind(exclude_id)
-        .fetch_optional(pool)
-        .await
-        .unwrap_or(None);
-
-        match exists {
-            None => return candidate,
-            Some(_) => {
-                candidate = format!("{}-{}", base, counter);
-                counter += 1;
-            }
-        }
-    }
-}
 
 /// GET /admin -> Show admin panel/dashboard.
 pub async fn admin_dashboard(State(state): State<AppState>, session: Session) -> impl IntoResponse {
@@ -132,9 +90,10 @@ pub async fn admin_dashboard(State(state): State<AppState>, session: Session) ->
             .join(" ")
     };
 
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
+
     AdminTemplate {
-        blog_name: state.config.blog_name,
-        active_page: "dashboard",
+        blog_name,
         total_articles,
         total_views,
         articles,
@@ -169,10 +128,10 @@ pub async fn list_articles(State(state): State<AppState>, session: Session) -> i
     }
 
     let all_tags = crate::tags::get_all_tags(&state.pool).await;
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
     ArticlesTemplate {
-        blog_name: state.config.blog_name,
-        active_page: "articles",
+        blog_name,
         articles,
         all_tags,
     }
@@ -190,7 +149,9 @@ pub async fn create_article(
         return Redirect::to("/admin/login").into_response();
     }
 
-    let slug = generate_unique_slug(&state.pool, &form.title, None).await;
+    let slug = generate_unique_slug(&state.pool, &form.title, None)
+        .await
+        .unwrap_or_default();
 
     let cover = match form.cover_image {
         Some(ref url) if url.trim().is_empty() => None,
@@ -272,9 +233,10 @@ pub async fn edit_article_page(
                 })
                 .collect();
 
+            let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
+
             EditArticleTemplate {
-                blog_name: state.config.blog_name,
-                active_page: "articles",
+                blog_name,
                 article: p,
                 error: None,
                 tag_checkboxes,
@@ -297,7 +259,9 @@ pub async fn edit_article(
         return Redirect::to("/admin/login").into_response();
     }
 
-    let slug = generate_unique_slug(&state.pool, &form.title, Some(id)).await;
+    let slug = generate_unique_slug(&state.pool, &form.title, Some(id))
+        .await
+        .unwrap_or_default();
 
     let cover = match form.cover_image {
         Some(ref url) if url.trim().is_empty() => None,
@@ -351,13 +315,9 @@ pub async fn tags_page(State(state): State<AppState>, session: Session) -> impl 
     }
 
     let tags = crate::tags::get_all_tags(&state.pool).await;
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
-    TagsTemplate {
-        blog_name: state.config.blog_name,
-        active_page: "tags",
-        tags,
-    }
-    .into_response()
+    TagsTemplate { blog_name, tags }.into_response()
 }
 
 /// POST /admin/tags/new -> Create new tag.
@@ -423,4 +383,149 @@ pub async fn delete_tag(
         .await;
 
     axum::http::StatusCode::OK.into_response()
+}
+
+/// GET /admin/settings -> Render settings page.
+pub async fn settings_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {
+    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
+    if logged_in != Some(true) {
+        return Redirect::to("/admin/login").into_response();
+    }
+
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
+    let blog_description = get_setting(&state.pool, "blog_description", "").await;
+    let articles_per_page = get_setting(&state.pool, "articles_per_page", "10").await;
+
+    SettingsTemplate {
+        blog_name: blog_name.clone(),
+        blog_description,
+        articles_per_page,
+    }
+    .into_response()
+}
+
+/// POST /admin/settings/general -> Update general blog settings via HTMX.
+pub async fn update_general_settings(
+    State(state): State<AppState>,
+    session: Session,
+    Form(form): Form<UpdateGeneralSettingsForm>,
+) -> impl IntoResponse {
+    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
+    if logged_in != Some(true) {
+        return axum::http::StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    let settings = [
+        ("blog_name", form.blog_name.trim()),
+        ("blog_description", form.blog_description.trim()),
+        ("articles_per_page", form.articles_per_page.trim()),
+    ];
+
+    for (key, val) in settings {
+        let res = sqlx::query(
+            "INSERT INTO settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .bind(key)
+        .bind(val)
+        .execute(&state.pool)
+        .await;
+
+        if res.is_err() {
+            return Html(
+                r#"<div class="alert alert-error">Failed to save settings. Please try again.</div>"#,
+            )
+            .into_response();
+        }
+    }
+
+    Html(r#"<div class="alert alert-success">General settings updated successfully!</div>"#)
+        .into_response()
+}
+
+/// POST /admin/settings/password -> Change admin password via HTMX.
+pub async fn update_password(
+    State(state): State<AppState>,
+    session: Session,
+    Form(form): Form<UpdatePasswordForm>,
+) -> impl IntoResponse {
+    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
+    if logged_in != Some(true) {
+        return axum::http::StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    if form.new_password.len() < 8 {
+        return Html(
+            r#"<div class="alert alert-error">New password must be at least 8 characters long.</div>"#,
+        )
+        .into_response();
+    }
+
+    if form.new_password != form.confirm_password {
+        return Html(
+            r#"<div class="alert alert-error">New password and confirmation do not match.</div>"#,
+        )
+        .into_response();
+    }
+
+    // Fetch the current admin user's stored password hash
+    let stored_hash: Option<String> =
+        sqlx::query_scalar("SELECT password_hash FROM users ORDER BY id ASC LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await
+            .unwrap_or_default();
+
+    let stored_hash = match stored_hash {
+        Some(h) => h,
+        None => {
+            return Html(r#"<div class="alert alert-error">Admin user not found.</div>"#)
+                .into_response();
+        }
+    };
+
+    // Verify current password against stored PHC hash
+    let parsed_hash = match PasswordHash::new(&stored_hash) {
+        Ok(hash) => hash,
+        Err(_) => {
+            return Html(r#"<div class="alert alert-error">Invalid stored password format.</div>"#)
+                .into_response();
+        }
+    };
+
+    if Argon2::default()
+        .verify_password(form.current_password.as_bytes(), &parsed_hash)
+        .is_err()
+    {
+        return Html(r#"<div class="alert alert-error">Current password is incorrect.</div>"#)
+            .into_response();
+    }
+
+    // Generate new hash using thread_rng
+    let salt = SaltString::generate(&mut thread_rng());
+    let new_password_hash =
+        match Argon2::default().hash_password(form.new_password.as_bytes(), &salt) {
+            Ok(h) => h.to_string(),
+            Err(e) => {
+                return Html(format!(
+                    r#"<div class="alert alert-error">Password hashing failed: {}</div>"#,
+                    e
+                ))
+                .into_response();
+            }
+        };
+
+    // Update the password in the users table
+    let res = sqlx::query("UPDATE users SET password_hash = ? WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1)")
+        .bind(&new_password_hash)
+        .execute(&state.pool)
+        .await;
+
+    if res.is_err() {
+        return Html(
+            r#"<div class="alert alert-error">Failed to update password in database.</div>"#,
+        )
+        .into_response();
+    }
+
+    Html(r#"<div class="alert alert-success">Password updated successfully!</div>"#).into_response()
 }

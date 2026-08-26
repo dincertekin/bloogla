@@ -1,0 +1,106 @@
+{% extends "layouts/admin_base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Overview</h1>
+</div>
+
+<!-- Analytics Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>TOTAL ARTICLES</h3>
+        <p class="stat-number">{{ total_articles }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>TOTAL VIEWS</h3>
+        <p class="stat-number">{{ total_views }}</p>
+    </div>
+</div>
+
+<!-- Views Bar Chart -->
+<section class="card" style="margin-bottom: 1.5rem;">
+    <h2 style="
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.125rem;
+            margin-bottom: 1.25rem;
+        ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" x2="12" y1="20" y2="10" />
+            <line x1="18" x2="18" y1="20" y2="4" />
+            <line x1="6" x2="6" y1="20" y2="16" />
+        </svg>
+        Top Articles by Views
+    </h2>
+
+    {% if top_articles.is_empty() %}
+    <p class="text-secondary" style="font-size: 0.95rem">No data yet.</p>
+    {% else %}
+    <div class="chart-container" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {% for article in top_articles %}
+        <div class="chart-row" style="display: flex; align-items: center; gap: 1rem;">
+            <div class="chart-label" title="{{ article.title }}"
+                style="flex: 0 0 180px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; font-size: 0.875rem;">
+                {{ article.title }}
+            </div>
+            <div class="chart-bar-track"
+                style="flex: 1; background: var(--bg-secondary, #f0f0f0); height: 10px; border-radius: 4px; overflow: hidden;">
+                {% if max_views > 0 %}
+                <div class="chart-bar-fill" style="--bar-width: {{ article.views * 100 / max_views }}%;">
+                </div>
+                {% else %}
+                <div class="chart-bar-fill" style="width: 0%; background: var(--accent-black, #000); height: 100%;">
+                </div>
+                {% endif %}
+            </div>
+            <div class="chart-value" style="flex: 0 0 45px; text-align: right; font-size: 0.875rem; font-weight: 600;">
+                {{ article.views }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
+<!-- Cumulative Growth Line Chart -->
+<section class="card">
+    <h2 style="
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.125rem;
+            margin-bottom: 1.25rem;
+        ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+            <polyline points="16 7 22 7 22 13" />
+        </svg>
+        Growth Over Time
+    </h2>
+
+    {% if articles.is_empty() %}
+    <p class="text-secondary" style="font-size: 0.95rem">No data yet.</p>
+    {% else %}
+    <div style="width: 100%; overflow: hidden;">
+        <svg viewBox="0 0 600 180" style="width: 100%; height: 180px; overflow: visible"
+            aria-label="Article growth chart">
+            <!-- Baseline grid line -->
+            <line x1="0" y1="175" x2="600" y2="175" stroke="var(--border-color, #e5e5e5)" stroke-width="1" />
+
+            <polyline points="{{ growth_points }}" fill="none" stroke="var(--accent-black, #000)" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </div>
+
+    <div class="growth-chart-footer"
+        style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.75rem;">
+        <span>{{ growth_first_date }}</span>
+        <span class="growth-total" style="font-weight: 600;">{{ growth_max }} total</span>
+        <span>{{ growth_last_date }}</span>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

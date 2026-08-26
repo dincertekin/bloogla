@@ -1,0 +1,78 @@
+{% extends "layouts/admin_base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+    <h1>Settings</h1>
+    <p class="text-secondary">
+        Configure your blog preferences and account security.
+    </p>
+</div>
+
+<div>
+    <!-- General Settings Form -->
+    <section class="card" style="margin-bottom: 1.5rem;">
+        <h2 style="font-size: 1.125rem; margin-bottom: 1.25rem">
+            General Preferences
+        </h2>
+
+        <form hx-post="/admin/settings/general" hx-target="#general-settings-alert" hx-swap="innerHTML">
+            <div id="general-settings-alert"></div>
+
+            <div class="form-group">
+                <label for="blog_name">Blog Name</label>
+                <input type="text" id="blog_name" name="blog_name" value="{{ blog_name }}" class="form-control"
+                    required />
+            </div>
+
+            <div class="form-group">
+                <label for="blog_description">Blog Description</label>
+                <textarea id="blog_description" name="blog_description" rows="3"
+                    class="form-control">{{ blog_description }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="articles_per_page">Articles Per Page</label>
+                <input type="number" id="articles_per_page" name="articles_per_page" value="{{ articles_per_page }}"
+                    min="1" max="50" class="form-control" required />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </section>
+
+    <!-- Security Settings Form -->
+    <section class="card">
+        <h2 style="font-size: 1.125rem; margin-bottom: 1.25rem">
+            Security & Credentials
+        </h2>
+
+        <form hx-post="/admin/settings/password" hx-target="#password-settings-alert" hx-swap="innerHTML"
+            hx-on::after-request="if(event.detail.successful) this.reset()">
+            <div id="password-settings-alert"></div>
+
+            <div class="form-group">
+                <label for="current_password">Current Password</label>
+                <input type="password" id="current_password" name="current_password" class="form-control"
+                    autocomplete="current-password" required />
+            </div>
+
+            <div class="form-group">
+                <label for="new_password">New Password</label>
+                <input type="password" id="new_password" name="new_password" class="form-control" minlength="8"
+                    autocomplete="new-password" required />
+                <small class="text-secondary">Must be at least 8 characters long.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">Confirm New Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-control" minlength="8"
+                    autocomplete="new-password" required />
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Update Password
+            </button>
+        </form>
+    </section>
+</div>
+{% endblock %}

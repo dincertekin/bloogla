@@ -8,7 +8,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-      - ./bloogla.json:/app/bloogla.json
     environment:
-      - DATABASE_URL=sqlite:///app/data/bloogla.db
+      - DATABASE_URL=sqlite:///app/data/bloogla.db?mode=rwc
       - RUST_LOG=info
+      - BASE_URL=https://yourdomain.com

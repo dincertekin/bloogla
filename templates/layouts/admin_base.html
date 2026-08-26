@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Admin Panel{% endblock %} - {{ blog_name }}</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/htmx.min.js"></script>
 </head>
 
 <body>
@@ -18,7 +18,7 @@
                 <a href="/admin" class="sidebar-brand">Bloogla Admin</a>
                 <nav>
                     <ul class="nav-list">
-                        <li><a href="/admin" class="nav-item {% if active_page == " dashboard" %}active{% endif %}">
+                        <li><a href="/admin" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                     stroke-linejoin="round">
@@ -29,8 +29,7 @@
                                 </svg>
                                 Dashboard
                             </a></li>
-                        <li><a href="/admin/articles" class="nav-item {% if active_page == " articles" %}active{% endif
-                                %}">
+                        <li><a href="/admin/articles" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                     stroke-linejoin="round">
@@ -42,7 +41,7 @@
                                 </svg>
                                 Articles
                             </a></li>
-                        <li><a href="/admin/tags" class="nav-item {% if active_page == " tags" %}active{% endif %}">
+                        <li><a href="/admin/tags" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                     stroke-linejoin="round">
@@ -52,8 +51,7 @@
                                 </svg>
                                 Tags
                             </a></li>
-                        <li><a href="/admin/settings" class="nav-item {% if active_page == " settings" %}active{% endif
-                                %}">
+                        <li><a href="/admin/settings" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                     stroke-linejoin="round">
@@ -95,6 +93,14 @@
     </div>
 
     {% block scripts %}{% endblock %}
+    <script>
+        document.querySelectorAll('.nav-list .nav-item').forEach(link => {
+            if (link.pathname === window.location.pathname) {
+                link.classList.add('active');
+                link.setAttribute('aria-current', 'page');
+            }
+        });
+    </script>
 
 </body>
 

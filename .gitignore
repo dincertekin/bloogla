@@ -2,5 +2,5 @@
 /target
 
 # Bloogla
-bloogla.json
-bloogla.db
+data/
+uploads/

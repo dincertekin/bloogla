@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Login</title>
-    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 
 <body>
@@ -29,7 +29,7 @@
             </h2>
 
             {% if let Some(err) = error %}
-            <p class="error-message" style="text-align: center; font-weight: 500">
+            <p class="error-message" role="alert" style="text-align: center; font-weight: 500">
                 {{ err }}
             </p>
             {% endif %}
@@ -38,13 +38,14 @@
                 <div class="form-group">
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" class="form-control" required
-                        placeholder="admin@bloogla.com" />
+                        placeholder="admin@bloogla.com" autocomplete="username" autocapitalize="off" autocorrect="off"
+                        autofocus />
                 </div>
 
                 <div class="form-group" style="margin-bottom: 1.5rem">
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" class="form-control" placeholder="••••••••"
-                        required />
+                        autocomplete="current-password" required />
                 </div>
 
                 <button type="submit" class="btn btn-primary" style="width: 100%">

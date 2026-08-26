@@ -1,5 +1,5 @@
-{% extends "base.html" %} {% block title %}#{{ tag_name }} - {{ blog_name }}{%
-endblock %} {% block content %}
+{% extends "layouts/base.html" %} {% block title %}{{ blog_name }} - Home{% endblock %}
+{% block content %} {% if !search_query.is_empty() %}
 <a href="/" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -9,15 +9,11 @@ endblock %} {% block content %}
 </a>
 
 <h2 style="margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: 700">
-    Articles tagged "{{ tag_name }}"
+    Search results for "{{ search_query }}"
 </h2>
+{% endif %}
 
-{% if articles.is_empty() %}
-<div class="empty-state" style="text-align: center; padding: 4rem 1rem; color: var(--text-muted)">
-    <p>No articles with this tag yet.</p>
-</div>
-{% else %}
-<div class="articles-list" style="display: flex; flex-direction: column; gap: 1.5rem">
+<div class="articles-list">
     {% for article in articles %}
     <article class="article-card">
         {% if let Some(cover) = article.cover_image %}
@@ -26,17 +22,14 @@ endblock %} {% block content %}
         </a>
         {% endif %}
 
-        <h3 style="margin-top: 0.5rem; font-size: 1.35rem; font-weight: 700">
-            <a href="/article/{{ article.slug }}" style="color: inherit; text-decoration: none">
-                {{ article.title }}
-            </a>
+        <h3>
+            <a href="/article/{{ article.slug }}"> {{ article.title }} </a>
         </h3>
 
-        <div class="article-meta" style="margin: 0.5rem 0">
+        <div class="article-meta">
             <span class="meta-item">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    class="lucide lucide-calendar">
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M8 2v4" />
                     <path d="M16 2v4" />
                     <rect width="18" height="18" x="3" y="4" rx="2" />
@@ -49,8 +42,7 @@ endblock %} {% block content %}
 
             <span class="meta-item">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    class="lucide lucide-clock">
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                 </svg>
@@ -59,21 +51,25 @@ endblock %} {% block content %}
         </div>
 
         {% if !article.tags.is_empty() %}
-        <div class="tag-list" style="margin-bottom: 0.75rem">
+        <div class="tag-list">
             {% for tag in article.tags %}
             <a href="/tag/{{ tag.slug }}" class="tag-chip">{{ tag.name }}</a>
             {% endfor %}
         </div>
         {% endif %}
 
-        <p style="
-                color: var(--text-muted);
-                line-height: 1.6;
-                margin-top: 0.5rem;
-            ">
+        <p class="text-secondary" style="margin-top: 0.5rem">
             {{ article.content }}
         </p>
     </article>
+    {% else %}
+    <div class="empty-state" style="text-align: center; padding: 4rem 1rem; color: var(--text-muted)">
+        {% if !search_query.is_empty() %}
+        <p>No articles found matching <strong>"{{ search_query }}"</strong>.</p>
+        {% else %}
+        <p>No articles published yet. Check back soon!</p>
+        {% endif %}
+    </div>
     {% endfor %}
 </div>
-{% endif %} {% endblock %}
+{% endblock %}

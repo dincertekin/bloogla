@@ -1,5 +1,6 @@
 use crate::models::{AppState, LoginForm};
 use crate::templates::LoginTemplate;
+
 use argon2::password_hash::{PasswordHash, PasswordVerifier};
 use argon2::Argon2;
 use askama_axum::IntoResponse;
@@ -18,8 +19,15 @@ pub async fn handle_login(
     session: Session,
     Form(form): Form<LoginForm>,
 ) -> impl IntoResponse {
-    if form.email == state.config.admin_email {
-        if let Ok(parsed_hash) = PasswordHash::new(&state.config.admin_password_hash) {
+    let user = sqlx::query_scalar::<_, String>("SELECT password_hash FROM users WHERE email = ?")
+        .bind(&form.email)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+
+    if let Some(stored_hash) = user {
+        if let Ok(parsed_hash) = PasswordHash::new(&stored_hash) {
             if Argon2::default()
                 .verify_password(form.password.as_bytes(), &parsed_hash)
                 .is_ok()
