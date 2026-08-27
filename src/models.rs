@@ -2,11 +2,14 @@ use crate::config::Config;
 
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
+use std::sync::{Arc, RwLock};
+use tera::Tera;
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: Pool<Sqlite>,
     pub config: Config,
+    pub tera: Arc<RwLock<Tera>>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
@@ -57,10 +60,15 @@ pub struct SearchQuery {
 }
 
 #[derive(Deserialize)]
-pub struct UpdateGeneralSettingsForm {
+pub struct GeneralSettingsForm {
     pub blog_name: String,
     pub blog_description: String,
-    pub articles_per_page: String,
+    pub blog_keywords: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateThemeForm {
+    pub theme_name: String,
 }
 
 #[derive(Deserialize)]

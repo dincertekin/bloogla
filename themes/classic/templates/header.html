@@ -3,7 +3,7 @@
         <a href="/" class="brand">{{ blog_name }}</a>
         <nav class="main-nav">
             <a href="/" class="btn btn-ghost btn-sm">Home</a>
-            {% if !tags.is_empty() %}
+            {% if tags %}
             <div class="dropdown">
                 <button type="button" class="btn btn-ghost btn-sm">
                     Tags
@@ -29,8 +29,8 @@
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="text" name="q" value="{{ search_query }}" placeholder="Search articles, tags, keywords..."
-                class="form-control search-input" />
+            <input type="text" name="q" value="{{ search_query | default(value='') }}"
+                placeholder="Search articles, tags, keywords..." class="form-control search-input" />
         </form>
     </div>
 

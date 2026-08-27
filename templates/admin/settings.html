@@ -1,4 +1,4 @@
-{% extends "layouts/admin_base.html" %}
+{% extends "admin/layout.html" %}
 {% block title %}Settings{% endblock %}
 {% block content %}
 <div class="page-header" style="margin-bottom: 1.5rem;">
@@ -31,14 +31,77 @@
             </div>
 
             <div class="form-group">
-                <label for="articles_per_page">Articles Per Page</label>
-                <input type="number" id="articles_per_page" name="articles_per_page" value="{{ articles_per_page }}"
-                    min="1" max="50" class="form-control" required />
+                <label for="blog_keywords">Keywords (comma-separated)</label>
+                <input type="text" id="blog_keywords" name="blog_keywords" class="form-control"
+                    value="{{ blog_keywords }}" />
+            </div>
+
+            <!-- Active Theme Section -->
+            <div class="card mb-lg">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span class="text-muted"
+                            style="display: block; font-size: 0.8rem; text-transform: uppercase; font-weight: 600;">Active
+                            Theme</span>
+                        <strong style="font-size: 1.1rem;">{{ active_theme }}</strong>
+                    </div>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="document.getElementById('theme-modal').classList.add('active')">
+                        Change Theme
+                    </button>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-primary">Save Changes</button>
         </form>
     </section>
+
+    <!-- Theme Selection Modal -->
+    <div id="theme-modal" class="modal-overlay" onclick="if (event.target === this) this.classList.remove('active')">
+        <div class="modal-card" style="max-width: 720px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h3>Select a Theme</h3>
+                <button type="button" class="btn btn-ghost btn-sm"
+                    onclick="document.getElementById('theme-modal').classList.remove('active')">✕</button>
+            </div>
+
+            <div class="theme-grid">
+                {% for theme in available_themes %}
+                <div class="theme-card {% if theme.id == active_theme %}theme-card-active{% endif %}">
+                    <div class="theme-preview-wrapper">
+                        {% if let Some(img) = theme.meta.preview_image %}
+                        <img src="{{ img }}" alt="{{ theme.meta.name }} Preview" class="theme-preview-img" />
+                        {% else %}
+                        <div class="theme-preview-placeholder">No Preview</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="theme-info">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <h4 style="font-size: 1rem; font-weight: 600;">{{ theme.meta.name }}</h4>
+                            <span class="text-muted" style="font-size: 0.75rem;">v{{ theme.meta.version }}</span>
+                        </div>
+
+                        <p class="text-muted" style="font-size: 0.8rem; margin: 0.2rem 0 0.5rem 0;">By {{
+                            theme.meta.author }}</p>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">{{
+                            theme.meta.description }}</p>
+
+                        {% if theme.id == active_theme %}
+                        <button type="button" class="btn btn-secondary btn-sm" style="width: 100%;"
+                            disabled>Active</button>
+                        {% else %}
+                        <form method="POST" action="/admin/settings/theme">
+                            <input type="hidden" name="theme_name" value="{{ theme.id }}" />
+                            <button type="submit" class="btn btn-primary btn-sm" style="width: 100%;">Activate</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 
     <!-- Security Settings Form -->
     <section class="card">

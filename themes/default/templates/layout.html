@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ blog_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="/theme-assets/default/static/css/style.css">
+    <link rel="stylesheet" href="/theme-assets/default/static/css/prism-material-light.min.css">
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="container header-content">
+            <h1 class="site-title"><a href="/">{{ blog_name }}</a></h1>
+            <form action="/search" method="GET" class="search-form">
+                <input type="search" name="q" placeholder="Search articles..." value="{{ search_query }}" required />
+            </form>
+        </div>
+    </header>
+
+    <main class="container main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; {{ blog_name }}. Powered by <strong>Bloogla</strong>.</p>
+        </div>
+    </footer>
+
+    <script src="/theme-assets/default/static/js/prism.min.js"></script>
+    <script src="/theme-assets/default/static/js/prism-autoloader.min.js"></script>
+</body>
+
+</html>

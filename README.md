@@ -22,7 +22,7 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 | **Language**                | Rust                          |
 | **Web Server**              | `axum` + `tokio`              |
 | **Database**                | SQLite (`sqlx` with WAL mode) |
-| **Templating**              | `askama`                      |
+| **Templating**              | `askama` + `tera`             |
 | **Frontend**                | HTMX + Vanilla CSS            |
 | **Auth**                    | `argon2` + `tower-sessions`   |
 | **Markdown & Sanitization** | `comrak` + `ammonia`          |
@@ -63,8 +63,8 @@ Executables will be located at `./target/release/bloogla`.
 ```
 .
 ├── Cargo.toml          # Dependencies and project settings
-├── Dockerfile          # Production container setup
-├── docker-compose.yml  # Deployment configuration
+├── data/               # Where database located
+├── uploads/            # Uploads goes here
 ├── migrations/         # Embedded SQLite migrations
 ├── src/                # Application source code
 │   ├── handlers/       # Axum route handlers (auth, admin, public)
@@ -73,8 +73,9 @@ Executables will be located at `./target/release/bloogla`.
 │   ├── main.rs         # Entry point and server initialization
 │   ├── models.rs       # Structs and database types
 │   ├── tags.rs         # Custom Askama template tags/helpers
-│   ├── templates.rs    # Askama template structs
+│   ├── themes.rs       # Custom user themes (tera)
+│   ├── templates.rs    # Askama admin-panel template structs
 │   └── utils.rs        # Auth, hashing, and helper utilities
 ├── static/             # Static assets (CSS, JS, images)
-└── templates/          # Askama HTML templates
+└── templates/          # Askama HTML admin-panel templates
 ```

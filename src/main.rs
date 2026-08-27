@@ -4,6 +4,7 @@ mod handlers;
 mod models;
 mod tags;
 mod templates;
+mod themes;
 mod utils;
 
 use argon2::password_hash::{PasswordHasher, SaltString};
@@ -22,7 +23,8 @@ use sqlx::SqlitePool;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use tera::Tera;
 use tower_governor::key_extractor::SmartIpKeyExtractor;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::{
@@ -37,26 +39,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{}", cyan.apply_to("\n🚀 Welcome to Bloogla\n"));
 
-    // 1. Ensure local data directory exists before connecting to SQLite
+    // 1. Ensure local data & themes directories exist
     if !Path::new("data").exists() {
         fs::create_dir_all("data")?;
+    }
+    if !Path::new("themes").exists() {
+        fs::create_dir_all("themes")?;
     }
 
     let config = Config::default();
     let db_file_exists = Path::new("data/bloogla.db").exists();
 
-    // Connect to SQLite (creates empty bloogla.db file if it doesn't exist)
+    // Connect to SQLite
     let pool = db::init_db(&config.database_url).await?;
     println!("{}", green.apply_to("✔ Database connection established!"));
 
-    // If bloogla.db did not exist on disk prior to boot, run the CLI setup wizard
+    // If bloogla.db did not exist, run CLI setup
     if !db_file_exists {
         run_cli_wizard(&pool).await?;
     }
 
+    // 2. Initialize Tera theme engine
+    let tera = match Tera::new("themes/**/*.html") {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("Tera Parsing Error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     let state = AppState {
         pool,
         config: config.clone(),
+        tera: Arc::new(RwLock::new(tera)),
     };
 
     // Session Layer
@@ -80,31 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Axum Web Server Router
-    let app = Router::new()
-        .nest(
-            "/static",
-            Router::new()
-                .fallback_service(ServeDir::new("static"))
-                .layer(static_cache_layer),
-        )
-        // Public Endpoints
-        .route("/", get(handlers::public::home_page))
-        .route("/search", get(handlers::public::search_article))
-        .route("/article/:slug", get(handlers::public::show_article))
-        .route("/tag/:slug", get(handlers::public::tag_page))
-        .route("/health", get(handlers::public::health_check))
-        .route("/rss.xml", get(handlers::public::rss_feed))
-        .route("/sitemap.xml", get(handlers::public::sitemap_xml))
-        // Authentication Routes
-        .route("/admin/login", get(handlers::auth::login_page))
-        .route(
-            "/admin/login",
-            post(handlers::auth::handle_login).layer(GovernorLayer {
-                config: governor_conf,
-            }),
-        )
-        .route("/admin/logout", get(handlers::auth::handle_logout))
-        // Admin & Settings Management Routes
+    let protected_admin_routes = Router::new()
         .route("/admin", get(handlers::admin::admin_dashboard))
         .route("/admin/settings", get(handlers::admin::settings_page))
         .route(
@@ -115,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/admin/settings/password",
             post(handlers::admin::update_password),
         )
-        // Article CRUD Routes
+        .route("/admin/settings/theme", post(handlers::admin::update_theme))
         .route("/admin/articles", get(handlers::admin::list_articles))
         .route("/admin/articles/new", post(handlers::admin::create_article))
         .route(
@@ -126,10 +117,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/admin/articles/:id",
             delete(handlers::admin::delete_article),
         )
-        // Tag CRUD Routes
         .route("/admin/tags", get(handlers::admin::tags_page))
         .route("/admin/tags/new", post(handlers::admin::create_tag))
         .route("/admin/tags/:id", delete(handlers::admin::delete_tag))
+        .route_layer(axum::middleware::from_fn(handlers::auth::auth_middleware));
+
+    let app = Router::new()
+        .merge(protected_admin_routes)
+        .route("/admin/login", get(handlers::auth::login_page))
+        .route(
+            "/admin/login",
+            post(handlers::auth::handle_login).layer(GovernorLayer {
+                config: governor_conf,
+            }),
+        )
+        .route("/admin/logout", get(handlers::auth::handle_logout))
+        // Serve core static files
+        .nest(
+            "/static",
+            Router::new()
+                .fallback_service(ServeDir::new("static"))
+                .layer(static_cache_layer),
+        )
+        // Serve theme assets (e.g. /theme-assets/default/static/style.css)
+        .nest_service("/theme-assets", ServeDir::new("themes"))
+        // Public Endpoints
+        .route("/", get(handlers::public::home_page))
+        .route("/search", get(handlers::public::search_article))
+        .route("/article/:slug", get(handlers::public::show_article))
+        .route("/tag/:slug", get(handlers::public::tag_page))
+        .route("/health", get(handlers::public::health_check))
+        .route("/rss.xml", get(handlers::public::rss_feed))
+        .route("/sitemap.xml", get(handlers::public::sitemap_xml))
         // Global Security Headers
         .layer(SetResponseHeaderLayer::overriding(
             header::X_FRAME_OPTIONS,
@@ -182,7 +201,6 @@ async fn run_cli_wizard(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Err
 
     let admin_email: String = Input::new().with_prompt("Admin Email").interact_text()?;
 
-    // Prompt for password with baseline length validation
     let password = loop {
         let pass = Password::new()
             .with_prompt("Admin Password")
@@ -205,14 +223,12 @@ async fn run_cli_wizard(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Err
         .map_err(|e| format!("Password hashing failed: {e}"))?
         .to_string();
 
-    // 1. Save admin credentials
     sqlx::query("INSERT INTO users (email, password_hash) VALUES (?, ?)")
         .bind(&admin_email)
         .bind(&password_hash)
         .execute(pool)
         .await?;
 
-    // 2. Save dynamic initial settings
     let default_settings = [
         ("blog_name", blog_name.as_str()),
         (
@@ -222,7 +238,7 @@ async fn run_cli_wizard(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Err
         ("blog_keywords", "rust, bloogla, blog, webdev"),
         ("publisher_type", "Person"),
         ("publisher_name", &admin_email),
-        ("articles_per_page", "10"),
+        ("active_theme", "default"),
     ];
 
     for (key, val) in default_settings {

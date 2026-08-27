@@ -1,11 +1,12 @@
 use crate::models::{
-    AppState, Article, CreateArticleForm, CreateTagForm, Tag, UpdateGeneralSettingsForm,
-    UpdatePasswordForm,
+    AppState, Article, CreateArticleForm, CreateTagForm, GeneralSettingsForm, Tag,
+    UpdatePasswordForm, UpdateThemeForm,
 };
 use crate::templates::{
     AdminTemplate, ArticleItemTemplate, ArticlesTemplate, EditArticleTemplate, SettingsTemplate,
     TagItemTemplate, TagsTemplate,
 };
+use crate::themes::discover_themes;
 use crate::utils::{generate_unique_slug, get_setting};
 
 use argon2::{
@@ -16,15 +17,9 @@ use axum::extract::{Path, State};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum_extra::extract::Form;
 use rand::thread_rng;
-use tower_sessions::Session;
 
 /// GET /admin -> Show admin panel/dashboard.
-pub async fn admin_dashboard(State(state): State<AppState>, session: Session) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
+pub async fn admin_dashboard(State(state): State<AppState>) -> impl IntoResponse {
     let articles = sqlx::query_as::<_, Article>(
         "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
     )
@@ -104,16 +99,10 @@ pub async fn admin_dashboard(State(state): State<AppState>, session: Session) ->
         growth_first_date,
         growth_last_date,
     }
-    .into_response()
 }
 
 /// GET /admin/articles -> List all articles.
-pub async fn list_articles(State(state): State<AppState>, session: Session) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
+pub async fn list_articles(State(state): State<AppState>) -> impl IntoResponse {
     let mut articles = sqlx::query_as::<_, Article>(
         "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles ORDER BY id DESC"
     )
@@ -135,20 +124,13 @@ pub async fn list_articles(State(state): State<AppState>, session: Session) -> i
         articles,
         all_tags,
     }
-    .into_response()
 }
 
 /// POST /admin/articles/new -> Create new article.
 pub async fn create_article(
     State(state): State<AppState>,
-    session: Session,
     Form(form): Form<CreateArticleForm>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
     let slug = generate_unique_slug(&state.pool, &form.title, None)
         .await
         .unwrap_or_default();
@@ -202,14 +184,8 @@ pub async fn create_article(
 /// GET /admin/articles/:id/edit -> Show edit article page.
 pub async fn edit_article_page(
     State(state): State<AppState>,
-    session: Session,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
     let article = sqlx::query_as::<_, Article>(
         "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at FROM articles WHERE id = ?"
     )
@@ -250,15 +226,9 @@ pub async fn edit_article_page(
 /// POST /admin/articles/:id/edit -> Update article.
 pub async fn edit_article(
     State(state): State<AppState>,
-    session: Session,
     Path(id): Path<i64>,
     Form(form): Form<CreateArticleForm>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
     let slug = generate_unique_slug(&state.pool, &form.title, Some(id))
         .await
         .unwrap_or_default();
@@ -291,46 +261,29 @@ pub async fn edit_article(
 /// DELETE /admin/articles/:id -> Remove article.
 pub async fn delete_article(
     State(state): State<AppState>,
-    session: Session,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return axum::http::StatusCode::UNAUTHORIZED.into_response();
-    }
-
     let _ = sqlx::query("DELETE FROM articles WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await;
 
-    axum::http::StatusCode::OK.into_response()
+    axum::http::StatusCode::OK
 }
 
 /// GET /admin/tags -> Show tags list.
-pub async fn tags_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
+pub async fn tags_page(State(state): State<AppState>) -> impl IntoResponse {
     let tags = crate::tags::get_all_tags(&state.pool).await;
     let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
-    TagsTemplate { blog_name, tags }.into_response()
+    TagsTemplate { blog_name, tags }
 }
 
 /// POST /admin/tags/new -> Create new tag.
 pub async fn create_tag(
     State(state): State<AppState>,
-    session: Session,
     Form(form): Form<CreateTagForm>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
     let name = form.name.trim().to_string();
     if name.is_empty() {
         return Html("Tag name cannot be empty").into_response();
@@ -367,93 +320,63 @@ pub async fn create_tag(
 }
 
 /// DELETE /admin/tags/:id -> Remove tag.
-pub async fn delete_tag(
-    State(state): State<AppState>,
-    session: Session,
-    Path(id): Path<i64>,
-) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return axum::http::StatusCode::UNAUTHORIZED.into_response();
-    }
-
+pub async fn delete_tag(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
     let _ = sqlx::query("DELETE FROM tags WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await;
 
-    axum::http::StatusCode::OK.into_response()
+    axum::http::StatusCode::OK
 }
 
 /// GET /admin/settings -> Render settings page.
-pub async fn settings_page(State(state): State<AppState>, session: Session) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return Redirect::to("/admin/login").into_response();
-    }
-
+pub async fn settings_page(State(state): State<AppState>) -> impl IntoResponse {
     let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
     let blog_description = get_setting(&state.pool, "blog_description", "").await;
-    let articles_per_page = get_setting(&state.pool, "articles_per_page", "10").await;
+    let blog_keywords = get_setting(&state.pool, "blog_keywords", "").await;
+    let active_theme = get_setting(&state.pool, "active_theme", "default").await;
+
+    let available_themes = discover_themes();
 
     SettingsTemplate {
-        blog_name: blog_name.clone(),
+        blog_name,
         blog_description,
-        articles_per_page,
+        blog_keywords,
+        active_theme,
+        available_themes,
     }
-    .into_response()
 }
 
 /// POST /admin/settings/general -> Update general blog settings via HTMX.
 pub async fn update_general_settings(
     State(state): State<AppState>,
-    session: Session,
-    Form(form): Form<UpdateGeneralSettingsForm>,
+    Form(form): Form<GeneralSettingsForm>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return axum::http::StatusCode::UNAUTHORIZED.into_response();
-    }
-
     let settings = [
         ("blog_name", form.blog_name.trim()),
         ("blog_description", form.blog_description.trim()),
-        ("articles_per_page", form.articles_per_page.trim()),
+        ("blog_keywords", form.blog_keywords.trim()),
     ];
 
-    for (key, val) in settings {
-        let res = sqlx::query(
+    for (key, value) in settings {
+        let _ = sqlx::query(
             "INSERT INTO settings (key, value) VALUES (?, ?)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         )
         .bind(key)
-        .bind(val)
+        .bind(value)
         .execute(&state.pool)
         .await;
-
-        if res.is_err() {
-            return Html(
-                r#"<div class="alert alert-error">Failed to save settings. Please try again.</div>"#,
-            )
-            .into_response();
-        }
     }
 
-    Html(r#"<div class="alert alert-success">General settings updated successfully!</div>"#)
-        .into_response()
+    Html(r#"<div class="alert alert-success">Settings updated.</div>"#)
 }
 
 /// POST /admin/settings/password -> Change admin password via HTMX.
 pub async fn update_password(
     State(state): State<AppState>,
-    session: Session,
     Form(form): Form<UpdatePasswordForm>,
 ) -> impl IntoResponse {
-    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
-    if logged_in != Some(true) {
-        return axum::http::StatusCode::UNAUTHORIZED.into_response();
-    }
-
     if form.new_password.len() < 8 {
         return Html(
             r#"<div class="alert alert-error">New password must be at least 8 characters long.</div>"#,
@@ -468,7 +391,6 @@ pub async fn update_password(
         .into_response();
     }
 
-    // Fetch the current admin user's stored password hash
     let stored_hash: Option<String> =
         sqlx::query_scalar("SELECT password_hash FROM users ORDER BY id ASC LIMIT 1")
             .fetch_optional(&state.pool)
@@ -483,7 +405,6 @@ pub async fn update_password(
         }
     };
 
-    // Verify current password against stored PHC hash
     let parsed_hash = match PasswordHash::new(&stored_hash) {
         Ok(hash) => hash,
         Err(_) => {
@@ -500,7 +421,6 @@ pub async fn update_password(
             .into_response();
     }
 
-    // Generate new hash using thread_rng
     let salt = SaltString::generate(&mut thread_rng());
     let new_password_hash =
         match Argon2::default().hash_password(form.new_password.as_bytes(), &salt) {
@@ -514,7 +434,6 @@ pub async fn update_password(
             }
         };
 
-    // Update the password in the users table
     let res = sqlx::query("UPDATE users SET password_hash = ? WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1)")
         .bind(&new_password_hash)
         .execute(&state.pool)
@@ -528,4 +447,20 @@ pub async fn update_password(
     }
 
     Html(r#"<div class="alert alert-success">Password updated successfully!</div>"#).into_response()
+}
+
+/// POST /admin/settings/theme -> Update theme setting.
+pub async fn update_theme(
+    State(state): State<AppState>,
+    Form(form): Form<UpdateThemeForm>,
+) -> impl IntoResponse {
+    let _ = sqlx::query(
+        "INSERT INTO settings (key, value) VALUES ('active_theme', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .bind(&form.theme_name)
+    .execute(&state.pool)
+    .await;
+
+    Redirect::to("/admin/settings")
 }

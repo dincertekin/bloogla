@@ -8,6 +8,24 @@ use axum::extract::{Form, State};
 use axum::response::Redirect;
 use tower_sessions::Session;
 
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
+
+pub async fn auth_middleware(session: Session, req: Request, next: Next) -> Response {
+    let logged_in: Option<bool> = session.get("admin_logged_in").await.unwrap_or(None);
+
+    if logged_in == Some(true) {
+        next.run(req).await
+    } else {
+        // If it's a standard page GET request, redirect to login.
+        // For HTMX/POST/DELETE API requests, return 401 Unauthorized.
+        if req.method() == axum::http::Method::GET {
+            Redirect::to("/admin/login").into_response()
+        } else {
+            StatusCode::UNAUTHORIZED.into_response()
+        }
+    }
+}
+
 /// GET /admin/login -> Show login form.
 pub async fn login_page() -> impl IntoResponse {
     LoginTemplate { error: None }

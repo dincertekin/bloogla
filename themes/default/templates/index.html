@@ -1,0 +1,72 @@
+{% extends "default/templates/layout.html" %}
+
+{% block title %}
+{% if search_query %}
+Search: {{ search_query }} - {{ blog_name }}
+{% elif tag_name %}
+Tag: {{ tag_name }} - {{ blog_name }}
+{% else %}
+{{ blog_name }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="layout-grid">
+    <section class="articles-list">
+        {% if search_query %}
+        <h2 class="section-title">Search results for "{{ search_query }}"</h2>
+        {% elif tag_name %}
+        <h2 class="section-title">Articles tagged with "#{{ tag_name }}"</h2>
+        {% endif %}
+
+        {% for article in articles %}
+        <article class="article-card">
+            {% if article.cover_image %}
+            <a href="/article/{{ article.slug }}">
+                <img src="{{ article.cover_image }}" alt="{{ article.title }}" class="article-cover" />
+            </a>
+            {% endif %}
+
+            <div class="article-meta">
+                <time>{{ article.created_at }}</time>
+                <span>&bull;</span>
+                <span>{{ article.reading_time }} min read</span>
+                <span>&bull;</span>
+                <span>{{ article.views }} views</span>
+            </div>
+
+            <h2 class="article-title">
+                <a href="/article/{{ article.slug }}">{{ article.title }}</a>
+            </h2>
+
+            <div class="article-excerpt">
+                {{ article.content | safe }}
+            </div>
+
+            {% if article.tags %}
+            <div class="article-tags">
+                {% for tag in article.tags %}
+                <a href="/tag/{{ tag.slug }}" class="tag-badge">#{{ tag.name }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </article>
+        {% else %}
+        <p class="empty-state">No articles found.</p>
+        {% endfor %}
+    </section>
+
+    <aside class="sidebar">
+        {% if tags %}
+        <div class="widget">
+            <h3 class="widget-title">Tags</h3>
+            <div class="tag-cloud">
+                {% for tag in tags %}
+                <a href="/tag/{{ tag.slug }}" class="tag-badge">#{{ tag.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

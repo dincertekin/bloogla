@@ -1,5 +1,4 @@
 use crate::models::{Article, SearchQuery, Tag};
-use crate::templates::{ArticleTemplate, IndexTemplate, TagPageTemplate};
 use crate::utils::{get_setting, xml_escape};
 use crate::AppState;
 
@@ -8,6 +7,33 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use comrak::{markdown_to_html, ComrakOptions};
+
+/// Dynamic theme renderer with hot-reloading support during development.
+pub async fn render_theme_template(
+    state: &AppState,
+    template_relative_path: &str, // e.g. "templates/index.html"
+    context: &tera::Context,
+) -> Response {
+    let active_theme = get_setting(&state.pool, "active_theme", "default").await;
+    let full_template_path = format!("{}/{}", active_theme, template_relative_path);
+
+    // Hot-reload in dev mode: refresh template cache on each request
+    if cfg!(debug_assertions) {
+        if let Ok(mut tera) = state.tera.write() {
+            let _ = tera.full_reload();
+        }
+    }
+
+    let tera = state.tera.read().unwrap();
+    match tera.render(&full_template_path, context) {
+        Ok(html) => Html(html).into_response(),
+        Err(err) => {
+            eprintln!("Theme Rendering Error ({}): {}", full_template_path, err);
+            Html("<h1>500 - Theme Error</h1><p>Failed to render theme template.</p>")
+                .into_response()
+        }
+    }
+}
 
 async fn format_articles_for_listing(
     pool: &sqlx::Pool<sqlx::Sqlite>,
@@ -66,15 +92,16 @@ pub async fn home_page(State(state): State<AppState>) -> impl IntoResponse {
     let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
     let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
-    IndexTemplate {
-        blog_name,
-        articles: formatted_articles,
-        tags,
-        search_query: String::new(),
-    }
+    let mut context = tera::Context::new();
+    context.insert("blog_name", &blog_name);
+    context.insert("articles", &formatted_articles);
+    context.insert("tags", &tags);
+    context.insert("search_query", "");
+
+    render_theme_template(&state, "templates/index.html", &context).await
 }
 
-/// GET /article/:id -> Shows article page.
+/// GET /article/:slug -> Shows article page.
 pub async fn show_article(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -106,14 +133,14 @@ pub async fn show_article(
 
             let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
-            ArticleTemplate {
-                blog_name,
-                content_html,
-                article: p,
-                tags,
-                search_query: String::new(),
-            }
-            .into_response()
+            let mut context = tera::Context::new();
+            context.insert("blog_name", &blog_name);
+            context.insert("content_html", &content_html);
+            context.insert("article", &p);
+            context.insert("tags", &tags);
+            context.insert("search_query", "");
+
+            render_theme_template(&state, "templates/article.html", &context).await
         }
         None => Html("<h1>404 Not Found</h1>".to_string()).into_response(),
     }
@@ -159,17 +186,59 @@ pub async fn tag_page(
     let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
     let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
 
-    TagPageTemplate {
-        blog_name,
-        tag_name: tag.name,
-        articles: formatted_articles,
-        tags: all_tags,
-        search_query: String::new(),
-    }
-    .into_response()
+    let mut context = tera::Context::new();
+    context.insert("blog_name", &blog_name);
+    context.insert("tag_name", &tag.name);
+    context.insert("articles", &formatted_articles);
+    context.insert("tags", &all_tags);
+    context.insert("search_query", "");
+
+    render_theme_template(&state, "templates/tag.html", &context).await
 }
 
-// GET /health -> Show health status.
+/// GET /search?q=query -> Search query.
+pub async fn search_article(
+    State(state): State<AppState>,
+    Query(query): Query<SearchQuery>,
+) -> impl IntoResponse {
+    let search_term = query.q.unwrap_or_default().trim().to_string();
+
+    if search_term.is_empty() {
+        return axum::response::Redirect::to("/").into_response();
+    }
+
+    let sanitized = search_term.replace('%', "\\%").replace('_', "\\_");
+    let pattern = format!("%{}%", sanitized);
+    let articles = sqlx::query_as::<_, Article>(
+        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at
+         FROM articles
+         WHERE title LIKE ? OR content LIKE ?
+         ORDER BY id DESC"
+    )
+    .bind(&pattern)
+    .bind(&pattern)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let tags = sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
+    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
+
+    let mut context = tera::Context::new();
+    context.insert("blog_name", &blog_name);
+    context.insert("articles", &formatted_articles);
+    context.insert("tags", &tags);
+    context.insert("search_query", &search_term);
+
+    render_theme_template(&state, "templates/index.html", &context).await
+}
+
+/// GET /health -> Show health status.
 pub async fn health_check() -> impl IntoResponse {
     axum::http::StatusCode::OK
 }
@@ -266,46 +335,4 @@ pub async fn sitemap_xml(State(state): State<AppState>) -> Response {
         .header("Content-Type", "application/xml; charset=utf-8")
         .body(xml.into())
         .unwrap()
-}
-
-/// GET /search?q=query -> Search query.
-pub async fn search_article(
-    State(state): State<AppState>,
-    Query(query): Query<SearchQuery>,
-) -> impl IntoResponse {
-    let search_term = query.q.unwrap_or_default().trim().to_string();
-
-    if search_term.is_empty() {
-        return axum::response::Redirect::to("/").into_response();
-    }
-
-    let sanitized = search_term.replace('%', "\\%").replace('_', "\\_");
-    let pattern = format!("%{}%", sanitized);
-    let articles = sqlx::query_as::<_, Article>(
-        "SELECT id, title, slug, content, cover_image, COALESCE(views, 0) as views, COALESCE(created_at, CURRENT_TIMESTAMP) as created_at
-         FROM articles
-         WHERE title LIKE ? OR content LIKE ?
-         ORDER BY id DESC"
-    )
-    .bind(&pattern)
-    .bind(&pattern)
-    .fetch_all(&state.pool)
-    .await
-    .unwrap_or_default();
-
-    let tags = sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
-        .fetch_all(&state.pool)
-        .await
-        .unwrap_or_default();
-
-    let formatted_articles = format_articles_for_listing(&state.pool, articles).await;
-    let blog_name = get_setting(&state.pool, "blog_name", "Bloogla").await;
-
-    IndexTemplate {
-        blog_name,
-        articles: formatted_articles,
-        tags,
-        search_query: search_term,
-    }
-    .into_response()
 }

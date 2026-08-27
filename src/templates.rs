@@ -1,16 +1,6 @@
 use crate::models::{Article, Tag};
 use askama_axum::Template;
 
-/// Public homepage template.
-#[derive(Template)]
-#[template(path = "public/index.html")]
-pub struct IndexTemplate {
-    pub blog_name: String,
-    pub articles: Vec<Article>,
-    pub tags: Vec<Tag>,
-    pub search_query: String,
-}
-
 /// Admin login page template.
 #[derive(Template)]
 #[template(path = "admin/login.html")]
@@ -20,7 +10,7 @@ pub struct LoginTemplate {
 
 /// New article card partial template.
 #[derive(Template)]
-#[template(path = "partials/article_item.html")]
+#[template(path = "admin/article_item.html")]
 pub struct ArticleItemTemplate {
     pub article: Article,
 }
@@ -33,17 +23,6 @@ pub struct EditArticleTemplate {
     pub article: Article,
     pub error: Option<String>,
     pub tag_checkboxes: Vec<(Tag, bool)>,
-}
-
-/// Public article details page template.
-#[derive(Template)]
-#[template(path = "public/article.html")]
-pub struct ArticleTemplate {
-    pub blog_name: String,
-    pub content_html: String,
-    pub article: Article,
-    pub tags: Vec<Tag>,
-    pub search_query: String,
 }
 
 /// Admin dashboard template.
@@ -79,20 +58,9 @@ pub struct TagsTemplate {
     pub tags: Vec<Tag>,
 }
 
-/// Public tag page template.
+/// New tag item template.
 #[derive(Template)]
-#[template(path = "public/tag.html")]
-pub struct TagPageTemplate {
-    pub blog_name: String,
-    pub tag_name: String,
-    pub articles: Vec<Article>,
-    pub tags: Vec<Tag>,
-    pub search_query: String,
-}
-
-/// New tag item partial template.
-#[derive(Template)]
-#[template(path = "partials/tag_item.html")]
+#[template(path = "admin/tag_item.html")]
 pub struct TagItemTemplate {
     pub tag: Tag,
 }
@@ -102,5 +70,7 @@ pub struct TagItemTemplate {
 pub struct SettingsTemplate {
     pub blog_name: String,
     pub blog_description: String,
-    pub articles_per_page: String,
+    pub blog_keywords: String,
+    pub active_theme: String,
+    pub available_themes: Vec<crate::themes::ThemeInfo>,
 }

@@ -1,0 +1,38 @@
+{% extends "default/templates/layout.html" %}
+
+{% block title %}{{ article.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<article class="single-article">
+    <header class="single-header">
+        <h1 class="single-title">{{ article.title }}</h1>
+        <div class="article-meta">
+            <time>{{ article.created_at }}</time>
+            <span>&bull;</span>
+            <span>{{ article.reading_time }} min read</span>
+            <span>&bull;</span>
+            <span>{{ article.views }} views</span>
+        </div>
+
+        {% if article.tags %}
+        <div class="article-tags">
+            {% for tag in article.tags %}
+            <a href="/tag/{{ tag.slug }}" class="tag-badge">#{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </header>
+
+    {% if article.cover_image %}
+    <img src="{{ article.cover_image }}" alt="{{ article.title }}" class="single-cover" />
+    {% endif %}
+
+    <div class="article-body">
+        {{ content_html | safe }}
+    </div>
+
+    <footer class="single-footer">
+        <a href="/" class="back-link">&larr; Back to all articles</a>
+    </footer>
+</article>
+{% endblock %}

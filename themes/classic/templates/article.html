@@ -1,5 +1,8 @@
-{% extends "layouts/base.html" %} {% block title %}{{ article.title }} - {{ blog_name
-}}{% endblock %} {% block content %}
+{% extends "classic/templates/layout.html" %}
+
+{% block title %}{{ article.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
 <a href="/" class="btn btn-ghost btn-sm mb-lg">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -8,7 +11,7 @@
     Back to Articles
 </a>
 
-<article>
+<article class="article-card">
     <h1>{{ article.title }}</h1>
 
     <div class="article-meta">
@@ -50,16 +53,18 @@
         </span>
     </div>
 
-    {% if !article.tags.is_empty() %}
+    {% if article.tags %}
     <div class="tag-list">
         {% for tag in article.tags %}
         <a href="/tag/{{ tag.slug }}" class="tag-chip">{{ tag.name }}</a>
         {% endfor %}
     </div>
-    {% endif %} {% if let Some(cover) = article.cover_image %}
-    <img src="{{ cover }}" alt="{{ article.title }}" class="article-cover" />
     {% endif %}
 
-    <div class="article-content">{{ content_html|safe }}</div>
+    {% if article.cover_image %}
+    <img src="{{ article.cover_image }}" alt="{{ article.title }}" class="article-cover" />
+    {% endif %}
+
+    <div class="article-content">{{ content_html | safe }}</div>
 </article>
 {% endblock %}
