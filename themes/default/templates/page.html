@@ -1,0 +1,19 @@
+{% extends "default/templates/layout.html" %}
+
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<article class="single-post">
+    <header class="single-header">
+        <h1 class="single-title">{{ post.title }}</h1>
+    </header>
+
+    {% if post.cover_image %}
+    <img src="{{ post.cover_image }}" alt="{{ post.title }}" class="single-cover" />
+    {% endif %}
+
+    <div class="post-body">
+        {{ content_html | safe }}
+    </div>
+</article>
+{% endblock %}

@@ -1,133 +1,33 @@
-{% extends "admin/layout.html" %} {% block title %}Tags{% endblock %} {% block
-content %}
-<div class="page-header" style="margin-bottom: 1.5rem">
-    <h1>Tags</h1>
+{% extends "admin/layout.html" %}
+{% block title %}Tags{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Tags</h1>
+        <p>Group related posts. Each tag gets its own page, and you can link to it from the menu.</p>
+    </div>
 </div>
 
-<!-- Create Form Card -->
-<section class="card" style="margin-bottom: 2rem">
-    <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem">
-        Create New Tag
-    </h2>
-    <form action="/admin/tags/new" method="POST" hx-post="/admin/tags/new" hx-target="#tags-list" hx-swap="afterbegin"
-        hx-on::after-request="if(event.detail.successful) this.reset()">
-        <div class="form-group">
-            <label for="name">Tag Name</label>
-            <input type="text" id="name" name="name" class="form-control" placeholder="e.g. programming" required />
+<section class="card">
+    <form hx-post="/admin/tags/new" hx-target="#tag-list" hx-swap="afterbegin"
+        hx-on::after-request="if (event.detail.successful &amp;&amp; event.detail.target.id === 'tag-list') { this.reset(); document.getElementById('tag-form-alert').innerHTML = ''; }">
+        <div id="tag-form-alert"></div>
+        <div class="form-group" style="margin-bottom: 0.75rem">
+            <label for="name">New tag</label>
+            <input type="text" id="name" name="name" class="form-control" placeholder="e.g. Travel" required
+                autocomplete="off" />
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem">
-            Add Tag
-        </button>
+        <button type="submit" class="btn btn-primary">Add Tag</button>
     </form>
 </section>
 
-<!-- Tags List -->
-<section>
-    <div id="tags-list">
-        {% if tags.is_empty() %}
-        <p id="empty-state" class="empty-state">No tags yet.</p>
-        {% endif %} {% for tag in tags %}
-        <div class="card" id="tag-{{ tag.id }}" style="
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 0.85rem 1.25rem;
-                margin-bottom: 0.5rem;
-            ">
-            <div>
-                <strong style="
-                        color: var(--text-primary);
-                        font-weight: 600;
-                        font-size: 0.95rem;
-                    ">
-                    {{ tag.name }}
-                </strong>
-            </div>
-            <div>
-                <button type="button" class="btn btn-danger btn-sm" onclick="openDeleteModal('{{ tag.id }}')">
-                    Delete
-                </button>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</section>
-
-<!-- Custom Delete Modal -->
-<div id="delete-modal" class="modal-overlay">
-    <div class="modal-card">
-        <h3 style="margin-top: 0; font-size: 1.25rem">Delete Tag</h3>
-        <p style="color: var(--text-muted); margin: 0.75rem 0 1.5rem 0">
-            Are you sure you want to delete this tag? It will be removed from
-            all articles that use it.
-        </p>
-        <div style="display: flex; justify-content: flex-end; gap: 0.75rem">
-            <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">
-                Cancel
-            </button>
-            <button type="button" id="confirm-delete-btn" class="btn btn-danger">
-                Delete
-            </button>
-        </div>
-    </div>
+<div id="tag-list" class="item-list" data-empty-text="No tags yet." {% if tags.is_empty() %}hidden{% endif %}>
+    {% for row in tags %}
+    {% include "admin/tag_item.html" %}
+    {% endfor %}
 </div>
-{% endblock %} {% block scripts %}
-<script>
-    document
-        .getElementById("tags-list")
-        .addEventListener("htmx:afterSwap", function () {
-            const empty = document.getElementById("empty-state");
-            if (empty) empty.remove();
-        });
 
-    document.body.addEventListener("htmx:afterRequest", function (evt) {
-        const verb = evt.detail.requestConfig && evt.detail.requestConfig.verb;
-        if (verb !== "delete") return;
-
-        const list = document.getElementById("tags-list");
-        if (!list) return;
-
-        const hasItems = list.children.length > 0;
-        if (!hasItems && !document.getElementById("empty-state")) {
-            const emptyMsg = document.createElement("p");
-            emptyMsg.id = "empty-state";
-            emptyMsg.className = "empty-state";
-            emptyMsg.textContent = "No tags yet.";
-            list.prepend(emptyMsg);
-        }
-    });
-
-    function openDeleteModal(tagId) {
-        const modal = document.getElementById("delete-modal");
-        const confirmBtn = document.getElementById("confirm-delete-btn");
-
-        confirmBtn.setAttribute("hx-delete", `/admin/tags/${tagId}`);
-        confirmBtn.setAttribute("hx-target", `#tag-${tagId}`);
-        confirmBtn.setAttribute("hx-swap", "delete");
-
-        htmx.process(confirmBtn);
-
-        modal.classList.add("active");
-    }
-
-    function closeDeleteModal() {
-        const modal = document.getElementById("delete-modal");
-        if (modal) modal.classList.remove("active");
-    }
-
-    document
-        .getElementById("delete-modal")
-        .addEventListener("click", function (evt) {
-            if (evt.target === this) {
-                closeDeleteModal();
-            }
-        });
-
-    document.body.addEventListener("htmx:afterOnLoad", function (evt) {
-        const verb = evt.detail.requestConfig && evt.detail.requestConfig.verb;
-        if (verb === "delete" && evt.detail.successful) {
-            closeDeleteModal();
-        }
-    });
-</script>
+{% if tags.is_empty() %}
+<p class="empty-state" data-empty-for="tag-list">No tags yet.</p>
+{% endif %}
 {% endblock %}

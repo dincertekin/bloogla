@@ -1,0 +1,317 @@
+{% extends "admin/layout.html" %}
+{% block title %}{% if post.id == 0 %}New {% if post.is_page %}Page{% else %}Post{% endif %}{% else %}{{ post.title }}{% endif %}{% endblock %}
+{% block content %}
+<a href="{{ admin_path }}" class="back-link">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m15 18-6-6 6-6" />
+    </svg>
+    {% if post.is_page %}All pages{% else %}All posts{% endif %}
+</a>
+
+{% if let Some(err) = error %}
+<div class="alert alert-error" role="alert">{{ err }}</div>
+{% endif %}
+{% if saved %}
+<div class="alert alert-success" role="status">
+    Saved.{% if let Some(path) = public_path %} <a href="{{ path }}" target="_blank" style="color: inherit">View it on your site</a>.{% endif %}
+</div>
+{% endif %}
+
+<div id="draft-banner" class="alert alert-info" role="status" hidden>
+    <span id="draft-text">You have unsaved changes from earlier.</span>
+    <span style="display: inline-flex; gap: 0.5rem; margin-left: 0.5rem">
+        <button type="button" class="btn btn-secondary btn-sm" id="draft-restore">Restore them</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="draft-discard">Discard</button>
+    </span>
+</div>
+
+<form id="editor-form" method="POST"
+    action="{% if post.id == 0 %}{{ admin_path }}{% else %}{{ admin_path }}/{{ post.id }}/edit{% endif %}">
+    <div class="editor-layout">
+        <div class="editor-main">
+            <input type="text" name="title" class="editor-title" value="{{ post.title }}"
+                placeholder="{% if post.is_page %}Page title{% else %}Post title{% endif %}" aria-label="Title"
+                autocomplete="off" {% if post.id == 0 %}autofocus{% endif %} />
+
+            <label class="slug-field">
+                <span>{{ base_url }}/{% if !post.is_page %}post/{% endif %}</span>
+                <input type="text" name="slug" value="{{ post.slug }}" placeholder="{% if post.is_page %}your-page-title{% else %}your-post-title{% endif %}"
+                    aria-label="URL slug" autocomplete="off" spellcheck="false" />
+            </label>
+
+            <div class="editor-toolbar">
+                <div class="segmented" role="tablist" aria-label="Editor mode">
+                    <button type="button" role="tab" aria-selected="true" data-mode="write">Write</button>
+                    <button type="button" role="tab" aria-selected="false" data-mode="preview">Preview</button>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-picker="insert">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true">
+                        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                        <circle cx="9" cy="9" r="2" />
+                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                    </svg>
+                    Insert image
+                </button>
+            </div>
+
+            <textarea id="content" name="content" class="form-control editor-textarea"
+                placeholder="Start writing. Markdown works here: **bold**, _italic_, # Heading, - lists, [links](https://…)">{{ post.content }}</textarea>
+            <div id="preview" class="preview-pane prose" hidden></div>
+        </div>
+
+        <aside>
+            <section class="card panel">
+                <h2 class="panel-title">Publish</h2>
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status" class="form-control">
+                        <option value="draft" {% if post.status == "draft" %}selected{% endif %}>Draft</option>
+                        <option value="published" {% if post.status == "published" %}selected{% endif %}>Published</option>
+                        <option value="scheduled" {% if post.status == "scheduled" %}selected{% endif %}>Scheduled</option>
+                    </select>
+                </div>
+                <div class="form-group" id="date-group">
+                    <label for="published_at">Publish date</label>
+                    <input type="datetime-local" id="published_at" name="published_at" class="form-control"
+                        value="{{ published_at_input }}" />
+                    <span class="form-hint">In UTC. Leave empty to use the current time.</span>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%">Save</button>
+                <p class="form-hint" style="margin-top: 0.5rem; text-align: center">Ctrl+S or ⌘S also saves.</p>
+            </section>
+
+            <section class="card panel">
+                <h2 class="panel-title">Cover image</h2>
+                <img id="cover-preview" class="cover-preview" alt=""
+                    src="{% if let Some(cover) = post.cover_image %}{{ cover }}{% endif %}"
+                    {% if post.cover_image.is_none() %}hidden{% endif %} />
+                <div id="cover-empty" class="cover-empty" {% if post.cover_image.is_some() %}hidden{% endif %}>
+                    No cover image
+                </div>
+                <div class="button-row">
+                    <button type="button" class="btn btn-secondary btn-sm" data-picker="cover">Choose</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="cover-remove"
+                        {% if post.cover_image.is_none() %}hidden{% endif %}>Remove</button>
+                </div>
+                <input type="hidden" id="cover_image" name="cover_image"
+                    value="{% if let Some(cover) = post.cover_image %}{{ cover }}{% endif %}" />
+            </section>
+
+            {% if !post.is_page %}
+            <section class="card panel">
+                <h2 class="panel-title">Tags</h2>
+                {% if tag_checkboxes.is_empty() %}
+                <p class="form-hint">No tags yet. <a href="/admin/tags" style="color: inherit">Create some</a> to
+                    group related posts.</p>
+                {% else %}
+                <div class="tag-list">
+                    {% for (tag, checked) in tag_checkboxes %}
+                    <label class="tag-chip">
+                        <input type="checkbox" name="tag_ids" value="{{ tag.id }}" {% if checked %}checked{% endif %} />
+                        {{ tag.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {% if !revisions.is_empty() %}
+            <section class="card panel">
+                <h2 class="panel-title">Earlier versions</h2>
+                {% for rev in revisions %}
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0">
+                    <span class="form-hint">{{ rev.label }}</span>
+                    <button type="button" class="btn btn-ghost btn-sm" data-revision="{{ rev.id }}"
+                        data-revision-label="{{ rev.label }}">Restore</button>
+                </div>
+                {% endfor %}
+            </section>
+            {% endif %}
+
+            {% if post.id != 0 %}
+            <button type="button" class="btn btn-ghost-danger btn-sm" style="width: 100%"
+                data-delete-url="{{ admin_path }}/{{ post.id }}" data-delete-redirect="{{ admin_path }}"
+                data-confirm-title="Delete this {% if post.is_page %}page{% else %}post{% endif %}?"
+                data-confirm-text="“{{ post.title }}” will be removed permanently.">
+                Delete {% if post.is_page %}page{% else %}post{% endif %}
+            </button>
+            {% endif %}
+        </aside>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (() => {
+        const form = document.getElementById("editor-form");
+        const content = document.getElementById("content");
+        const preview = document.getElementById("preview");
+        const status = document.getElementById("status");
+        let dirty = false;
+
+        const titleField = form.querySelector("[name=title]");
+
+        // Keep a copy of unsaved text in this browser, in case the tab closes.
+        const draftKey = "bloogla:draft:" + form.getAttribute("action");
+        let draftTimer = null;
+        const saveDraft = () => {
+            clearTimeout(draftTimer);
+            draftTimer = setTimeout(() => {
+                try {
+                    localStorage.setItem(draftKey, JSON.stringify({
+                        title: titleField.value, content: content.value, at: Date.now(),
+                    }));
+                } catch { /* storage full or disabled */ }
+            }, 800);
+        };
+        const clearDraft = () => {
+            clearTimeout(draftTimer);
+            try { localStorage.removeItem(draftKey); } catch { }
+        };
+
+        const banner = document.getElementById("draft-banner");
+        let stored = null;
+        try { stored = JSON.parse(localStorage.getItem(draftKey)); } catch { }
+        if (new URLSearchParams(location.search).has("saved")) {
+            clearDraft();
+        } else if (stored && (stored.title !== titleField.value || stored.content !== content.value)) {
+            const when = new Date(stored.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+            document.getElementById("draft-text").textContent = `You have unsaved changes from ${when}.`;
+            banner.hidden = false;
+        }
+        document.getElementById("draft-restore").addEventListener("click", () => {
+            titleField.value = stored.title;
+            content.value = stored.content;
+            banner.hidden = true;
+            dirty = true;
+        });
+        document.getElementById("draft-discard").addEventListener("click", () => {
+            clearDraft();
+            banner.hidden = true;
+        });
+
+        // Unsaved changes warning
+        form.addEventListener("input", () => {
+            dirty = true;
+            saveDraft();
+        });
+        form.addEventListener("submit", () => {
+            dirty = false;
+            clearDraft();
+        });
+
+        // Earlier versions: load into the editor; saving keeps it.
+        document.querySelectorAll("[data-revision]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const response = await fetch(`/admin/posts/{{ post.id }}/revisions/${button.dataset.revision}`);
+                if (!response.ok) return;
+                const revision = await response.json();
+                titleField.value = revision.title;
+                content.value = revision.content;
+                dirty = true;
+                document.querySelector("[data-mode=write]").click();
+                banner.hidden = false;
+                document.getElementById("draft-text").textContent =
+                    `Loaded the version from ${button.dataset.revisionLabel}. Save to keep it.`;
+                document.getElementById("draft-restore").hidden = true;
+                document.getElementById("draft-discard").textContent = "Dismiss";
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+        });
+        window.addEventListener("beforeunload", (event) => {
+            if (dirty && !window.skipUnloadWarning) event.preventDefault();
+        });
+
+        // Ctrl+S / Cmd+S saves
+        document.addEventListener("keydown", (event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+        });
+
+        // Show the address a new post will get while its title is typed
+        const titleInput = form.querySelector("[name=title]");
+        const slugInput = form.querySelector("[name=slug]");
+        const toSlug = (text) =>
+            text
+                .toLocaleLowerCase("tr")
+                .replace(/ı/g, "i")
+                .replace(/ß/g, "ss")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^\p{L}\p{N}]+/gu, "-")
+                .replace(/^-+|-+$/g, "");
+        slugInput.dataset.fallback = slugInput.placeholder;
+        if (!slugInput.value) {
+            titleInput.addEventListener("input", () => {
+                slugInput.placeholder = toSlug(titleInput.value) || slugInput.dataset.fallback;
+            });
+        }
+
+        // The publish date only matters when scheduling or backdating
+        const dateGroup = document.getElementById("date-group");
+        const syncDate = () => (dateGroup.hidden = status.value === "draft");
+        status.addEventListener("change", syncDate);
+        syncDate();
+
+        // Write / Preview
+        document.querySelectorAll(".segmented [data-mode]").forEach((tab) => {
+            tab.addEventListener("click", async () => {
+                const showPreview = tab.dataset.mode === "preview";
+                document.querySelectorAll(".segmented [data-mode]").forEach((t) =>
+                    t.setAttribute("aria-selected", String(t === tab))
+                );
+                content.hidden = showPreview;
+                preview.hidden = !showPreview;
+                if (!showPreview) return content.focus();
+
+                preview.innerHTML = '<p class="text-muted">Rendering…</p>';
+                const response = await fetch("/admin/preview", {
+                    method: "POST",
+                    body: new URLSearchParams({ content: content.value }),
+                });
+                preview.innerHTML = response.ok
+                    ? await response.text()
+                    : '<p class="error-message">Preview failed. Your text is safe; try again.</p>';
+            });
+        });
+
+        const coverInput = document.getElementById("cover_image");
+        const coverPreview = document.getElementById("cover-preview");
+        const coverEmpty = document.getElementById("cover-empty");
+        const coverRemove = document.getElementById("cover-remove");
+
+        function setCover(url) {
+            coverInput.value = url;
+            coverPreview.src = url;
+            coverPreview.hidden = !url;
+            coverEmpty.hidden = !!url;
+            coverRemove.hidden = !url;
+            dirty = true;
+        }
+        coverRemove.addEventListener("click", () => setCover(""));
+
+        // "Choose" sets the cover image; "Insert image" adds Markdown at the cursor
+        document.querySelector("[data-picker=cover]").addEventListener("click", () =>
+            openMediaPicker((url) => setCover(url))
+        );
+        document.querySelector("[data-picker=insert]").addEventListener("click", () =>
+            openMediaPicker((url, alt) => {
+                const start = content.selectionStart;
+                const before = content.value.slice(0, start);
+                const spacer = before && !before.endsWith("\n") ? "\n\n" : "";
+                content.setRangeText(`${spacer}![${alt}](${url})\n`, start, content.selectionEnd, "end");
+                content.focus();
+                dirty = true;
+            })
+        );
+    })();
+</script>
+{% endblock %}

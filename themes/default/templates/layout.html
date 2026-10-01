@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ blog_name }}{% endblock %}</title>
+    {{ seo_head | safe }}
     <link rel="stylesheet" href="/theme-assets/default/static/css/style.css">
     <link rel="stylesheet" href="/theme-assets/default/static/css/prism-material-light.min.css">
 </head>
@@ -13,8 +14,15 @@
     <header class="site-header">
         <div class="container header-content">
             <h1 class="site-title"><a href="/">{{ blog_name }}</a></h1>
+            {% if menu %}
+            <nav class="site-nav">
+                {% for item in menu %}
+                <a href="{{ item.url }}">{{ item.label }}</a>
+                {% endfor %}
+            </nav>
+            {% endif %}
             <form action="/search" method="GET" class="search-form">
-                <input type="search" name="q" placeholder="Search articles..." value="{{ search_query }}" required />
+                <input type="search" name="q" placeholder="Search posts..." value="{{ search_query }}" required />
             </form>
         </div>
     </header>

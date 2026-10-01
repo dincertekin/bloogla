@@ -1,0 +1,29 @@
+# systemd unit for Bloogla. Installed by deploy/install.sh, or copy to
+# /etc/systemd/system/bloogla.service and edit the BLOOGLA_BASE_URL line.
+[Unit]
+Description=Bloogla blog
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=bloogla
+Group=bloogla
+WorkingDirectory=/var/lib/bloogla
+ExecStart=/usr/local/bin/bloogla serve
+Environment=BLOOGLA_HOST=127.0.0.1
+Environment=BLOOGLA_PORT=8080
+Environment=BLOOGLA_BASE_URL=https://example.com
+Environment=BLOOGLA_PRODUCTION=true
+Restart=on-failure
+RestartSec=2
+
+# Hardening: Bloogla only needs to write inside its own folder.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/bloogla
+
+[Install]
+WantedBy=multi-user.target

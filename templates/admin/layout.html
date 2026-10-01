@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
     <title>{% block title %}Admin Panel{% endblock %} - {{ blog_name }}</title>
+    <link rel="icon" href="/favicon.ico">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/htmx.min.js"></script>
 </head>
@@ -15,13 +17,13 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div>
-                <a href="/admin" class="sidebar-brand">Bloogla Admin</a>
+                <a href="/admin" class="sidebar-brand">{{ blog_name }}</a>
                 <nav>
                     <ul class="nav-list">
                         <li><a href="/admin" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
+                                    stroke-linejoin="round" aria-hidden="true">
                                     <rect width="7" height="9" x="3" y="3" rx="1" />
                                     <rect width="7" height="5" x="14" y="3" rx="1" />
                                     <rect width="7" height="9" x="14" y="12" rx="1" />
@@ -29,22 +31,42 @@
                                 </svg>
                                 Dashboard
                             </a></li>
-                        <li><a href="/admin/articles" class="nav-item">
+                        <li><a href="/admin/posts" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
+                                    stroke-linejoin="round" aria-hidden="true">
                                     <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
                                     <path d="M14 2v4a2 2 0 0 0 2 2h4" />
                                     <path d="M10 9H8" />
                                     <path d="M16 13H8" />
                                     <path d="M16 17H8" />
                                 </svg>
-                                Articles
+                                Posts
+                            </a></li>
+                        <li><a href="/admin/pages" class="nav-item">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M20 7h-3a2 2 0 0 1-2-2V2" />
+                                    <path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z" />
+                                    <path d="M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8" />
+                                </svg>
+                                Pages
+                            </a></li>
+                        <li><a href="/admin/media" class="nav-item">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" aria-hidden="true">
+                                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                                    <circle cx="9" cy="9" r="2" />
+                                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                                </svg>
+                                Media
                             </a></li>
                         <li><a href="/admin/tags" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
+                                    stroke-linejoin="round" aria-hidden="true">
                                     <path
                                         d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
                                     <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
@@ -54,7 +76,7 @@
                         <li><a href="/admin/settings" class="nav-item">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
+                                    stroke-linejoin="round" aria-hidden="true">
                                     <path
                                         d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                                     <circle cx="12" cy="12" r="3" />
@@ -67,7 +89,8 @@
             <div class="sidebar-bottom">
                 <a href="/" target="_blank" class="nav-item">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true">
                         <path d="M15 3h6v6" />
                         <path d="M10 14 21 3" />
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
@@ -76,12 +99,13 @@
                 </a>
                 <a href="/admin/logout" class="nav-item text-red">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                         <polyline points="16 17 21 12 16 7" />
                         <line x1="21" x2="9" y1="12" y2="12" />
                     </svg>
-                    Logout
+                    Log Out
                 </a>
             </div>
         </aside>
@@ -92,14 +116,148 @@
         </main>
     </div>
 
+    <!-- Shared delete confirmation. Triggered by any element with data-delete-url. -->
+    <div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="modal-card" style="max-width: 440px">
+            <h3 id="confirm-title" style="font-size: 1.125rem">Delete this item?</h3>
+            <p id="confirm-text" class="text-secondary" style="margin: 0.5rem 0 1.5rem">
+                This can't be undone.
+            </p>
+            <p id="confirm-error" class="error-message" hidden>Couldn't delete it. Please try again.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+                <button type="button" id="confirm-delete" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared media chooser, opened with openMediaPicker(callback) -->
+    <div id="media-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="media-modal-title">
+        <div class="modal-card" style="max-width: 720px">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem">
+                <h3 id="media-modal-title" style="font-size: 1.125rem">Choose an image</h3>
+                <button type="button" class="btn btn-ghost btn-sm" data-modal-close aria-label="Close">✕</button>
+            </div>
+            <div id="picker-body">
+                <p class="text-secondary">Loading…</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Defined before page scripts so they can use it.
+        let mediaPickerCallback = null;
+
+        function openMediaPicker(callback) {
+            mediaPickerCallback = callback;
+            const modal = document.getElementById("media-modal");
+            htmx.ajax("GET", "/admin/media/picker", { target: "#picker-body" });
+            modal.classList.add("active");
+        }
+
+        document.getElementById("media-modal").addEventListener("click", (event) => {
+            const item = event.target.closest(".picker-item");
+            if (!item || !mediaPickerCallback) return;
+            mediaPickerCallback(item.dataset.url, item.dataset.alt);
+            event.currentTarget.classList.remove("active");
+        });
+    </script>
+
     {% block scripts %}{% endblock %}
     <script>
-        document.querySelectorAll('.nav-list .nav-item').forEach(link => {
-            if (link.pathname === window.location.pathname) {
-                link.classList.add('active');
-                link.setAttribute('aria-current', 'page');
+        // Highlight the current section, including its sub-pages (e.g. the editor).
+        document.querySelectorAll(".nav-list .nav-item").forEach((link) => {
+            const href = link.getAttribute("href");
+            const path = window.location.pathname;
+            const active = href === "/admin" ? path === "/admin" : path === href || path.startsWith(href + "/");
+            if (active) {
+                link.classList.add("active");
+                link.setAttribute("aria-current", "page");
             }
         });
+
+        function openModal(modal) {
+            modal.classList.add("active");
+            const first = modal.querySelector("[data-modal-close], button, input");
+            if (first) first.focus();
+        }
+
+        function closeModal(modal) {
+            modal.classList.remove("active");
+        }
+
+        document.addEventListener("click", (event) => {
+            const closer = event.target.closest("[data-modal-close]");
+            if (closer) closeModal(closer.closest(".modal-overlay"));
+            if (event.target.classList.contains("modal-overlay")) closeModal(event.target);
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") return;
+            document.querySelectorAll(".modal-overlay.active").forEach(closeModal);
+        });
+
+        // Delete buttons: <button data-delete-url="/admin/posts/1" data-delete-target="#post-1"
+        //                         data-confirm-title="..." data-confirm-text="...">
+        const confirmModal = document.getElementById("confirm-modal");
+        const confirmButton = document.getElementById("confirm-delete");
+        let deleteTrigger = null;
+
+        document.addEventListener("click", (event) => {
+            const trigger = event.target.closest("[data-delete-url]");
+            if (!trigger) return;
+            deleteTrigger = trigger;
+
+            document.getElementById("confirm-title").textContent =
+                trigger.dataset.confirmTitle || "Delete this item?";
+            document.getElementById("confirm-text").textContent =
+                trigger.dataset.confirmText || "This can't be undone.";
+            document.getElementById("confirm-error").hidden = true;
+
+            confirmButton.setAttribute("hx-delete", trigger.dataset.deleteUrl);
+            if (trigger.dataset.deleteTarget) {
+                confirmButton.setAttribute("hx-target", trigger.dataset.deleteTarget);
+                confirmButton.setAttribute("hx-swap", "delete");
+            } else {
+                confirmButton.removeAttribute("hx-target");
+                confirmButton.setAttribute("hx-swap", "none");
+            }
+            htmx.process(confirmButton);
+            openModal(confirmModal);
+        });
+
+        document.body.addEventListener("htmx:afterRequest", (event) => {
+            if (event.detail.elt !== confirmButton) return;
+            if (event.detail.successful) {
+                const redirect = deleteTrigger && deleteTrigger.dataset.deleteRedirect;
+                if (redirect) {
+                    window.skipUnloadWarning = true;
+                    window.location.href = redirect;
+                    return;
+                }
+                closeModal(confirmModal);
+            } else {
+                document.getElementById("confirm-error").hidden = false;
+            }
+        });
+
+        // Lists marked with data-empty-text show a message when their last item goes away.
+        function syncEmptyLists() {
+            document.querySelectorAll("[data-empty-text]").forEach((list) => {
+                const hasItems = list.querySelector("[data-item]") !== null;
+                let message = document.querySelector(`[data-empty-for="${list.id}"]`);
+                list.hidden = !hasItems;
+                if (hasItems && message) message.remove();
+                if (!hasItems && !message) {
+                    message = document.createElement("p");
+                    message.className = "empty-state";
+                    message.dataset.emptyFor = list.id;
+                    message.textContent = list.dataset.emptyText;
+                    list.after(message);
+                }
+            });
+        }
+        document.body.addEventListener("htmx:afterSettle", syncEmptyLists);
     </script>
 
 </body>

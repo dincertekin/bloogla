@@ -4,25 +4,7 @@ use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
 
 pub fn slugify(name: &str) -> String {
-    let mut slug = String::new();
-    let mut last_was_dash = false;
-
-    for c in name.to_lowercase().chars() {
-        if c.is_ascii_alphanumeric() {
-            slug.push(c);
-            last_was_dash = false;
-        } else if !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-
-    let trimmed = slug.trim_matches('-').to_string();
-    if trimmed.is_empty() {
-        "tag".to_string()
-    } else {
-        trimmed
-    }
+    crate::utils::slugify_or(name, "tag")
 }
 
 pub async fn get_all_tags(pool: &Pool<Sqlite>) -> Vec<Tag> {
@@ -32,50 +14,43 @@ pub async fn get_all_tags(pool: &Pool<Sqlite>) -> Vec<Tag> {
         .unwrap_or_default()
 }
 
-pub async fn get_tags_for_article(pool: &Pool<Sqlite>, article_id: i64) -> Vec<Tag> {
+pub async fn get_tags_for_post(pool: &Pool<Sqlite>, post_id: i64) -> Vec<Tag> {
     sqlx::query_as::<_, Tag>(
         "SELECT t.id, t.name, t.slug FROM tags t
-         INNER JOIN article_tags pt ON pt.tag_id = t.id
-         WHERE pt.article_id = ?
+         INNER JOIN post_tags pt ON pt.tag_id = t.id
+         WHERE pt.post_id = ?
          ORDER BY t.name ASC",
     )
-    .bind(article_id)
+    .bind(post_id)
     .fetch_all(pool)
     .await
     .unwrap_or_default()
 }
 
-pub async fn get_tags_for_articles(
-    pool: &Pool<Sqlite>,
-    article_ids: &[i64],
-) -> HashMap<i64, Vec<Tag>> {
-    if article_ids.is_empty() {
+pub async fn get_tags_for_posts(pool: &Pool<Sqlite>, post_ids: &[i64]) -> HashMap<i64, Vec<Tag>> {
+    if post_ids.is_empty() {
         return HashMap::new();
     }
 
-    let placeholders = article_ids
-        .iter()
-        .map(|_| "?")
-        .collect::<Vec<_>>()
-        .join(",");
+    let placeholders = post_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let query = format!(
-        "SELECT pt.article_id, t.id, t.name, t.slug FROM article_tags pt
+        "SELECT pt.post_id, t.id, t.name, t.slug FROM post_tags pt
          INNER JOIN tags t ON t.id = pt.tag_id
-         WHERE pt.article_id IN ({})
+         WHERE pt.post_id IN ({})
          ORDER BY t.name ASC",
         placeholders
     );
 
     let mut q = sqlx::query_as::<_, (i64, i64, String, String)>(&query);
-    for id in article_ids {
+    for id in post_ids {
         q = q.bind(id);
     }
 
     let rows = q.fetch_all(pool).await.unwrap_or_default();
 
     let mut map: HashMap<i64, Vec<Tag>> = HashMap::new();
-    for (article_id, tag_id, name, slug) in rows {
-        map.entry(article_id).or_default().push(Tag {
+    for (post_id, tag_id, name, slug) in rows {
+        map.entry(post_id).or_default().push(Tag {
             id: tag_id,
             name,
             slug,
@@ -84,18 +59,17 @@ pub async fn get_tags_for_articles(
     map
 }
 
-pub async fn set_article_tags(pool: &Pool<Sqlite>, article_id: i64, tag_ids: &[i64]) {
-    let _ = sqlx::query("DELETE FROM article_tags WHERE article_id = ?")
-        .bind(article_id)
+pub async fn set_post_tags(pool: &Pool<Sqlite>, post_id: i64, tag_ids: &[i64]) {
+    let _ = sqlx::query("DELETE FROM post_tags WHERE post_id = ?")
+        .bind(post_id)
         .execute(pool)
         .await;
 
     for tag_id in tag_ids {
-        let _ =
-            sqlx::query("INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)")
-                .bind(article_id)
-                .bind(tag_id)
-                .execute(pool)
-                .await;
+        let _ = sqlx::query("INSERT OR IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)")
+            .bind(post_id)
+            .bind(tag_id)
+            .execute(pool)
+            .await;
     }
 }

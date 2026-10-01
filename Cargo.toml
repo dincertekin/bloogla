@@ -4,48 +4,38 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Web Framework & Async Runtime
-axum = "0.7"
+axum = { version = "0.7", features = ["multipart"] }
 axum-extra = { version = "0.9", features = ["form"] }
-tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal"] }
-
-# Database (SQLite)
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal", "fs"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "macros"] }
-
-# CLI Terminal Setup Wizard
 dialoguer = "0.11"
 console = "0.15"
-
-# Password Hashing & Security
 argon2 = { version = "0.5", features = ["password-hash"] }
 rand = "0.8"
 ammonia = "4.0"
 tower_governor = "0.4"
-
-# Serialization & Config
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# Session management & cookies for authentication
 tower-sessions = "0.12"
-
-# Date handling for post timestamps
 chrono = { version = "0.4", features = ["serde"] }
-
-# Compile-time HTML Templating
 askama = "0.12"
 askama_axum = "0.4"
-
-# Markdown Parsing & Static Serving
 comrak = "0.18"
 tower-http = { version = "0.5", features = ["compression-gzip", "fs", "set-header"] }
-
-# Theming
 tera = "1.19"
 toml = "0.8"
+tower-sessions-sqlx-store = { version = "0.12", features = ["sqlite"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+rust-embed = { version = "8", features = ["include-exclude", "mime-guess"] }
+quick-xml = "0.36"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# Proc-macros (sqlx, askama...) are loaded by the compiler. Stripping them
+# corrupts the dylib on recent macOS ("mis-aligned LINKEDIT string pool").
+[profile.release.build-override]
+strip = false

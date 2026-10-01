@@ -98,14 +98,14 @@ a:hover {
     }
 }
 
-/* Article Cards */
+/* Post Cards */
 .section-title {
     font-size: 1.25rem;
     margin-bottom: 1.5rem;
     color: var(--text-muted);
 }
 
-.article-card {
+.post-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
@@ -113,7 +113,7 @@ a:hover {
     margin-bottom: 1.5rem;
 }
 
-.article-cover,
+.post-cover,
 .single-cover {
     width: 100%;
     max-height: 350px;
@@ -122,7 +122,7 @@ a:hover {
     margin-bottom: 1rem;
 }
 
-.article-meta {
+.post-meta {
     font-size: 0.85rem;
     color: var(--text-muted);
     display: flex;
@@ -131,22 +131,22 @@ a:hover {
     margin-bottom: 0.5rem;
 }
 
-.article-title {
+.post-title {
     font-size: 1.5rem;
     margin-bottom: 0.75rem;
 }
 
-.article-title a {
+.post-title a {
     color: var(--text-main);
 }
 
-.article-excerpt {
+.post-excerpt {
     color: var(--text-muted);
     margin-bottom: 1rem;
 }
 
 /* Tags */
-.article-tags,
+.post-tags,
 .tag-cloud {
     display: flex;
     flex-wrap: wrap;
@@ -184,8 +184,8 @@ a:hover {
     color: var(--text-muted);
 }
 
-/* Single Article */
-.single-article {
+/* Single Post */
+.single-post {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
@@ -204,25 +204,88 @@ a:hover {
     margin-bottom: 2rem;
 }
 
-.article-body {
+.post-body {
     font-size: 1.1rem;
     line-height: 1.7;
     margin-bottom: 2.5rem;
 }
 
-.article-body p {
+.post-body p {
     margin-bottom: 1.25rem;
 }
 
-.article-body h2,
-.article-body h3 {
+.post-body h2,
+.post-body h3 {
     margin-top: 2rem;
     margin-bottom: 0.75rem;
 }
 
-.article-body pre {
+.post-body pre {
     margin-bottom: 1.5rem;
     border-radius: var(--radius);
+}
+
+.post-body img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    margin: 1.5rem 0;
+}
+
+.post-body ul,
+.post-body ol {
+    padding-left: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.post-body li {
+    margin-bottom: 0.25rem;
+}
+
+.post-body blockquote {
+    border-left: 3px solid var(--border-color);
+    padding-left: 1rem;
+    margin-bottom: 1.25rem;
+    color: var(--text-muted);
+}
+
+.post-body blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+.post-body a {
+    text-decoration: underline;
+}
+
+.post-body table {
+    border-collapse: collapse;
+    margin-bottom: 1.25rem;
+    display: block;
+    overflow-x: auto;
+}
+
+.post-body th,
+.post-body td {
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.75rem;
+}
+
+.post-body :not(pre) > code {
+    font-size: 0.9em;
+    background: var(--tag-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+}
+
+@media (max-width: 640px) {
+    .single-post {
+        padding: 1.5rem;
+    }
+
+    .single-title {
+        font-size: 1.75rem;
+    }
 }
 
 .page-header {
@@ -259,6 +322,37 @@ a:hover {
     border-top: 1px solid var(--border-color);
     padding: 1.5rem 0;
     text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Navigation menu */
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-right: auto;
+    margin-left: 1rem;
+}
+
+.site-nav a {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.site-nav a:hover {
+    color: var(--text-main);
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.pagination-status {
     color: var(--text-muted);
     font-size: 0.9rem;
 }

@@ -1,38 +1,40 @@
 {% extends "default/templates/layout.html" %}
 
-{% block title %}{{ article.title }} - {{ blog_name }}{% endblock %}
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
 
 {% block content %}
-<article class="single-article">
+<article class="single-post">
     <header class="single-header">
-        <h1 class="single-title">{{ article.title }}</h1>
-        <div class="article-meta">
-            <time>{{ article.created_at }}</time>
+        <h1 class="single-title">{{ post.title }}</h1>
+        <div class="post-meta">
+            <time>{{ post.created_at }}</time>
             <span>&bull;</span>
-            <span>{{ article.reading_time }} min read</span>
+            <span>{{ post.reading_time }} min read</span>
+            {% if show_views %}
             <span>&bull;</span>
-            <span>{{ article.views }} views</span>
+            <span>{{ post.views }} views</span>
+            {% endif %}
         </div>
 
-        {% if article.tags %}
-        <div class="article-tags">
-            {% for tag in article.tags %}
+        {% if post.tags %}
+        <div class="post-tags">
+            {% for tag in post.tags %}
             <a href="/tag/{{ tag.slug }}" class="tag-badge">#{{ tag.name }}</a>
             {% endfor %}
         </div>
         {% endif %}
     </header>
 
-    {% if article.cover_image %}
-    <img src="{{ article.cover_image }}" alt="{{ article.title }}" class="single-cover" />
+    {% if post.cover_image %}
+    <img src="{{ post.cover_image }}" alt="{{ post.title }}" class="single-cover" />
     {% endif %}
 
-    <div class="article-body">
+    <div class="post-body">
         {{ content_html | safe }}
     </div>
 
     <footer class="single-footer">
-        <a href="/" class="back-link">&larr; Back to all articles</a>
+        <a href="/" class="back-link">&larr; Back to all posts</a>
     </footer>
 </article>
 {% endblock %}

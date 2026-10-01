@@ -1,0 +1,22 @@
+<form class="upload-inline" hx-post="/admin/media/picker" hx-encoding="multipart/form-data" hx-target="#picker-body">
+    <input type="file" name="files" multiple accept="image/jpeg,image/png,image/gif,image/webp" required
+        aria-label="Images to upload" />
+    <button type="submit" class="btn btn-secondary btn-sm">Upload</button>
+</form>
+
+{% if let Some(err) = error %}
+<div class="alert alert-error">{{ err }}</div>
+{% endif %}
+
+{% if media.is_empty() %}
+<p class="empty-state">No images yet. Upload one above.</p>
+{% else %}
+<div class="picker-grid">
+    {% for item in media %}
+    <button type="button" class="picker-item" data-url="{{ item.url }}" data-alt="{{ item.alt }}"
+        title="{{ item.original_name }}">
+        <img src="{{ item.url }}" alt="{{ item.original_name }}" loading="lazy" />
+    </button>
+    {% endfor %}
+</div>
+{% endif %}

@@ -4,39 +4,40 @@
 
 {% block content %}
 <div class="layout-grid">
-    <section class="articles-list">
+    <section class="posts-list">
         <header class="page-header">
-            <h1 class="page-title">Articles tagged with <span class="tag-highlight">#{{ tag_name }}</span></h1>
-            <p class="page-subtitle">Showing all posts categorized under this topic.</p>
+            <h1 class="page-title">Posts tagged with <span class="tag-highlight">#{{ tag_name }}</span></h1>
         </header>
 
-        {% for article in articles %}
-        <article class="article-card">
-            {% if article.cover_image %}
-            <a href="/article/{{ article.slug }}">
-                <img src="{{ article.cover_image }}" alt="{{ article.title }}" class="article-cover" />
+        {% for post in posts %}
+        <article class="post-card">
+            {% if post.cover_image %}
+            <a href="/post/{{ post.slug }}">
+                <img src="{{ post.cover_image }}" alt="{{ post.title }}" class="post-cover" />
             </a>
             {% endif %}
 
-            <div class="article-meta">
-                <time>{{ article.created_at }}</time>
+            <div class="post-meta">
+                <time>{{ post.created_at }}</time>
                 <span>&bull;</span>
-                <span>{{ article.reading_time }} min read</span>
+                <span>{{ post.reading_time }} min read</span>
+                {% if show_views %}
                 <span>&bull;</span>
-                <span>{{ article.views }} views</span>
+                <span>{{ post.views }} views</span>
+                {% endif %}
             </div>
 
-            <h2 class="article-title">
-                <a href="/article/{{ article.slug }}">{{ article.title }}</a>
+            <h2 class="post-title">
+                <a href="/post/{{ post.slug }}">{{ post.title }}</a>
             </h2>
 
-            <div class="article-excerpt">
-                {{ article.content | safe }}
+            <div class="post-excerpt">
+                {{ post.content | safe }}
             </div>
 
-            {% if article.tags %}
-            <div class="article-tags">
-                {% for tag in article.tags %}
+            {% if post.tags %}
+            <div class="post-tags">
+                {% for tag in post.tags %}
                 <a href="/tag/{{ tag.slug }}" class="tag-badge {% if tag.name == tag_name %}active{% endif %}">
                     #{{ tag.name }}
                 </a>
@@ -45,8 +46,10 @@
             {% endif %}
         </article>
         {% else %}
-        <p class="empty-state">No articles found with tag "#{{ tag_name }}".</p>
+        <p class="empty-state">No posts found with tag "#{{ tag_name }}".</p>
         {% endfor %}
+
+        {% include "default/templates/pagination.html" %}
     </section>
 
     <aside class="sidebar">
