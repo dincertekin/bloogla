@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Tags") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Tags") }}</h1>
+        <p>{{ me.t("Group related posts. Each tag gets its own page, and you can link to it from the menu.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <form hx-post="/admin/tags/new" hx-target="#tag-list" hx-swap="afterbegin"
+        data-reset-on-success data-clear-on-success="#tag-form-alert">
+        <div id="tag-form-alert"></div>
+        <div class="form-group" style="margin-bottom: 0.75rem">
+            <label for="name">{{ me.t("New tag") }}</label>
+            <input type="text" id="name" name="name" class="form-control" placeholder="{{ me.t("e.g. Travel") }}" required
+                autocomplete="off" />
+        </div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Add Tag") }}</button>
+    </form>
+</section>
+
+<div id="tag-list" class="item-list" data-empty-text="{{ me.t("No tags yet.") }}" {% if tags.is_empty() %}hidden{% endif %}>
+    {% for row in tags %}
+    {% include "tag_item.html" %}
+    {% endfor %}
+</div>
+
+{% if tags.is_empty() %}
+<p class="empty-state" data-empty-for="tag-list">{{ me.t("No tags yet.") }}</p>
+{% endif %}
+{% endblock %}

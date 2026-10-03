@@ -1,0 +1,19 @@
+{% if newsletter_enabled %}
+<section class="subscribe" id="subscribe">
+    <h2 class="subscribe-title">{{ t.get_new_posts_by_email }}</h2>
+    <p class="subscribe-text">{{ t.no_spam_unsubscribe_any_time }}</p>
+    {% if subscribe_notice %}
+    <p class="comment-notice" role="status">{{ subscribe_notice }}</p>
+    {% else %}
+    <form class="subscribe-form" method="POST" action="/subscribe">
+        <input type="email" name="email" required maxlength="200" placeholder="you@example.com"
+            aria-label="{{ t.your_email }}" autocomplete="email" />
+        <div class="comment-trap" aria-hidden="true">
+            <label>{{ t.website }} <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        </div>
+        <input type="hidden" name="return_to" value="{{ return_to | default(value='/') }}" />
+        <button type="submit" class="button">{{ t.subscribe }}</button>
+    </form>
+    {% endif %}
+</section>
+{% endif %}

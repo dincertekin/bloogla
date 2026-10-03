@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Media") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Media") }}</h1>
+        <p>{{ me.t("Images you upload here can be used in any post or page.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    {% if let Some(err) = error %}
+    <div class="alert alert-error">{{ err }}</div>
+    {% endif %}
+
+    <form action="/admin/media" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="files">{{ me.t("Upload images") }}</label>
+            <input type="file" id="files" name="files" class="form-control" multiple
+                accept="image/jpeg,image/png,image/gif,image/webp" required />
+            <span class="form-hint">
+                {{ me.t("JPEG, PNG, GIF or WebP, up to 20 MB at a time. Large photos are resized and their location data is removed.") }}
+            </span>
+        </div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Upload") }}</button>
+    </form>
+</section>
+
+<div id="media-list" class="media-grid" data-empty-text="{{ me.t("No images yet.") }}" {% if media.is_empty() %}hidden{% endif %}>
+    {% for item in media %}
+    <div class="card media-card" id="media-{{ item.id }}" data-item>
+        <a href="{{ item.url }}" target="_blank">
+            <img src="{{ item.url }}" alt="{{ item.original_name }}" class="media-thumb" loading="lazy" />
+        </a>
+        <div class="media-info">
+            <strong title="{{ item.original_name }}">{{ item.original_name }}</strong>
+            <span>{{ item.dimensions }} · {{ item.size_label }}</span>
+        </div>
+        <div class="button-row">
+            <button type="button" class="btn btn-secondary btn-sm" data-copy="{{ item.markdown }}"
+                data-copied="{{ me.t("Copied") }}" data-copy-failed="{{ me.t("Copy failed") }}">{{ me.t("Copy Markdown") }}</button>
+            {% if me.can_edit_all() %}
+            <button type="button" class="btn btn-ghost-danger btn-sm" style="flex: 0" aria-label="{{ me.t("Delete") }}"
+                data-delete-url="/admin/media/{{ item.id }}" data-delete-target="#media-{{ item.id }}"
+                data-confirm-title="{{ me.t("Delete this image?") }}"
+                data-confirm-text="{{ me.t("Posts that use it will show a broken image.") }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                </svg>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if media.is_empty() %}
+<p class="empty-state" data-empty-for="media-list">{{ me.t("No images yet.") }}</p>
+{% endif %}
+{% endblock %}
+

@@ -1,0 +1,19 @@
+<div class="list-row" id="tag-{{ row.tag.id }}" data-item>
+    <div class="row-main">
+        <span class="row-title">{{ row.tag.name }}</span>
+        <div class="row-meta">
+            <span>/tag/{{ row.tag.slug }}</span>
+            <span>{{ me.count(row.post_count, "{n} post", "{n} posts") }}</span>
+        </div>
+    </div>
+    <div class="row-actions">
+        {% if row.post_count > 0 %}
+        <a href="/tag/{{ row.tag.slug }}" target="_blank" class="btn btn-ghost btn-sm">{{ me.t("View") }}</a>
+        {% endif %}
+        <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/tags/{{ row.tag.id }}"
+            data-delete-target="#tag-{{ row.tag.id }}" data-confirm-title="{{ me.tv("Delete “{name}”?", row.tag.name) }}"
+            data-confirm-text="{{ me.t("The tag is removed from all posts. The posts themselves stay.") }}">
+            {{ me.t("Delete") }}
+        </button>
+    </div>
+</div>

@@ -9,6 +9,10 @@
 #   ssh root@your-server 'sh install.sh example.com'
 #
 # Safe to re-run: it upgrades the binary and keeps your data.
+#
+# Options (environment variables):
+#   HTTPS=builtin   Let Bloogla handle HTTPS itself instead of installing Caddy
+#   EMAIL=you@...   Contact address for Let's Encrypt (built-in HTTPS)
 set -eu
 
 DOMAIN="${1:?Usage: sh install.sh your-domain.com}"
@@ -27,7 +31,16 @@ if [ ! -x "$BINARY" ]; then
     command -v curl >/dev/null 2>&1 || { apt-get update -q && apt-get install -y -q curl; }
     echo "==> Downloading the latest Bloogla for $TARGET"
     TMP=$(mktemp -d)
-    curl -fsSL "https://github.com/$REPO/releases/latest/download/bloogla-$TARGET.tar.gz" | tar -xz -C "$TMP"
+    ARCHIVE="bloogla-$TARGET.tar.gz"
+    RELEASE="https://github.com/$REPO/releases/latest/download"
+    curl -fsSL -o "$TMP/$ARCHIVE" "$RELEASE/$ARCHIVE"
+    curl -fsSL -o "$TMP/$ARCHIVE.sha256" "$RELEASE/$ARCHIVE.sha256"
+    # Refuse a download that is damaged or doesn't match the published checksum.
+    (cd "$TMP" && sha256sum -c "$ARCHIVE.sha256" >/dev/null) || {
+        echo "The download doesn't match its checksum. Nothing was installed; please try again."
+        exit 1
+    }
+    tar -xzf "$TMP/$ARCHIVE" -C "$TMP"
     BINARY="$TMP/bloogla"
 fi
 
@@ -38,6 +51,31 @@ echo "==> Creating bloogla user and $DATA_DIR"
 id bloogla >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin bloogla
 mkdir -p "$DATA_DIR"
 chown bloogla:bloogla "$DATA_DIR"
+
+# HTTPS: Caddy by default (shares the server nicely with other sites); Bloogla's
+# built-in HTTPS when asked for (HTTPS=builtin) or when Caddy isn't available.
+HTTPS="${HTTPS:-caddy}"
+if [ "$HTTPS" = caddy ] && ! command -v caddy >/dev/null 2>&1; then
+    echo "==> Installing Caddy for HTTPS"
+    apt-get update -q
+    if ! apt-get install -y -q caddy; then
+        echo "    Caddy isn't available from apt here; using Bloogla's built-in HTTPS instead."
+        HTTPS=builtin
+    fi
+fi
+
+if [ "$HTTPS" = builtin ]; then
+    SERVICE_ENV="Environment=BLOOGLA_TLS_DOMAINS=$DOMAIN
+Environment=BLOOGLA_TLS_EMAIL=${EMAIL:-}
+# Allow binding ports 80 and 443 without running as root.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE"
+else
+    SERVICE_ENV="Environment=BLOOGLA_HOST=127.0.0.1
+Environment=BLOOGLA_PORT=8080
+Environment=BLOOGLA_BASE_URL=https://$DOMAIN
+Environment=BLOOGLA_PRODUCTION=true"
+fi
 
 echo "==> Installing systemd service"
 cat > /etc/systemd/system/bloogla.service <<UNIT
@@ -51,10 +89,7 @@ User=bloogla
 Group=bloogla
 WorkingDirectory=$DATA_DIR
 ExecStart=/usr/local/bin/bloogla serve
-Environment=BLOOGLA_HOST=127.0.0.1
-Environment=BLOOGLA_PORT=8080
-Environment=BLOOGLA_BASE_URL=https://$DOMAIN
-Environment=BLOOGLA_PRODUCTION=true
+$SERVICE_ENV
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true
@@ -68,35 +103,30 @@ ReadWritePaths=$DATA_DIR
 WantedBy=multi-user.target
 UNIT
 
-echo "==> Installing Caddy for HTTPS"
-if ! command -v caddy >/dev/null 2>&1; then
-    apt-get update -q
-    apt-get install -y -q caddy || {
-        echo "Could not install Caddy from apt. See https://caddyserver.com/docs/install"
-        exit 1
-    }
-fi
-
-CADDYFILE=/etc/caddy/Caddyfile
-SITE_BLOCK="$DOMAIN {
+if [ "$HTTPS" = caddy ]; then
+    CADDYFILE=/etc/caddy/Caddyfile
+    SITE_BLOCK="$DOMAIN {
     encode zstd gzip
     reverse_proxy 127.0.0.1:8080
 }"
-if [ ! -f "$CADDYFILE" ] || grep -q "The Caddyfile is an easy way" "$CADDYFILE"; then
-    # Stock Caddyfile from the package: replace it (keeping a copy).
-    [ -f "$CADDYFILE" ] && cp "$CADDYFILE" "$CADDYFILE.orig"
-    printf '%s\n' "$SITE_BLOCK" > "$CADDYFILE"
-elif grep -q "^$DOMAIN" "$CADDYFILE"; then
-    echo "    $CADDYFILE already has a block for $DOMAIN; leaving it unchanged."
-else
-    # Existing sites are kept; ours is added at the end.
-    printf '\n%s\n' "$SITE_BLOCK" >> "$CADDYFILE"
+    if [ ! -f "$CADDYFILE" ] || grep -q "The Caddyfile is an easy way" "$CADDYFILE"; then
+        # Stock Caddyfile from the package: replace it (keeping a copy).
+        [ -f "$CADDYFILE" ] && cp "$CADDYFILE" "$CADDYFILE.orig"
+        printf '%s\n' "$SITE_BLOCK" > "$CADDYFILE"
+    elif grep -q "^$DOMAIN" "$CADDYFILE"; then
+        echo "    $CADDYFILE already has a block for $DOMAIN; leaving it unchanged."
+    else
+        # Existing sites are kept; ours is added at the end.
+        printf '\n%s\n' "$SITE_BLOCK" >> "$CADDYFILE"
+    fi
 fi
 
 systemctl daemon-reload
 systemctl enable bloogla >/dev/null 2>&1
 systemctl restart bloogla
-systemctl reload caddy || systemctl restart caddy
+if [ "$HTTPS" = caddy ]; then
+    systemctl reload caddy || systemctl restart caddy
+fi
 
 echo
 echo "Bloogla is running. Open https://$DOMAIN in your browser to finish setup."

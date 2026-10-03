@@ -2,32 +2,58 @@
 name = "bloogla"
 version = "0.1.0"
 edition = "2021"
+description = "A fast, single-binary blog engine: a modern WordPress alternative."
+repository = "https://github.com/dincertekin/bloogla"
 
 [dependencies]
+# Web server
 axum = { version = "0.7", features = ["multipart"] }
 axum-extra = { version = "0.9", features = ["form"] }
 tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal", "fs"] }
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "macros"] }
-dialoguer = "0.11"
-console = "0.15"
-argon2 = { version = "0.5", features = ["password-hash"] }
-rand = "0.8"
-ammonia = "4.0"
+tower-http = { version = "0.5", features = ["catch-panic", "compression-br", "compression-gzip", "fs", "set-header"] }
 tower_governor = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tower-sessions = "0.12"
-chrono = { version = "0.4", features = ["serde"] }
+tower-sessions = { version = "0.13", default-features = false, features = ["axum-core"] }
+tower-sessions-sqlx-store = { version = "0.14", features = ["sqlite"] }
+
+# Built-in HTTPS (Let's Encrypt)
+axum-server = "0.8"
+rustls-acme = { version = "0.15", default-features = false, features = ["ring", "tls12", "webpki-roots", "axum"] }
+futures-util = "0.3"
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
+
+# Templates: askama for the admin panel (compiled in), tera for themes (loaded at runtime)
 askama = "0.12"
 askama_axum = "0.4"
-comrak = "0.18"
-tower-http = { version = "0.5", features = ["compression-gzip", "fs", "set-header"] }
 tera = "1.19"
-toml = "0.8"
-tower-sessions-sqlx-store = { version = "0.12", features = ["sqlite"] }
+
+# Content: Markdown, HTML sanitizing, images, WordPress import
+comrak = { version = "0.18", default-features = false }
+ammonia = "4.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+quick-xml = "0.41"
+
+# Security: password hashing, random tokens, API token hashing
+argon2 = { version = "0.5", features = ["password-hash"] }
+rand = "0.8"
+sha2 = "0.10"
+
+# Email and outgoing requests (webmentions)
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+# Data formats, files embedded in the binary, dates
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
 rust-embed = { version = "8", features = ["include-exclude", "mime-guess"] }
-quick-xml = "0.36"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Command line and logging
+dialoguer = { version = "0.11", default-features = false, features = ["password"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 
 [profile.release]
 opt-level = 3

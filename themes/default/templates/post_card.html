@@ -1,0 +1,39 @@
+{# One post in a list (home, tags, search). #}
+<article class="post-card">
+    {% if post.cover_image %}
+    {# The title below links to the post too, so keyboards and screen readers skip this link. #}
+    <a href="/post/{{ post.slug }}" tabindex="-1" aria-hidden="true">
+        {# Images in the first two cards are usually on screen at once: load them right
+           away (the first one first). The rest load as the visitor scrolls. #}
+        <img src="{{ post.cover_image }}" alt="" class="post-cover" decoding="async"
+            {% if loop.first %}fetchpriority="high"{% elif loop.index > 2 %}loading="lazy"{% endif %}
+            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
+    </a>
+    {% endif %}
+
+    <div class="post-meta">
+        <time>{{ post.created_at }}</time>
+        <span>&bull;</span>
+        <span>{{ t.n_min_read | replace(from="{n}", to=post.reading_time ~ "") }}</span>
+        {% if show_views and post.views > 0 %}
+        <span>&bull;</span>
+        <span>{% if post.views == 1 %}{{ t.n1_view }}{% else %}{{ t.n_views | replace(from="{n}", to=post.views ~ "") }}{% endif %}</span>
+        {% endif %}
+    </div>
+
+    <h2 class="post-title">
+        <a href="/post/{{ post.slug }}">{{ post.title }}</a>
+    </h2>
+
+    <div class="post-excerpt">
+        {{ post.content | safe }}
+    </div>
+
+    {% if post.tags %}
+    <div class="post-tags">
+        {% for tag in post.tags %}
+        <a href="/tag/{{ tag.slug }}" class="tag-badge">#{{ tag.name }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</article>

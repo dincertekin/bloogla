@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="{{ lang.code() }}">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ lang.t("Admin Login") }}</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<body>
+    <main class="container" style="max-width: 420px; margin-top: 8vh; padding: 0 1rem;">
+        <a href="/" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m15 18-6-6 6-6" />
+            </svg>
+            {{ lang.t("Back to Home") }}
+        </a>
+
+        <div class="card">
+            <h2 style="
+                        margin-bottom: 1.5rem;
+                        text-align: center;
+                        font-size: 1.5rem;
+                        font-weight: 700;
+                    ">
+                {{ lang.t("Sign In") }}
+            </h2>
+
+            {% if let Some(err) = error %}
+            <p class="error-message" role="alert" style="text-align: center; font-weight: 500">
+                {{ err }}
+            </p>
+            {% endif %}
+
+            <form method="POST" action="/admin/login">
+                <div class="form-group">
+                    <label for="email">{{ lang.t("Email") }}</label>
+                    <input type="email" id="email" name="email" class="form-control" required
+                        placeholder="admin@bloogla.com" autocomplete="username" autocapitalize="off" autocorrect="off"
+                        autofocus />
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem">
+                    <label for="password">{{ lang.t("Password") }}</label>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="••••••••"
+                        autocomplete="current-password" required />
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%">
+                    {{ lang.t("Login") }}
+                </button>
+            </form>
+        </div>
+    </main>
+</body>
+
+</html>

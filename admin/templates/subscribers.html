@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Subscribers") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Subscribers") }}</h1>
+        <p>{{ me.t("People who get your new posts by email. They confirm by email before they're added.") }}</p>
+    </div>
+    <a href="/admin/subscribers.csv" class="btn btn-secondary">{{ me.t("Export CSV") }}</a>
+</div>
+
+{% if !email_ready %}
+<div class="alert alert-info">{{ me.tv("Set up your mail server in {settings} to start a newsletter.", me.link("/admin/settings", "Settings"))|safe }}</div>
+{% else if !newsletter_on %}
+<div class="alert alert-info">{{ me.tv("The newsletter is off, so the sign-up form is hidden. Turn it on in {settings}.", me.link("/admin/settings", "Settings"))|safe }}</div>
+{% endif %}
+
+<nav class="filter-tabs" aria-label="{{ me.t("Filter by status") }}">
+    {% for filter in filters %}
+    <a href="/admin/subscribers?status={{ filter.value }}"
+        class="{% if filter.value == active_filter.as_str() %}active{% endif %}">
+        {{ me.t(filter.label) }}<span class="count">{{ filter.count }}</span>
+    </a>
+    {% endfor %}
+</nav>
+
+<div id="subscriber-list" class="item-list" data-empty-text="{{ me.t("Nobody here.") }}" {% if subscribers.is_empty() %}hidden{% endif %}>
+    {% for subscriber in subscribers %}
+    <div class="list-row" id="subscriber-{{ subscriber.id }}" data-item>
+        <div class="row-main">
+            <span class="row-title">{{ subscriber.email }}</span>
+            <div class="row-meta"><span>{{ me.tv("Since {date}", subscriber.date) }}</span></div>
+        </div>
+        <div class="row-actions">
+            <button type="button" class="btn btn-ghost-danger btn-sm"
+                data-delete-url="/admin/subscribers/{{ subscriber.id }}"
+                data-delete-target="#subscriber-{{ subscriber.id }}" data-confirm-title="{{ me.tv("Remove {email}?", subscriber.email) }}"
+                data-confirm-text="{{ me.t("They'll stop getting emails, and their address is deleted.") }}">{{ me.t("Remove") }}</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if subscribers.is_empty() %}
+<p class="empty-state" data-empty-for="subscriber-list">
+    {% if active_filter == "active" %}{{ me.t("No subscribers yet.") }}{% else %}{{ me.t("Nobody here.") }}{% endif %}
+</p>
+{% endif %}
+{% endblock %}

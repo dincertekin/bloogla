@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Profile") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Profile") }}</h1>
+        <p>{{ me.t("How you appear on your posts, and how you sign in.") }}</p>
+    </div>
+</div>
+
+<form hx-post="/admin/profile" hx-target="find .form-status" hx-swap="innerHTML">
+    <section class="card">
+        <h2 class="section-title">{{ me.t("About you") }}</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="name">{{ me.t("Name") }}</label>
+                <input type="text" id="name" name="name" class="form-control" value="{{ me.name }}"
+                    autocomplete="name" />
+                <span class="form-hint">{{ me.t("Shown on your posts.") }}</span>
+            </div>
+            <div class="form-group">
+                <label for="email">{{ me.t("Email") }}</label>
+                <input type="email" id="email" name="email" class="form-control" value="{{ me.email }}" required
+                    autocomplete="username" />
+                <span class="form-hint">{{ me.t("Used to sign in.") }}</span>
+            </div>
+        </div>
+        <div class="form-group" style="max-width: 320px">
+            <label for="language">{{ me.t("Language") }}</label>
+            <select id="language" name="language" class="form-control">
+                <option value="" {% if language.is_empty() %}selected{% endif %}>{{ me.t("Same as the site") }}</option>
+                {% for lang in languages %}
+                <option value="{{ lang.code() }}" {% if language == lang.code() %}selected{% endif %}>{{ lang.native_name() }}</option>
+                {% endfor %}
+            </select>
+            <span class="form-hint">{{ me.t("Used for the admin panel.") }}</span>
+        </div>
+        <p class="form-hint" style="margin-bottom: 1.25rem">{{ me.tv2("Role: {role}. {description}.", me.t(me.role.label()), me.t(me.role.description())) }}</p>
+        <div class="form-status"></div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
+    </section>
+</form>
+
+<section class="card">
+    <h2 class="section-title">{{ me.t("Password") }}</h2>
+
+    <form hx-post="/admin/profile/password" hx-target="find .form-status" hx-swap="innerHTML"
+        data-reset-on-success>
+        <div class="form-group">
+            <label for="current_password">{{ me.t("Current password") }}</label>
+            <input type="password" id="current_password" name="current_password" class="form-control"
+                autocomplete="current-password" required />
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="new_password">{{ me.t("New password") }}</label>
+                <input type="password" id="new_password" name="new_password" class="form-control"
+                    autocomplete="new-password" data-new-password />
+                {% let lang = me.lang %}
+                {% include "password_rules.html" %}
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">{{ me.t("Confirm new password") }}</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-control"
+                    autocomplete="new-password" data-confirm-password />
+                <span class="form-hint password-mismatch" role="alert" hidden>{{ me.t("The new passwords don't match.") }}</span>
+            </div>
+        </div>
+
+        <div class="form-status"></div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Update Password") }}</button>
+    </form>
+</section>
+<section class="card">
+    <h2 class="section-title">{{ me.t("API tokens") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1rem">
+        {{ me.tv("Let apps and scripts publish as you through the JSON API at {url}. A token can do what you can do, so keep it private.", format!("<code>{}/api</code>", self.base_url))|safe }}
+    </p>
+    <form class="upload-inline" hx-post="/admin/profile/tokens" hx-target="find .form-status" hx-swap="innerHTML"
+        data-reset-on-success>
+        <input type="text" name="name" class="form-control" placeholder="{{ me.t("What it's for, e.g. Phone app") }}"
+            maxlength="60" aria-label="{{ me.t("Token name") }}" />
+        <button type="submit" class="btn btn-secondary">{{ me.t("Create Token") }}</button>
+        <div class="form-status" style="flex-basis: 100%"></div>
+    </form>
+</section>
+
+<div id="token-list" class="item-list" data-empty-text="{{ me.t("No tokens yet.") }}" {% if tokens.is_empty() %}hidden{% endif %}>
+    {% for token in tokens %}
+    {% include "token_item.html" %}
+    {% endfor %}
+</div>
+{% if tokens.is_empty() %}
+<p class="empty-state" data-empty-for="token-list">{{ me.t("No tokens yet.") }}</p>
+{% endif %}
+<script src="/static/js/password.js"></script>
+{% endblock %}

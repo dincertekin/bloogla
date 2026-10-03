@@ -1,0 +1,206 @@
+{% extends "layout.html" %}
+{% block title %}{% if post.id != 0 %}{{ post.title }}{% else if post.is_page %}{{ me.t("New Page") }}{% else %}{{ me.t("New Post") }}{% endif %}{% endblock %}
+{% block content %}
+<a href="{{ admin_path }}" class="back-link">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m15 18-6-6 6-6" />
+    </svg>
+    {% if post.is_page %}{{ me.t("All pages") }}{% else %}{{ me.t("All posts") }}{% endif %}
+</a>
+
+{% if let Some(err) = error %}
+<div class="alert alert-error" role="alert">{{ err }}</div>
+{% endif %}
+{% if saved %}
+<div class="alert alert-success" role="status">
+    {{ me.t("Saved.") }}{% if let Some(path) = public_path %} <a href="{{ path }}" target="_blank" style="color: inherit">{{ me.t("View it on your site") }}</a>.{% endif %}
+</div>
+{% endif %}
+
+{% if let Some((ok, message)) = email_notice %}
+<div class="alert {% if ok %}alert-success{% else %}alert-error{% endif %}" role="status">{{ message }}</div>
+{% endif %}
+
+<div id="draft-banner" class="alert alert-info" role="status" hidden>
+    <span id="draft-text">{{ me.t("You have unsaved changes from earlier.") }}</span>
+    <span style="display: inline-flex; gap: 0.5rem; margin-left: 0.5rem">
+        <button type="button" class="btn btn-secondary btn-sm" id="draft-restore">{{ me.t("Restore them") }}</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="draft-discard">{{ me.t("Discard") }}</button>
+    </span>
+</div>
+
+<form id="editor-form" method="POST" data-post-id="{{ post.id }}"
+    data-text-unsaved-from="{{ me.t("You have unsaved changes from {when}.") }}"
+    data-text-loaded-version="{{ me.t("Loaded the version from {date}. Save to keep it.") }}"
+    data-text-dismiss="{{ me.t("Dismiss") }}"
+    data-text-rendering="{{ me.t("Rendering…") }}"
+    data-text-preview-failed="{{ me.t("Preview failed. Your text is safe; try again.") }}"
+    action="{% if post.id == 0 %}{{ admin_path }}{% else %}{{ admin_path }}/{{ post.id }}/edit{% endif %}">
+    <div class="editor-layout">
+        <div class="editor-main">
+            <input type="text" name="title" class="editor-title" value="{{ post.title }}"
+                placeholder="{% if post.is_page %}{{ me.t("Page title") }}{% else %}{{ me.t("Post title") }}{% endif %}" aria-label="{{ me.t("Title") }}"
+                autocomplete="off" {% if post.id == 0 %}autofocus{% endif %} />
+
+            <label class="slug-field">
+                <span>{{ base_url }}/{% if !post.is_page %}post/{% endif %}</span>
+                <input type="text" name="slug" value="{{ post.slug }}" placeholder="{% if post.is_page %}{{ me.t("your-page-title") }}{% else %}{{ me.t("your-post-title") }}{% endif %}"
+                    aria-label="{{ me.t("URL slug") }}" autocomplete="off" spellcheck="false" />
+            </label>
+
+            <div class="editor-toolbar">
+                <div class="segmented" role="tablist" aria-label="{{ me.t("Editor mode") }}">
+                    <button type="button" role="tab" aria-selected="true" data-mode="write">{{ me.t("Write") }}</button>
+                    <button type="button" role="tab" aria-selected="false" data-mode="preview">{{ me.t("Preview") }}</button>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-picker="insert">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true">
+                        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                        <circle cx="9" cy="9" r="2" />
+                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                    </svg>
+                    {{ me.t("Insert image") }}
+                </button>
+            </div>
+
+            <textarea id="content" name="content" class="form-control editor-textarea"
+                placeholder="{{ me.t("Start writing. Markdown works here: **bold**, _italic_, # Heading, - lists, [links](https://…)") }}&#10;&#10;{{ me.t("Shortcodes:") }} [youtube URL], [vimeo URL], [toc], [note &quot;{{ me.t("Text") }}&quot;]">{{ post.content }}</textarea>
+            <div id="preview" class="preview-pane prose" hidden></div>
+
+            <details class="card panel fields-panel" style="margin-top: 1.25rem" {% if !post.fields.is_empty() %}open{% endif %}>
+                <summary class="panel-title" style="margin-bottom: 0; cursor: pointer">{{ me.t("Custom fields") }}</summary>
+                <p class="form-hint" style="margin: 0.75rem 0">
+                    {{ me.tv("Extra details your theme can show, like a location or a rating. Themes use them as {example}.", "<code>post.fields.name</code>")|safe }}
+                </p>
+                <div id="field-rows">
+                    {% for (key, value) in post.fields %}
+                    <div class="field-row">
+                        <input type="text" name="field_keys" class="form-control" value="{{ key }}"
+                            placeholder="{{ me.t("name") }}" aria-label="{{ me.t("Field name") }}" maxlength="40" />
+                        <input type="text" name="field_values" class="form-control" value="{{ value }}"
+                            placeholder="{{ me.t("value") }}" aria-label="{{ me.t("Field value") }}" maxlength="2000" />
+                        <button type="button" class="btn btn-ghost btn-sm" data-remove-field
+                            aria-label="{{ me.t("Remove field") }}">✕</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="add-field">{{ me.t("Add field") }}</button>
+                <template id="field-row-template">
+                    <div class="field-row">
+                        <input type="text" name="field_keys" class="form-control" placeholder="{{ me.t("name") }}"
+                            aria-label="{{ me.t("Field name") }}" maxlength="40" />
+                        <input type="text" name="field_values" class="form-control" placeholder="{{ me.t("value") }}"
+                            aria-label="{{ me.t("Field value") }}" maxlength="2000" />
+                        <button type="button" class="btn btn-ghost btn-sm" data-remove-field
+                            aria-label="{{ me.t("Remove field") }}">✕</button>
+                    </div>
+                </template>
+            </details>
+        </div>
+
+        <aside>
+            <section class="card panel">
+                <h2 class="panel-title">{{ me.t("Publish") }}</h2>
+                <div class="form-group">
+                    <label for="status">{{ me.t("Status") }}</label>
+                    <select id="status" name="status" class="form-control">
+                        <option value="draft" {% if post.status == "draft" %}selected{% endif %}>{{ me.t("Draft") }}</option>
+                        <option value="published" {% if post.status == "published" %}selected{% endif %}>{{ me.t("Published") }}</option>
+                        <option value="scheduled" {% if post.status == "scheduled" %}selected{% endif %}>{{ me.t("Scheduled") }}</option>
+                    </select>
+                </div>
+                <div class="form-group" id="date-group">
+                    <label for="published_at">{{ me.t("Publish date") }}</label>
+                    <input type="datetime-local" id="published_at" name="published_at" class="form-control"
+                        value="{{ published_at_input }}" />
+                    <span class="form-hint">{{ me.t("In UTC. Leave empty to use the current time.") }}</span>
+                </div>
+                {% if let Some(newsletter) = newsletter %}
+                {% if let Some((date, count)) = newsletter.sent %}
+                <p class="form-hint" style="margin-bottom: 1rem">{% if count.clone() == 1 %}{{ me.tv2("Emailed to {n} subscriber on {date}.", count, date) }}{% else %}{{ me.tv2("Emailed to {n} subscribers on {date}.", count, date) }}{% endif %}</p>
+                {% else if newsletter.subscribers > 0 %}
+                <label class="check-row" style="margin-bottom: 1rem" id="newsletter-option">
+                    <input type="checkbox" name="send_newsletter" value="1" />
+                    <span>
+                        {{ me.count(newsletter.subscribers, "Email it to {n} subscriber", "Email it to {n} subscribers") }}
+                        <small>{{ me.t("Once it's published. Each post is sent only once.") }}</small>
+                    </span>
+                </label>
+                {% endif %}
+                {% endif %}
+                <button type="submit" class="btn btn-primary" style="width: 100%">{{ me.t("Save") }}</button>
+                <p class="form-hint" style="margin-top: 0.5rem; text-align: center">{{ me.t("Ctrl+S or ⌘S also saves.") }}</p>
+            </section>
+
+            <section class="card panel">
+                <h2 class="panel-title">{{ me.t("Cover image") }}</h2>
+                <img id="cover-preview" class="cover-preview" alt=""
+                    src="{% if let Some(cover) = post.cover_image %}{{ cover }}{% endif %}"
+                    {% if post.cover_image.is_none() %}hidden{% endif %} />
+                <div id="cover-empty" class="cover-empty" {% if post.cover_image.is_some() %}hidden{% endif %}>
+                    {{ me.t("No cover image") }}
+                </div>
+                <div class="button-row">
+                    <button type="button" class="btn btn-secondary btn-sm" data-picker="cover">{{ me.t("Choose") }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="cover-remove"
+                        {% if post.cover_image.is_none() %}hidden{% endif %}>{{ me.t("Remove") }}</button>
+                </div>
+                <input type="hidden" id="cover_image" name="cover_image"
+                    value="{% if let Some(cover) = post.cover_image %}{{ cover }}{% endif %}" />
+            </section>
+
+            {% if !post.is_page %}
+            <section class="card panel">
+                <h2 class="panel-title">{{ me.t("Tags") }}</h2>
+                {% if tag_checkboxes.is_empty() %}
+                {% if me.can_edit_all() %}
+                <p class="form-hint">{{ me.tv("No tags yet. {create_some} to group related posts.", me.link("/admin/tags", "Create some"))|safe }}</p>
+                {% else %}
+                <p class="form-hint">{{ me.t("No tags yet. An editor or admin can create them.") }}</p>
+                {% endif %}
+                {% else %}
+                <div class="tag-list">
+                    {% for (tag, checked) in tag_checkboxes %}
+                    <label class="tag-chip">
+                        <input type="checkbox" name="tag_ids" value="{{ tag.id }}" {% if checked %}checked{% endif %} />
+                        {{ tag.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            {% if !revisions.is_empty() %}
+            <section class="card panel">
+                <h2 class="panel-title">{{ me.t("Earlier versions") }}</h2>
+                {% for rev in revisions %}
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0">
+                    <span class="form-hint">{{ rev.label }}</span>
+                    <button type="button" class="btn btn-ghost btn-sm" data-revision="{{ rev.id }}"
+                        data-revision-label="{{ rev.label }}">{{ me.t("Restore") }}</button>
+                </div>
+                {% endfor %}
+            </section>
+            {% endif %}
+
+            {% if post.id != 0 %}
+            <button type="button" class="btn btn-ghost-danger btn-sm" style="width: 100%"
+                data-delete-url="{{ admin_path }}/{{ post.id }}" data-delete-redirect="{{ admin_path }}"
+                data-confirm-title="{% if post.is_page %}{{ me.t("Delete this page?") }}{% else %}{{ me.t("Delete this post?") }}{% endif %}"
+                data-confirm-text="{{ me.tv("“{title}” will be removed permanently.", post.title) }}">
+                {% if post.is_page %}{{ me.t("Delete page") }}{% else %}{{ me.t("Delete post") }}{% endif %}
+            </button>
+            {% endif %}
+        </aside>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/editor.js"></script>
+{% endblock %}

@@ -1,0 +1,35 @@
+<div class="list-row" id="user-{{ user.id }}" data-item>
+    <div class="thumb" aria-hidden="true" style="border-radius: 999px; font-weight: 600; color: var(--text-secondary)">
+        {% if user.name.is_empty() %}{{ user.email.chars().next().unwrap_or('?').to_uppercase() }}{% else %}{{ user.name.chars().next().unwrap_or('?').to_uppercase() }}{% endif %}
+    </div>
+    <div class="row-main">
+        <span class="row-title">{% if user.name.is_empty() %}{{ user.email }}{% else %}{{ user.name }}{% endif %}</span>
+        {% if user.id == me.id %}<span class="badge badge-scheduled">{{ me.t("You") }}</span>{% endif %}
+        <div class="row-meta">
+            <span>{{ user.email }}</span>
+            <span>{{ me.count(user.post_count, "{n} post", "{n} posts") }}</span>
+        </div>
+        <div id="user-{{ user.id }}-status"></div>
+    </div>
+    <div class="row-actions">
+        {% if user.id == me.id %}
+        <span class="form-hint" style="padding: 0 0.5rem">{{ me.t(user.role.label()) }}</span>
+        {% else %}
+        <select name="role" class="form-control" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.8rem"
+            aria-label="{{ me.t("Role") }}" hx-post="/admin/users/{{ user.id }}/role" hx-trigger="change"
+            hx-target="#user-{{ user.id }}-status">
+            {% for role in roles %}
+            <option value="{{ role.as_str() }}" {% if role.as_str() == user.role.as_str() %}selected{% endif %}>{{ me.t(role.label()) }}</option>
+            {% endfor %}
+        </select>
+        <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/users/{{ user.id }}/password"
+            hx-target="#user-{{ user.id }}-status">{{ me.t("New password") }}</button>
+        <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/users/{{ user.id }}"
+            data-delete-target="#user-{{ user.id }}"
+            data-confirm-title="{% if user.name.is_empty() %}{{ me.tv("Remove {name}?", user.email) }}{% else %}{{ me.tv("Remove {name}?", user.name) }}{% endif %}"
+            data-confirm-text="{{ me.t("They won't be able to sign in anymore. Their posts stay on the site and move to you.") }}">
+            {{ me.t("Remove") }}
+        </button>
+        {% endif %}
+    </div>
+</div>

@@ -1,13 +1,13 @@
 {% extends "default/templates/layout.html" %}
 
-{% block title %}Page not found - {{ blog_name }}{% endblock %}
+{% block title %}{{ t.page_not_found }} - {{ blog_name }}{% endblock %}
 
 {% block content %}
 <section class="single-post">
-    <h1 class="single-title">Page not found</h1>
-    <p class="empty-state">The page you are looking for doesn't exist or has moved.</p>
+    <h1 class="single-title">{{ t.page_not_found }}</h1>
+    <p class="empty-state">{{ t.the_page_you_are_looking_for }}</p>
     <footer class="single-footer">
-        <a href="/" class="back-link">&larr; Back to all posts</a>
+        <a href="/" class="back-link">&larr; {{ t.back_to_all_posts }}</a>
     </footer>
 </section>
 {% endblock %}

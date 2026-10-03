@@ -1,19 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>{% block title %}{{ blog_name }}{% endblock %}</title>
     {{ seo_head | safe }}
-    <link rel="stylesheet" href="/theme-assets/default/static/css/style.css">
-    <link rel="stylesheet" href="/theme-assets/default/static/css/prism-material-light.min.css">
+    <link rel="stylesheet" href="/theme-assets/default/static/css/style.css?v={{ asset_version }}">
 </head>
 
 <body>
+    <a class="skip-link" href="#main">{{ t.skip_to_content }}</a>
     <header class="site-header">
         <div class="container header-content">
-            <h1 class="site-title"><a href="/">{{ blog_name }}</a></h1>
+            <a class="site-title" href="/">{{ blog_name }}</a>
             {% if menu %}
             <nav class="site-nav">
                 {% for item in menu %}
@@ -21,24 +22,38 @@
                 {% endfor %}
             </nav>
             {% endif %}
-            <form action="/search" method="GET" class="search-form">
-                <input type="search" name="q" placeholder="Search posts..." value="{{ search_query }}" required />
+            <!-- Phones: the icon shows the search field (no JavaScript needed). -->
+            <input type="checkbox" id="search-toggle" class="search-toggle" aria-label="{{ t.search_posts }}">
+            <label for="search-toggle" class="search-button" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            </label>
+            <form action="/search" method="GET" class="search-form" role="search">
+                <input type="search" name="q" placeholder="{{ t.search_posts }}" aria-label="{{ t.search_posts }}"
+                    value="{{ search_query }}" required />
             </form>
         </div>
     </header>
 
-    <main class="container main-content">
+    <main id="main" class="container main-content">
         {% block content %}{% endblock %}
     </main>
 
     <footer class="site-footer">
-        <div class="container">
-            <p>&copy; {{ blog_name }}. Powered by <strong>Bloogla</strong>.</p>
+        <div class="container footer-content">
+            <p>&copy; {{ blog_name }}. {{ t.powered_by_name | replace(from="{name}", to='<a href="https://github.com/dincertekin/bloogla">Bloogla</a>') | safe }}</p>
+            <nav class="footer-links">
+                <a href="/rss.xml">RSS</a>
+                {% if newsletter_enabled %}<a href="#subscribe">{{ t.subscribe }}</a>{% endif %}
+            </nav>
         </div>
     </footer>
 
-    <script src="/theme-assets/default/static/js/prism.min.js"></script>
-    <script src="/theme-assets/default/static/js/prism-autoloader.min.js"></script>
+    {# Syntax highlighting only on pages that contain code. #}
+    {% if content_html is defined and "<pre" in content_html %}
+    <script src="/theme-assets/default/static/js/prism.js?v={{ asset_version }}" defer></script>
+    <script src="/theme-assets/default/static/js/code.js?v={{ asset_version }}" defer
+        data-copy="{{ t.copy }}" data-copied="{{ t.copied }}" data-copy-failed="{{ t.copy_failed }}"></script>
+    {% endif %}
 </body>
 
 </html>

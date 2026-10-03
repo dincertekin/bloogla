@@ -1,0 +1,49 @@
+<section class="comments" id="comments">
+    <h2 class="comments-title">
+        {% if comments | length == 0 %}{{ t.comments }}{% elif comments | length == 1 %}{{ t.n1_comment }}{% else %}{% set comment_count = comments | length %}{{ t.n_comments | replace(from="{n}", to=comment_count ~ "") }}{% endif %}
+    </h2>
+
+    {% for comment in comments %}
+    <article class="comment" id="comment-{{ comment.id }}">
+        <header class="comment-meta">
+            {% if comment.url %}
+            <strong><a href="{{ comment.url }}" rel="nofollow ugc noopener">{{ comment.author }}</a></strong>
+            <span class="comment-optional">{{ t.mentioned_this }}</span>
+            {% else %}
+            <strong>{{ comment.author }}</strong>
+            {% endif %}
+            <time>{{ comment.date }}</time>
+        </header>
+        <div class="comment-body">{{ comment.html | safe }}</div>
+    </article>
+    {% endfor %}
+
+    {% if comment_notice %}
+    <p class="comment-notice" role="status">{{ comment_notice }}</p>
+    {% endif %}
+
+    <form class="comment-form" method="POST" action="{{ comment_action }}">
+        <h3>{{ t.leave_a_comment }}</h3>
+        <div class="comment-fields">
+            <label>
+                {{ t.name }}
+                <input type="text" name="name" required maxlength="80" autocomplete="name" />
+            </label>
+            <label>
+                <span>{{ t.email }} <span class="comment-optional">{{ t.optional }}</span></span>
+                <input type="email" name="email" maxlength="200" autocomplete="email" placeholder="{{ t.never_shown }}" />
+            </label>
+        </div>
+        <label>
+            {{ t.comment }}
+            <textarea name="content" rows="5" required minlength="2" maxlength="5000"></textarea>
+        </label>
+        <!-- Left empty by people; filled in by many spam bots. -->
+        <div class="comment-trap" aria-hidden="true">
+            <label>{{ t.website }} <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        </div>
+        <input type="hidden" name="ts" />
+        <button type="submit">{{ t.post_comment }}</button>
+    </form>
+    <script src="/theme-assets/default/static/js/comments.js?v={{ asset_version }}" defer></script>
+</section>

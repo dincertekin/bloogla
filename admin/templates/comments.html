@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Comments") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Comments") }}</h1>
+        <p>{{ me.t("What readers say about your posts. Nothing shows up until you approve it, unless comments are set to publish right away.") }}</p>
+    </div>
+</div>
+
+{% if mode_off %}
+<div class="alert alert-info">{{ me.tv("Comments are turned off, so readers can't add new ones. Change this in {settings}.", me.link("/admin/settings", "Settings"))|safe }}</div>
+{% endif %}
+
+<nav class="filter-tabs" aria-label="{{ me.t("Filter by status") }}">
+    {% for filter in filters %}
+    <a href="/admin/comments?status={{ filter.value }}"
+        class="{% if filter.value == active_filter.as_str() %}active{% endif %}">
+        {{ me.t(filter.label) }}<span class="count">{{ filter.count }}</span>
+    </a>
+    {% endfor %}
+</nav>
+
+<div id="comment-list" class="item-list" data-empty-text="{{ me.t("Nothing here.") }}" {% if comments.is_empty() %}hidden{% endif %}>
+    {% for comment in comments %}
+    <div class="list-row" id="comment-{{ comment.id }}" data-item style="align-items: flex-start">
+        <div class="row-main">
+            <div>
+                <strong>{{ comment.author }}</strong>
+                {% if let Some(source) = comment.source_url %}
+                <span class="badge badge-scheduled">{{ me.t("Webmention") }}</span>
+                <a href="{{ source }}" target="_blank" rel="noopener" class="form-hint">{{ source }}</a>
+                {% endif %}
+                {% if !comment.email.is_empty() %}<span class="form-hint">{{ comment.email }}</span>{% endif %}
+            </div>
+            <div class="prose" style="font-size: 0.9rem; margin: 0.35rem 0">{{ comment.html|safe }}</div>
+            <div class="row-meta">
+                <span>{{ comment.date }}</span>
+                <span>{{ me.tv("on {post}", comment.post_link)|safe }}</span>
+            </div>
+        </div>
+        <div class="row-actions">
+            {% if active_filter != "approved" %}
+            <button type="button" class="btn btn-secondary btn-sm" hx-post="/admin/comments/{{ comment.id }}/approve"
+                hx-target="#comment-{{ comment.id }}" hx-swap="delete">{{ me.t("Approve") }}</button>
+            {% endif %}
+            {% if active_filter != "spam" %}
+            <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/comments/{{ comment.id }}/spam"
+                hx-target="#comment-{{ comment.id }}" hx-swap="delete">{{ me.t("Spam") }}</button>
+            {% else %}
+            <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/comments/{{ comment.id }}/pending"
+                hx-target="#comment-{{ comment.id }}" hx-swap="delete">{{ me.t("Not spam") }}</button>
+            {% endif %}
+            <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/comments/{{ comment.id }}"
+                data-delete-target="#comment-{{ comment.id }}" data-confirm-title="{{ me.t("Delete this comment?") }}"
+                data-confirm-text="{{ me.t("It will be removed permanently.") }}">{{ me.t("Delete") }}</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if comments.is_empty() %}
+<p class="empty-state" data-empty-for="comment-list">
+    {% if active_filter == "pending" %}{{ me.t("Nothing waiting for approval.") }}{% else %}{{ me.t("Nothing here.") }}{% endif %}
+</p>
+{% endif %}
+{% endblock %}

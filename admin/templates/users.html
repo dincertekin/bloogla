@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("People") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("People") }}</h1>
+        <p>{{ me.t("Everyone who can sign in and write on this site.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <h2 class="section-title">{{ me.t("Add someone") }}</h2>
+    <form hx-post="/admin/users" hx-target="#user-form-status" hx-swap="innerHTML"
+        data-reset-on-success>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="new-name">{{ me.t("Name") }}</label>
+                <input type="text" id="new-name" name="name" class="form-control" autocomplete="off" />
+            </div>
+            <div class="form-group">
+                <label for="new-email">{{ me.t("Email") }}</label>
+                <input type="email" id="new-email" name="email" class="form-control" required autocomplete="off" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label>{{ me.t("Role") }}</label>
+            {% for role in roles %}
+            <label class="check-row" style="margin-bottom: 0.4rem">
+                <input type="radio" name="role" value="{{ role.as_str() }}" {% if role.as_str() == "author" %}checked{% endif %} />
+                <span>{{ me.t(role.label()) }} <small>{{ me.t(role.description()) }}</small></span>
+            </label>
+            {% endfor %}
+        </div>
+        <div id="user-form-status"></div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Add Person") }}</button>
+    </form>
+</section>
+
+<div id="user-list" class="item-list" data-empty-text="{{ me.t("Nobody else yet.") }}">
+    {% for user in users %}
+    {% include "user_item.html" %}
+    {% endfor %}
+</div>
+{% endblock %}

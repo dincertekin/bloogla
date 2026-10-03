@@ -4,3 +4,6 @@
 # Bloogla
 data/
 uploads/
+
+# macOS
+.DS_Store

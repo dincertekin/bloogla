@@ -12,6 +12,14 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 - **Content:** Posts with drafts and scheduling, standalone pages (About, Contact), tags, navigation menu, pagination, custom URL slugs with automatic redirects.
 - **Editor:** Full-page Markdown editor with preview, image picker, cover images, keyboard saving, revision history and a local backup of unsaved text.
 - **Search:** Full-text search (SQLite FTS5), accent-insensitive with prefix matching.
+- **People:** Admin, editor and author roles, bylines, and each person's own profile and password.
+- **Languages:** English, Deutsch, Español, Français, Italiano, Português, Türkçe, Русский, 日本語 and 中文 for the admin panel, the theme and emails. The site has a language, and each person can pick their own for the admin.
+- **Email & newsletter:** Comment notifications and a double opt-in newsletter over your own SMTP server, with one-click unsubscribe.
+- **Shortcodes:** `[youtube URL]`, `[vimeo URL]`, `[audio URL]`, `[video URL]`, `[toc]`, plus your theme's own.
+- **Custom fields:** Extra values per post (location, rating…) for themes and the API.
+- **Webmentions:** Notify blogs you link to, and receive their mentions in the comment queue.
+- **Comments:** Optional, with approval queue and quiet spam protection (no captchas, no tracking).
+- **JSON API:** Public read endpoints and token-based publishing for apps and scripts.
 - **Analytics:** Privacy-friendly view counts and referring sites per day. No cookies or personal data; bots, link previews and your own visits are skipped.
 - **Media Library:** Image uploads, resized for the web and stripped of location data.
 - **SEO & RSS:** Meta descriptions, Open Graph and Twitter cards, JSON-LD, canonical URLs, full-content RSS, sitemap, `robots.txt` and a site icon.
@@ -68,6 +76,14 @@ Set via environment variables:
 | `BLOOGLA_ADMIN_EMAIL`    |                          | With `BLOOGLA_ADMIN_PASSWORD`, creates the admin on first start instead of the browser setup page. |
 | `BLOOGLA_ADMIN_PASSWORD` |                          | See above.                                                    |
 | `BLOOGLA_BLOG_NAME`      | `My Blog`                | Site title for scripted setup.                                |
+| `BLOOGLA_TLS_DOMAINS`    |                          | Comma-separated domains. Turns on built-in HTTPS with automatic Let's Encrypt certificates (port 443, and 80 redirects). |
+| `BLOOGLA_TLS_EMAIL`      |                          | Contact address for certificate expiry notices.               |
+| `BLOOGLA_TLS_STAGING`    | `false`                  | Use Let's Encrypt's test server while trying things out.      |
+| `BLOOGLA_HTTP_PORT`      | `80`                     | Port that redirects to HTTPS when built-in HTTPS is on.       |
+| `BLOOGLA_LOG`            | `info`                   | Log level filter, e.g. `debug` or `warn`.                     |
+| `BLOOGLA_LOG_FORMAT`     | text                     | `json` for one JSON object per line.                          |
+| `BLOOGLA_ADMIN_NAME`     |                          | Display name for scripted setup.                              |
+| `BLOOGLA_WEBMENTION_ALLOW_LOCAL` | `false`          | Development only: let webmentions fetch local addresses (normally blocked). |
 
 Bloogla keeps its files in the folder it is started from: `data/` (database and backups), `uploads/` and `themes/`.
 
@@ -98,7 +114,7 @@ scp target/release/bloogla deploy/install.sh root@your-server:
 ssh root@your-server 'sh install.sh example.com'
 ```
 
-The script installs Bloogla as a hardened systemd service in `/var/lib/bloogla` and sets up Caddy for automatic HTTPS. Then open your domain in a browser to create your account. Re-run the script with a new binary to upgrade.
+The script installs Bloogla as a hardened systemd service in `/var/lib/bloogla` and sets up Caddy for automatic HTTPS. Without Caddy (or with `HTTPS=builtin`), Bloogla gets its own certificates instead. Then open your domain in a browser to create your account. Re-run the script with a new binary to upgrade.
 
 Manual alternatives are in [`deploy/`](deploy/): a systemd unit, a Caddyfile and an nginx config.
 
@@ -114,6 +130,36 @@ docker run -d -p 8080:8080 -v bloogla:/app -e BLOOGLA_BASE_URL=https://example.c
 
 Push a version tag (`git tag v0.2.0 && git push --tags`). GitHub Actions builds static Linux binaries for x86-64 and ARM and attaches them to a release, which `install.sh` downloads.
 
+## JSON API
+
+Reading needs no authentication and is open to other sites (CORS):
+
+```bash
+curl https://example.com/api/posts?page=1&per_page=10&tag=travel
+curl https://example.com/api/posts/my-post      # includes Markdown and rendered HTML
+curl https://example.com/api/pages/about
+curl https://example.com/api/tags
+```
+
+To write, create a token in **Admin → Profile → API tokens**. It acts with your role, so an author's token can only change their own posts.
+
+```bash
+TOKEN=bl_...
+curl https://example.com/api/me -H "Authorization: Bearer $TOKEN"
+
+curl -X POST https://example.com/api/posts -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Hello", "content": "Written with **Markdown**.", "status": "published", "tags": ["notes"]}'
+
+# Fields you leave out keep their current values
+curl -X PUT https://example.com/api/posts/42 -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"title": "Hello again"}'
+
+curl -X DELETE https://example.com/api/posts/42 -H "Authorization: Bearer $TOKEN"
+```
+
+Post fields: `title`, `content` (Markdown), `slug`, `status` (`draft`, `published`, `scheduled`), `published_at` (UTC, e.g. `2026-10-02T09:00:00`), `cover_image`, `tags` (names), and `page: true` to create a page. Errors come back as `{"error": "..."}` with a matching status code.
+
 ## Moving from WordPress
 
 1. In WordPress, go to **Tools → Export → All content** and download the `.xml` file.
@@ -126,11 +172,22 @@ Categories and tags both become tags. Images still load from the old site, so ke
 
 ## Security & Operations
 
+- **Content Security Policy:** The admin panel, login and setup only run scripts from Bloogla's own files (no inline scripts, no `eval`), so injected HTML can't run code. Admin JavaScript lives in `admin/static/js/`; a test fails if inline scripts return to the templates.
 - **CSRF:** Cross-site `POST`/`DELETE` requests are rejected using the browser's `Sec-Fetch-Site` header, falling back to an `Origin` check against `BLOOGLA_BASE_URL`.
-- **Rate Limiting:** IP-based protection on `/admin/login` via `tower-governor`.
+- **Rate Limiting:** Per-address limits on login, comments, newsletter sign-ups and webmentions. Behind nginx, use the included config: it overwrites `X-Forwarded-For` so visitors can't fake their address.
 - **Visibility:** Drafts and not-yet-due scheduled posts are hidden from every public page, search, RSS and sitemap. Publish dates are UTC.
 - **Backups:** Automatic daily backups in `data/backups/`; run `bloogla backup` for an on-demand copy. Restore by stopping Bloogla and replacing `data/bloogla.db` with a backup.
 - **Uploads:** Files are checked by content (JPEG, PNG, GIF, WebP only), stored under random names, and photos are resized and stripped of metadata.
+- **Themes:** Only files in a theme's `static/` folder are public; templates and `theme.toml` are not served.
+- **Passwords:** At least 12 characters with a lowercase letter, an uppercase letter, a number and a symbol. Forms show what's missing as you type, and the server checks again. Rules live in `src/app/security.rs`.
+- **Sessions:** HTTP-only, same-site cookies (HTTPS-only in production); expired sessions are removed hourly. Changing a password (or an admin resetting it) signs that account out on every other device.
+- **Security log:** Sign-ins, failed sign-ins, password and role changes, new people and API tokens are logged as `security event=...` lines. On a server: `journalctl -u bloogla | grep "security event"`.
+- **Dependencies:** CI runs `cargo audit` on every push and weekly, and Dependabot proposes updates. `install.sh` checks the downloaded binary against its published checksum.
+
+### Planned
+
+- **Two-factor login (2FA):** sign-in codes from an authenticator app (TOTP), set up in Profile. It will be **optional and recommended, never forced**: the Profile page suggests turning it on (especially for admins), but nobody is locked out or made to set it up. A later option may let a site owner require it for admins only, and only if they choose to.
+- **Content Security Policy for the public site:** the admin panel already has a strict one; the public theme gets its own during the theme rework, so themes can declare what they load (fonts, embeds).
 
 ---
 
@@ -138,42 +195,100 @@ Categories and tags both become tags. Images still load from the old site, so ke
 
 ```
 .
-├── Cargo.toml          # Dependencies and project settings
-├── Dockerfile          # Container image
-├── deploy/             # install.sh, systemd unit, Caddy and nginx configs
-├── migrations/         # Embedded SQLite migrations
-├── src/
-│   ├── handlers/       # Axum route handlers (admin, auth, media, posts, public)
-│   ├── assets.rs       # Files embedded in the binary (admin assets, bundled themes)
-│   ├── backup.rs       # Database backups
-│   ├── config.rs       # Environment configuration
-│   ├── db.rs           # Database connections and setup
-│   ├── import.rs       # WordPress import
-│   ├── main.rs         # Commands and server startup
-│   ├── models.rs       # Structs and database types
-│   ├── seo.rs          # Meta, Open Graph and JSON-LD tags
-│   ├── setup.rs        # First-run setup (browser or environment variables)
-│   ├── tags.rs         # Tag queries
-│   ├── templates.rs    # Askama admin-panel template structs
-│   ├── themes.rs       # Theme discovery
-│   └── utils.rs        # Markdown, slugs, dates and other helpers
-├── static/             # Admin CSS and JS (embedded)
-├── templates/          # Askama admin-panel templates
-└── themes/default/     # The bundled theme (embedded, installed on first start)
+├── Cargo.toml              # Dependencies, grouped by what they're for
+├── askama.toml             # Tells Askama where the admin templates are
+├── admin/                  # The admin panel's look (compiled into the binary)
+│   ├── templates/          #   HTML pages (Askama)
+│   └── static/             #   CSS and JS, served at /static
+├── themes/default/         # The bundled public theme (written to themes/ on first start)
+├── migrations/             # Database tables, applied automatically on start
+├── deploy/                 # install.sh, systemd unit, Caddy and nginx configs
+└── src/
+    ├── main.rs             # Start here: reads the command and runs it
+    ├── app/                # Building blocks used everywhere
+    │   ├── config.rs       #   BLOOGLA_* environment variables
+    │   ├── state.rs        #   AppState: what every request handler can reach
+    │   ├── models.rs       #   Shared data types: Post, Tag, Role, CurrentUser...
+    │   └── security.rs     #   Passwords, random tokens, API token hashing
+    ├── commands/           # The command line: serve, backup, reset-password, import-wordpress
+    ├── server/             # Running the website
+    │   ├── mod.rs          #   Starting the server, sessions, shutdown
+    │   ├── routes.rs       #   Every URL and the handler that answers it
+    │   ├── middleware.rs   #   CSRF, sign-in and role checks, ETags, logging...
+    │   ├── assets.rs       #   Serving the embedded admin CSS/JS
+    │   └── tls.rs          #   Built-in HTTPS
+    ├── handlers/           # The code behind each URL
+    │   ├── site/           #   Public website: pages, feeds, comments, newsletter
+    │   ├── admin/          #   Admin panel: one file per screen
+    │   └── api.rs          #   JSON API
+    ├── db/                 # Reading and writing the database
+    │   ├── settings.rs     #   Every site setting and its default
+    │   ├── posts.rs        #   Finding, saving and deleting posts and pages
+    │   └── tags.rs, fields.rs, users.rs
+    ├── content/            # Turning Markdown into web pages
+    │   ├── markdown.rs     #   Markdown → safe HTML, excerpts
+    │   ├── shortcodes.rs   #   [youtube], [toc] and theme shortcodes
+    │   ├── seo.rs          #   Meta, Open Graph and JSON-LD tags
+    │   └── text.rs         #   Slugs, escaping, dates
+    ├── services/           # Work besides answering pages
+    │   ├── email.rs        #   Sending email over SMTP (notifications, newsletter)
+    │   ├── webmention.rs   #   Sending and verifying webmentions
+    │   ├── backup.rs       #   Database backups
+    │   ├── themes.rs       #   Finding, installing and rendering themes
+    │   └── wordpress_import.rs
+    └── i18n/               # Interface languages: one file per language (de.rs, fr.rs...)
 ```
 
 Created at runtime: `data/` (database, backups), `uploads/`.
+
+### Adding something new
+
+- **A new page or endpoint:** write a handler in `src/handlers/`, then add one `.route(...)` line in `src/server/routes.rs`.
+- **A new admin screen:** add `admin/templates/<name>.html` and `src/handlers/admin/<name>.rs` (the template struct sits next to its handlers), then add the route in the right role group.
+- **A new setting:** add a field to `Settings` in `src/db/settings.rs` and give it a default there.
+- **A database change:** add a new file to `migrations/` (never edit one that has already run).
+- **New interface text:** wrap it in `me.t("...")` and add a translation to each file in `src/i18n/`; `cargo test` lists anything missing.
+- **A new language:** copy `src/i18n/de.rs` to `<code>.rs`, translate it, and add one line to `LANGUAGES` in `src/i18n/mod.rs`.
+
+Before sending changes: `cargo fmt`, `cargo clippy -- -D warnings` and `cargo test` (CI runs the same).
 
 ## Writing Themes
 
 A theme is a folder in `themes/` with a `theme.toml` and Tera templates in `templates/`:
 
-| Template     | Used for                                  | Required |
-| ------------ | ----------------------------------------- | -------- |
-| `index.html` | Home page and search results              | Yes      |
-| `post.html`  | Single post                               | Yes      |
-| `tag.html`   | Posts with a tag                          | Yes      |
-| `page.html`  | Standalone pages (falls back to `post.html`) | No    |
-| `404.html`   | Not found page                            | No       |
+| Template       | Used for                                           | Required |
+| -------------- | -------------------------------------------------- | -------- |
+| `index.html`   | Home page and search results                       | Yes      |
+| `post.html`    | Single post                                        | Yes      |
+| `tag.html`     | Posts with a tag                                   | Yes      |
+| `page.html`    | Standalone pages (falls back to `post.html`)       | No       |
+| `404.html`     | Not found page                                     | No       |
+| `message.html` | Short notices (newsletter confirm, unsubscribe)    | Yes      |
 
-Every template gets `blog_name`, `blog_description`, `base_url`, `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views` and `seo_head`. Put `{{ seo_head | safe }}` inside `<head>`. Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`); single pages get `post` and `content_html`.
+Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `newsletter_enabled`, `seo_head` and `asset_version`. Put `{{ seo_head | safe }}` inside `<head>`.
+
+Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
+
+- Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
+- Single pages get `post` (with `post.fields.<name>` for custom fields, `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library) and `content_html`.
+- Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html` and `subscribe.html`.
+
+### Scripts and the security policy
+
+Theme pages are sent with a Content Security Policy: scripts, styles and fonts load from the site itself, images and media from any HTTPS address, and embeds from YouTube and Vimeo. Inline `<script>` blocks and `onclick=` attributes don't run, so put JavaScript in files under `static/js/`. If a theme needs more (web fonts, for example), list the extra sources in `theme.toml`:
+
+```toml
+[csp]
+style-src = ["https://fonts.googleapis.com"]
+font-src = ["https://fonts.gstatic.com"]
+```
+
+The default theme loads its syntax highlighter (`static/js/prism.js`, with about 20 common languages) only on pages that contain code.
+
+### Theme shortcodes
+
+Add `shortcodes/<name>.html` to a theme to make `[name ...]` available in posts. The template gets `args` (positional values) and `params` (`key=value` pairs). The default theme's `shortcodes/note.html` turns `[note "Text" kind="warning"]` into a highlighted box.
+
+### Updating the bundled theme
+
+Bump `version` in `theme.toml`. On start, Bloogla replaces an older installed copy and keeps the previous one in `data/theme-backups/`.

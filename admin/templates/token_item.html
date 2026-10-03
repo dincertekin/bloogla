@@ -1,0 +1,14 @@
+<div class="list-row" id="token-{{ token.id }}" data-item>
+    <div class="row-main">
+        <span class="row-title">{{ token.name }}</span>
+        <div class="row-meta">
+            <span>{{ me.tv("Created {date}", token.created) }}</span>
+            <span>{% if let Some(used) = token.last_used %}{{ me.tv("Last used {date}", used) }}{% else %}{{ me.t("Never used") }}{% endif %}</span>
+        </div>
+    </div>
+    <div class="row-actions">
+        <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/profile/tokens/{{ token.id }}"
+            data-delete-target="#token-{{ token.id }}" data-confirm-title="{{ me.tv("Revoke “{name}”?", token.name) }}"
+            data-confirm-text="{{ me.t("Anything using this token will stop working.") }}">{{ me.t("Revoke") }}</button>
+    </div>
+</div>

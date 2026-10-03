@@ -1,0 +1,3 @@
+# Askama compiles the admin panel's HTML templates into the binary.
+[general]
+dirs = ["admin/templates"]

@@ -1,0 +1,8 @@
+# Settings for `cargo audit` (run in CI).
+[advisories]
+ignore = [
+    # rsa "Marvin attack": rsa is only listed in Cargo.lock as an optional part
+    # of sqlx's MySQL driver. Bloogla uses SQLite, so rsa is never compiled
+    # (`cargo tree -i rsa` prints nothing). Re-check when upgrading sqlx.
+    "RUSTSEC-2023-0071",
+]

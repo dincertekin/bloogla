@@ -9,7 +9,8 @@
     </header>
 
     {% if post.cover_image %}
-    <img src="{{ post.cover_image }}" alt="{{ post.title }}" class="single-cover" />
+    <img src="{{ post.cover_image }}" alt="" class="single-cover" decoding="async" fetchpriority="high"
+        {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
     {% endif %}
 
     <div class="post-body">
