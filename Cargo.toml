@@ -28,14 +28,20 @@ askama = "0.12"
 askama_axum = "0.4"
 tera = "1.19"
 
-# Content: Markdown, HTML sanitizing, images, WordPress import
+# Content: Markdown, HTML sanitizing, images, WordPress import, theme uploads (.zip)
 comrak = { version = "0.18", default-features = false }
 ammonia = "4.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 quick-xml = "0.41"
+zip = { version = "8.6", default-features = false, features = ["deflate"] }
 
-# Security: password hashing, random tokens, API token hashing
+# Security: password hashing, random tokens, API token hashing, encrypting
+# stored secrets, two-factor codes
 argon2 = { version = "0.5", features = ["password-hash"] }
+chacha20poly1305 = "0.10"
+hmac = "0.12"
+sha1 = "0.10"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.8"
 sha2 = "0.10"
 

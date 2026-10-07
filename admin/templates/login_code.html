@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="{{ lang.code() }}">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:,">
+    <title>{{ lang.t("Two-factor login") }}</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<body>
+    <main class="container" style="max-width: 420px; margin-top: 8vh; padding: 0 1rem;">
+        <div class="card">
+            <h2 style="margin-bottom: 0.5rem; text-align: center; font-size: 1.5rem; font-weight: 700;">
+                {{ lang.t("Two-factor login") }}
+            </h2>
+            <p class="text-secondary" style="text-align: center; margin-bottom: 1.5rem">
+                {{ lang.t("Enter the 6-digit code from your authenticator app.") }}
+            </p>
+
+            {% if let Some(err) = error %}
+            <p class="error-message" role="alert" style="text-align: center; font-weight: 500">{{ err }}</p>
+            {% endif %}
+
+            <form method="POST" action="/admin/login/code">
+                <div class="form-group" style="margin-bottom: 1.5rem">
+                    <label for="code">{{ lang.t("Code") }}</label>
+                    <input type="text" id="code" name="code" class="form-control code-input" style="max-width: none" required
+                        inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" spellcheck="false"
+                        autofocus />
+                    <span class="form-hint">{{ lang.t("Lost your phone? Enter one of your recovery codes instead.") }}</span>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%">{{ lang.t("Sign In") }}</button>
+            </form>
+        </div>
+        <p style="text-align: center; margin-top: 1rem">
+            <a href="/admin/login" class="text-secondary">{{ lang.t("Back to sign in") }}</a>
+        </p>
+    </main>
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-//! The settings page: site details, reading options, email and theme.
+//! The settings page: site details, reading options and email.
 //! Each card on the page saves separately.
 
 use super::alert;
@@ -7,12 +7,10 @@ use crate::app::state::AppState;
 use crate::content::text::escape_html;
 use crate::db::settings::{self, CommentMode};
 use crate::i18n::Lang;
-use crate::services::themes::{self, ThemeInfo};
 
 use askama::Template;
 use axum::extract::{Extension, State};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Response};
 use axum_extra::extract::Form;
 use serde::Deserialize;
 
@@ -34,8 +32,6 @@ pub struct SettingsTemplate {
     pub language: String,
     pub languages: Vec<Lang>,
     pub site_icon: String,
-    pub active_theme: String,
-    pub available_themes: Vec<ThemeInfo>,
 }
 
 /// Mail server and email options shown in Settings.
@@ -72,11 +68,6 @@ pub struct GeneralSettingsForm {
     pub language: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct ThemeForm {
-    theme_name: String,
-}
-
 /// GET /admin/settings -> Settings page.
 pub async fn page(
     State(state): State<AppState>,
@@ -108,8 +99,6 @@ pub async fn page(
         language: site.language.code().to_string(),
         languages: Lang::all(),
         site_icon: site.site_icon.clone(),
-        active_theme: site.active_theme.clone(),
-        available_themes: themes::discover(),
     }
 }
 
@@ -314,16 +303,4 @@ pub async fn send_test_email(
         ),
         Err(e) => settings_error(me.lang, &me.tv("Couldn't send: {error}", escape_html(&e))),
     }
-}
-
-/// POST /admin/settings/theme -> Update theme setting.
-pub async fn update_theme(State(state): State<AppState>, Form(form): Form<ThemeForm>) -> Response {
-    if !themes::discover().iter().any(|t| t.id == form.theme_name) {
-        return (StatusCode::BAD_REQUEST, "Unknown theme").into_response();
-    }
-    if let Err(e) = settings::save(&state.pool, &[("active_theme", form.theme_name)]).await {
-        tracing::error!("Failed to save theme: {e}");
-    }
-
-    Redirect::to("/admin/settings").into_response()
 }

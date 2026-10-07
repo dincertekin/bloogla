@@ -1,4 +1,4 @@
-{% extends "default/templates/layout.html" %}
+{% extends "templates/layout.html" %}
 
 {% block title %}{{ t.tag_tag | replace(from="{tag}", to="#" ~ tag_name) }} - {{ blog_name }}{% endblock %}
 
@@ -10,12 +10,12 @@
         </header>
 
         {% for post in posts %}
-        {% include "default/templates/post_card.html" %}
+        {% include "templates/post_card.html" %}
         {% else %}
         <p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
         {% endfor %}
 
-        {% include "default/templates/pagination.html" %}
+        {% include "templates/pagination.html" %}
     </section>
 
     <aside class="sidebar">

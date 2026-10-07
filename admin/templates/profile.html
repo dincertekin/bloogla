@@ -73,6 +73,33 @@
     </form>
 </section>
 <section class="card">
+    <h2 class="section-title">{{ me.t("Two-factor login") }}</h2>
+    {% if two_factor %}
+    <p style="margin-bottom: 0.5rem"><span class="badge badge-published">{{ me.t("On") }}</span></p>
+    <p class="form-hint" style="margin-bottom: 1rem">
+        {{ me.count(recovery_codes_left, "{n} recovery code left.", "{n} recovery codes left.") }}
+    </p>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-start">
+        <form method="POST" action="/admin/profile/two-factor/recovery">
+            <button type="submit" class="btn btn-secondary">{{ me.t("New recovery codes") }}</button>
+        </form>
+        <form hx-post="/admin/profile/two-factor/off" hx-target="find .form-status" hx-swap="innerHTML"
+            class="upload-inline" data-reset-on-success>
+            <input type="password" name="password" class="form-control" required autocomplete="current-password"
+                placeholder="{{ me.t("Current password") }}" aria-label="{{ me.t("Current password") }}" />
+            <button type="submit" class="btn btn-ghost-danger">{{ me.t("Turn off") }}</button>
+            <div class="form-status" style="flex-basis: 100%"></div>
+        </form>
+    </div>
+    {% else %}
+    <p class="form-hint" style="margin-bottom: 1rem">
+        {{ me.t("Recommended. Sign-ins then need a code from an authenticator app on your phone as well as your password, so a leaked password alone isn't enough. It's optional and you can turn it off any time.") }}
+    </p>
+    <a href="/admin/profile/two-factor" class="btn btn-primary">{{ me.t("Set up two-factor login") }}</a>
+    {% endif %}
+</section>
+
+<section class="card">
     <h2 class="section-title">{{ me.t("API tokens") }}</h2>
     <p class="form-hint" style="margin-bottom: 1rem">
         {{ me.tv("Let apps and scripts publish as you through the JSON API at {url}. A token can do what you can do, so keep it private.", format!("<code>{}/api</code>", self.base_url))|safe }}
@@ -91,8 +118,6 @@
     {% include "token_item.html" %}
     {% endfor %}
 </div>
-{% if tokens.is_empty() %}
-<p class="empty-state" data-empty-for="token-list">{{ me.t("No tokens yet.") }}</p>
-{% endif %}
+<p class="empty-state" data-empty-for="token-list" {% if !tokens.is_empty() %}hidden{% endif %}>{{ me.t("No tokens yet.") }}</p>
 <script src="/static/js/password.js"></script>
 {% endblock %}

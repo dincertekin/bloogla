@@ -105,8 +105,7 @@
     {% endfor %}
 </div>
 
-{% if rows.is_empty() %}
-<div class="empty-state" data-empty-for="post-list">
+<div class="empty-state" data-empty-for="post-list" {% if !rows.is_empty() %}hidden{% endif %}>
     {% if active_filter.is_empty() %}
     {% if is_page %}
     <p>{{ me.t("No pages yet. An About page is a good place to start.") }}</p>
@@ -119,5 +118,4 @@
     <p>{{ me.t("Nothing here yet.") }}</p>
     {% endif %}
 </div>
-{% endif %}
 {% endblock %}

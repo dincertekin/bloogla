@@ -59,9 +59,7 @@
     {% endfor %}
 </div>
 
-{% if comments.is_empty() %}
-<p class="empty-state" data-empty-for="comment-list">
+<p class="empty-state" data-empty-for="comment-list" {% if !comments.is_empty() %}hidden{% endif %}>
     {% if active_filter == "pending" %}{{ me.t("Nothing waiting for approval.") }}{% else %}{{ me.t("Nothing here.") }}{% endif %}
 </p>
-{% endif %}
 {% endblock %}

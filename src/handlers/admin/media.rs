@@ -14,6 +14,7 @@ use axum::extract::{Extension, Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::{CompressionType, PngEncoder};
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits};
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -93,6 +94,34 @@ struct ProcessedImage {
     mime_type: &'static str,
     width: u32,
     height: u32,
+    /// A copy [`SMALL_WIDTH`] pixels wide, for phones and post cards
+    /// (only when the image is wider than that).
+    small: Option<Vec<u8>>,
+}
+
+/// Width of the smaller copy made of wide photos.
+const SMALL_WIDTH: u32 = 800;
+
+/// Encode `img` in the upload's format (JPEG or PNG).
+fn encode(img: &DynamicImage, format: ImageFormat) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    let result = if format == ImageFormat::Jpeg {
+        let encoder = JpegEncoder::new_with_quality(&mut bytes, JPEG_QUALITY);
+        img.to_rgb8().write_with_encoder(encoder)
+    } else {
+        // Best compression: uploads are saved once and downloaded many times.
+        let encoder = PngEncoder::new_with_quality(
+            &mut bytes,
+            CompressionType::Best,
+            image::codecs::png::FilterType::Adaptive,
+        );
+        img.write_with_encoder(encoder)
+    };
+    result.map_err(|e| {
+        tracing::warn!("Upload failed: {e}");
+        "could not encode image".to_string()
+    })?;
+    Ok(bytes)
 }
 
 async fn all_media(state: &AppState) -> Vec<MediaView> {
@@ -226,19 +255,21 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
 
 /// DELETE /admin/media/:id -> Remove a file from the library and disk.
 pub async fn delete(State(state): State<AppState>, Path(id): Path<i64>) -> StatusCode {
-    let filename: Option<String> = or_log(
-        sqlx::query_scalar("DELETE FROM media WHERE id = ? RETURNING filename")
+    let files: Option<(String, Option<String>)> = or_log(
+        sqlx::query_as("DELETE FROM media WHERE id = ? RETURNING filename, small_filename")
             .bind(id)
             .fetch_optional(&state.pool)
             .await,
         "delete media",
     );
 
-    match filename {
-        Some(filename) => {
-            if let Err(e) = tokio::fs::remove_file(PathBuf::from(UPLOAD_DIR).join(&filename)).await
-            {
-                tracing::error!("Failed to remove upload {filename}: {e}");
+    match files {
+        Some((filename, small)) => {
+            for name in std::iter::once(filename).chain(small) {
+                if let Err(e) = tokio::fs::remove_file(PathBuf::from(UPLOAD_DIR).join(&name)).await
+                {
+                    tracing::error!("Failed to remove upload {name}: {e}");
+                }
             }
             StatusCode::OK
         }
@@ -279,6 +310,7 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
                 mime_type,
                 width,
                 height,
+                small: None,
             })
         }
         ImageFormat::Jpeg | ImageFormat::Png => {
@@ -304,29 +336,26 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
                 );
             }
 
-            let mut bytes = Vec::new();
             let (extension, mime_type) = if format == ImageFormat::Jpeg {
-                let encoder = JpegEncoder::new_with_quality(&mut bytes, JPEG_QUALITY);
-                img.to_rgb8().write_with_encoder(encoder).map_err(|e| {
-                    tracing::warn!("Upload failed: {e}");
-                    "could not encode image".to_string()
-                })?;
                 ("jpg", "image/jpeg")
             } else {
-                img.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
-                    .map_err(|e| {
-                        tracing::warn!("Upload failed: {e}");
-                        "could not encode image".to_string()
-                    })?;
                 ("png", "image/png")
+            };
+            let small = if img.width() > SMALL_WIDTH {
+                let small =
+                    img.resize(SMALL_WIDTH, u32::MAX, image::imageops::FilterType::Lanczos3);
+                Some(encode(&small, format)?)
+            } else {
+                None
             };
 
             Ok(ProcessedImage {
-                bytes,
+                bytes: encode(&img, format)?,
                 extension,
                 mime_type,
                 width: img.width(),
                 height: img.height(),
+                small,
             })
         }
         _ => Err("not a supported image (JPEG, PNG, GIF or WebP)".to_string()),
@@ -339,29 +368,36 @@ async fn save_image(
     original_name: &str,
     image: ProcessedImage,
 ) -> Result<(), String> {
-    let filename = format!(
-        "{}.{}",
-        crate::app::security::random_hex(12),
-        image.extension
-    );
+    let name = crate::app::security::random_hex(12);
+    let filename = format!("{name}.{}", image.extension);
+    let small_filename = image
+        .small
+        .as_ref()
+        .map(|_| format!("{name}-{SMALL_WIDTH}.{}", image.extension));
 
     tokio::fs::create_dir_all(UPLOAD_DIR).await.map_err(|e| {
         tracing::warn!("Upload failed: {e}");
         "could not create upload folder".to_string()
     })?;
-    tokio::fs::write(PathBuf::from(UPLOAD_DIR).join(&filename), &image.bytes)
-        .await
-        .map_err(|e| {
-            tracing::warn!("Upload failed: {e}");
-            "could not save file".to_string()
-        })?;
+    let files = std::iter::once((&filename, &image.bytes))
+        .chain(small_filename.as_ref().zip(image.small.as_ref()));
+    for (name, bytes) in files {
+        tokio::fs::write(PathBuf::from(UPLOAD_DIR).join(name), bytes)
+            .await
+            .map_err(|e| {
+                tracing::warn!("Upload failed: {e}");
+                "could not save file".to_string()
+            })?;
+    }
 
     let original_name: String = original_name.chars().take(200).collect();
     sqlx::query(
-        "INSERT INTO media (filename, original_name, mime_type, size_bytes, width, height)
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO media (filename, small_filename, original_name, mime_type, size_bytes,
+                            width, height)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&filename)
+    .bind(&small_filename)
     .bind(&original_name)
     .bind(image.mime_type)
     .bind(image.bytes.len() as i64)

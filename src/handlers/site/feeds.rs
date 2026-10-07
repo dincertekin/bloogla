@@ -142,9 +142,10 @@ pub async fn robots_txt(State(state): State<AppState>) -> Response {
 /// GET /favicon.ico -> The site icon chosen in Settings.
 pub async fn favicon(State(state): State<AppState>) -> Response {
     let site = settings::load(&state.pool).await;
-    // A redirect needs a valid header value.
+    // No icon: "no content" rather than "not found", which browsers log as an
+    // error on every page. (A redirect also needs a valid header value.)
     if site.site_icon.is_empty() || !site.site_icon.is_ascii() {
-        return StatusCode::NOT_FOUND.into_response();
+        return StatusCode::NO_CONTENT.into_response();
     }
     Redirect::temporary(&site.site_icon).into_response()
 }

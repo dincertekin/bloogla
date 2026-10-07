@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Two-factor login") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Two-factor login") }}</h1>
+        <p>{{ me.t("Sign-ins need a code from your phone as well as your password, so a leaked password alone isn't enough.") }}</p>
+    </div>
+</div>
+
+{% if codes.is_empty() %}
+<section class="card two-factor-setup">
+    <div class="two-factor-qr">{{ qr_svg|safe }}</div>
+    <div>
+        <h2 class="section-title">{{ me.t("1. Scan the code") }}</h2>
+        <p class="form-hint" style="margin-bottom: 0.75rem">
+            {{ me.t("Open an authenticator app (Google Authenticator, 1Password, Authy, Microsoft Authenticator…) and scan this QR code. Or type in this key:") }}
+        </p>
+        <p><code class="two-factor-key">{{ secret_text }}</code></p>
+
+        <h2 class="section-title" style="margin-top: 1.5rem">{{ me.t("2. Enter the code from the app") }}</h2>
+        {% if let Some(err) = error %}
+        <div class="alert alert-error" role="alert">{{ err }}</div>
+        {% endif %}
+        <form method="POST" action="/admin/profile/two-factor" class="upload-inline">
+            <input type="text" name="code" class="form-control code-input" required inputmode="numeric"
+                autocomplete="one-time-code" placeholder="123 456" aria-label="{{ me.t("Code") }}" autofocus />
+            <button type="submit" class="btn btn-primary">{{ me.t("Turn on") }}</button>
+        </form>
+        <p style="margin-top: 1rem"><a href="/admin/profile" class="text-secondary">{{ me.t("Cancel") }}</a></p>
+    </div>
+</section>
+{% else %}
+<section class="card">
+    <div class="alert alert-success">{{ me.t("Two-factor login is on.") }}</div>
+    <h2 class="section-title">{{ me.t("Save your recovery codes") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1rem">
+        {{ me.t("If you lose your phone, each of these codes lets you sign in once. Keep them somewhere safe, like a password manager. They won't be shown again.") }}
+    </p>
+    <ul class="recovery-codes">
+        {% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}
+    </ul>
+    <div class="form-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1.25rem">
+        <button type="button" class="btn btn-secondary" data-copy="{{ codes.join("\n") }}"
+            data-copied="{{ me.t("Copied") }}" data-copy-failed="{{ me.t("Copy failed") }}">{{ me.t("Copy codes") }}</button>
+        <a class="btn btn-secondary" download="recovery-codes.txt"
+            href="data:text/plain;charset=utf-8,{% for code in codes %}{{ code }}%0A{% endfor %}">{{ me.t("Download") }}</a>
+        <a class="btn btn-primary" href="/admin/profile">{{ me.t("Done") }}</a>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

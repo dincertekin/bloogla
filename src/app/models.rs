@@ -15,6 +15,8 @@ pub struct Post {
     /// Size of the cover image in pixels, when it's in the media library.
     pub cover_width: Option<i64>,
     pub cover_height: Option<i64>,
+    /// A smaller copy of the cover (800px wide), when there is one.
+    pub cover_small: Option<String>,
     pub views: i64,
     pub created_at: String,
     pub status: String,
@@ -227,6 +229,7 @@ impl PostForm {
             cover_image: self.cover_image.clone().filter(|c| !c.trim().is_empty()),
             cover_width: None,
             cover_height: None,
+            cover_small: None,
             views: 0,
             created_at: String::new(),
             status: status.to_string(),

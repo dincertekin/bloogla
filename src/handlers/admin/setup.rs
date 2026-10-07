@@ -3,6 +3,11 @@
 //! Like WordPress, the first visit to a new site opens a setup page in the
 //! browser. Scripted installs can skip it with `BLOOGLA_ADMIN_EMAIL` /
 //! `BLOOGLA_ADMIN_PASSWORD` (and optional `BLOOGLA_BLOG_NAME`).
+//!
+//! So that a stranger who finds a fresh server first can't claim it, setup
+//! needs a one-time code. Bloogla prints it at start as a ready-made link
+//! (`https://example.com/setup?code=...`), and `install.sh` shows that link,
+//! so for the owner it's still one click.
 
 use crate::app::security::{hash_password, missing_password_rules, PasswordRule, PASSWORD_RULES};
 use crate::app::state::AppState;
@@ -28,6 +33,9 @@ pub struct SetupTemplate {
     pub name: String,
     pub email: String,
     pub error: Option<String>,
+    /// The setup code, when it came with the link (then the field is hidden).
+    pub code: String,
+    pub code_from_link: bool,
     /// The password checklist.
     pub password_rules: &'static [PasswordRule],
     /// What the submitted password still needs (translated).
@@ -44,6 +52,8 @@ impl SetupTemplate {
             name: String::new(),
             email: String::new(),
             error: None,
+            code: String::new(),
+            code_from_link: false,
             password_rules: PASSWORD_RULES,
             password_missing: Vec::new(),
         }
@@ -146,12 +156,13 @@ async fn create_site(
 /// With `BLOOGLA_ADMIN_EMAIL` and `BLOOGLA_ADMIN_PASSWORD` set, the site is
 /// created right away (for scripted installs). Otherwise returns `true` and the
 /// browser setup page at `/setup` stays open until someone completes it.
+/// Returns the setup code while browser setup is needed, `None` otherwise.
 pub async fn prepare(
     pool: &SqlitePool,
     base_url: &str,
-) -> Result<bool, Box<dyn std::error::Error>> {
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
     if !needs_setup(pool).await? {
-        return Ok(false);
+        return Ok(None);
     }
 
     if let (Ok(email), Ok(password)) = (
@@ -168,20 +179,39 @@ pub async fn prepare(
                 ("from", "BLOOGLA_ADMIN_* variables"),
             ],
         );
-        return Ok(false);
+        return Ok(None);
     }
 
-    tracing::info!("Almost done. Finish setup in your browser: {base_url}");
-    Ok(true)
+    let code = crate::app::security::random_hex(8);
+    tracing::info!("Almost done. Finish setup in your browser: {base_url}/setup?code={code}");
+    Ok(Some(code))
+}
+
+/// Whether `given` is the setup code, compared in constant time so the
+/// response time doesn't reveal how much of a guess was right.
+fn is_setup_code(state: &AppState, given: &str) -> bool {
+    let expected = state.setup_code.as_bytes();
+    let given = given.trim().as_bytes();
+    expected.len() == given.len()
+        && !expected.is_empty()
+        && expected
+            .iter()
+            .zip(given)
+            .fold(0u8, |diff, (a, b)| diff | (a ^ b))
+            == 0
 }
 
 #[derive(Deserialize)]
 pub struct SetupQuery {
     lang: Option<String>,
+    #[serde(default)]
+    code: String,
 }
 
 #[derive(Deserialize)]
 pub struct SetupForm {
+    #[serde(default)]
+    code: String,
     #[serde(default)]
     language: String,
     blog_name: String,
@@ -214,7 +244,17 @@ pub async fn page(
                     .unwrap_or_default(),
             )
         });
-    SetupTemplate::new(lang).into_response()
+    let code_from_link = is_setup_code(&state, &query.code);
+    SetupTemplate {
+        code: if code_from_link {
+            query.code
+        } else {
+            String::new()
+        },
+        code_from_link,
+        ..SetupTemplate::new(lang)
+    }
+    .into_response()
 }
 
 /// POST /setup -> Create the site and admin account, then sign in.
@@ -229,10 +269,13 @@ pub async fn submit(
 
     let lang = Lang::parse(&form.language).unwrap_or_default();
     // Show the form again with what was typed (except passwords) and a message.
+    let code_ok = is_setup_code(&state, &form.code);
     let refill = || SetupTemplate {
         blog_name: form.blog_name.clone(),
         name: form.name.clone(),
         email: form.email.clone(),
+        code: form.code.trim().to_string(),
+        code_from_link: code_ok,
         ..SetupTemplate::new(lang)
     };
     let render_error = |message: &str| {
@@ -243,6 +286,10 @@ pub async fn submit(
         .into_response()
     };
 
+    if !code_ok {
+        crate::app::security::log_event("setup_code_rejected", &[("email", form.email.trim())]);
+        return render_error("That setup code isn't right.");
+    }
     let missing = missing_password_rules(&form.password);
     if !missing.is_empty() {
         return SetupTemplate {

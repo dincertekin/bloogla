@@ -121,6 +121,7 @@ if [ "$HTTPS" = caddy ]; then
     fi
 fi
 
+STARTED_AT=$(date '+%Y-%m-%d %H:%M:%S')
 systemctl daemon-reload
 systemctl enable bloogla >/dev/null 2>&1
 systemctl restart bloogla
@@ -128,7 +129,24 @@ if [ "$HTTPS" = caddy ]; then
     systemctl reload caddy || systemctl restart caddy
 fi
 
+# A new site prints a one-time setup link (with a code, so nobody else can
+# claim the site first). Wait a few seconds for it to show up in the log.
+SETUP_LINK=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    SETUP_LINK=$(journalctl -u bloogla --since "$STARTED_AT" --no-pager -o cat 2>/dev/null \
+        | grep -o 'https\?://[^ ]*/setup?code=[0-9a-f]*' | tail -n 1)
+    [ -n "$SETUP_LINK" ] && break
+    sleep 1
+done
+
 echo
-echo "Bloogla is running. Open https://$DOMAIN in your browser to finish setup."
+if [ -n "$SETUP_LINK" ]; then
+    echo "Bloogla is running. Open this link to create your account (it works once):"
+    echo
+    echo "    $SETUP_LINK"
+    echo
+else
+    echo "Bloogla is running at https://$DOMAIN"
+fi
 echo "Make sure $DOMAIN points (DNS A/AAAA record) to this server so HTTPS can be issued."
 echo "Logs: journalctl -u bloogla -f    Backups: $DATA_DIR/data/backups"

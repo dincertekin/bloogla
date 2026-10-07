@@ -3,6 +3,7 @@
 //! each have a file here.
 
 mod backup;
+mod disable_two_factor;
 mod import_wordpress;
 mod reset_password;
 
@@ -18,6 +19,7 @@ COMMANDS:
     serve                     Start the web server (default)
     backup [FILE]             Save a copy of the database (default: data/backups/)
     reset-password [EMAIL]    Set a new admin password
+    disable-2fa EMAIL         Turn off two-factor login for someone locked out
     import-wordpress FILE     Import posts and pages from a WordPress export (.xml)
     help                      Show this message
     version                   Show the version
@@ -31,6 +33,7 @@ pub enum Command {
     Backup(Option<String>),
     ResetPassword(Option<String>),
     ImportWordpress(String),
+    DisableTwoFactor(String),
     Help,
     Version,
 }
@@ -47,6 +50,7 @@ impl Command {
             ["reset-password"] => Command::ResetPassword(None),
             ["reset-password", email] => Command::ResetPassword(Some(email.to_string())),
             ["import-wordpress", file] => Command::ImportWordpress(file.to_string()),
+            ["disable-2fa", email] => Command::DisableTwoFactor(email.to_string()),
             ["help" | "--help" | "-h"] => Command::Help,
             ["version" | "--version" | "-V"] => Command::Version,
             _ => return None,
@@ -71,6 +75,7 @@ impl Command {
         // Every other command works on the database in `data/`.
         let config = Config::from_env()?;
         std::fs::create_dir_all("data")?;
+        crate::app::secrets::init()?;
         let pool = crate::db::connect(&config.database_url).await?;
 
         match self {
@@ -78,6 +83,7 @@ impl Command {
             Command::Backup(file) => backup::run(&pool, file).await,
             Command::ResetPassword(email) => reset_password::run(&pool, email).await,
             Command::ImportWordpress(file) => import_wordpress::run(&pool, &file).await,
+            Command::DisableTwoFactor(email) => disable_two_factor::run(&pool, &email).await,
             // Already handled above.
             Command::Help | Command::Version => Ok(()),
         }

@@ -36,6 +36,9 @@
     data-text-dismiss="{{ me.t("Dismiss") }}"
     data-text-rendering="{{ me.t("Rendering…") }}"
     data-text-preview-failed="{{ me.t("Preview failed. Your text is safe; try again.") }}"
+    data-text-link-prompt="{{ me.t("Link address") }}"
+    data-text-visual-placeholder="{{ me.t("Start writing…") }}"
+    data-text-video-prompt="{{ me.t("Paste a YouTube or Vimeo link") }}"
     action="{% if post.id == 0 %}{{ admin_path }}{% else %}{{ admin_path }}/{{ post.id }}/edit{% endif %}">
     <div class="editor-layout">
         <div class="editor-main">
@@ -54,20 +57,28 @@
                     <button type="button" role="tab" aria-selected="true" data-mode="write">{{ me.t("Write") }}</button>
                     <button type="button" role="tab" aria-selected="false" data-mode="preview">{{ me.t("Preview") }}</button>
                 </div>
-                <button type="button" class="btn btn-ghost btn-sm" data-picker="insert">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                        aria-hidden="true">
-                        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-                        <circle cx="9" cy="9" r="2" />
-                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                    </svg>
-                    {{ me.t("Insert image") }}
-                </button>
             </div>
 
-            <textarea id="content" name="content" class="form-control editor-textarea"
-                placeholder="{{ me.t("Start writing. Markdown works here: **bold**, _italic_, # Heading, - lists, [links](https://…)") }}&#10;&#10;{{ me.t("Shortcodes:") }} [youtube URL], [vimeo URL], [toc], [note &quot;{{ me.t("Text") }}&quot;]">{{ post.content }}</textarea>
+            <!-- Formatting buttons for the visual editor (see admin/static/js/editor.js). -->
+            <div class="format-bar" role="toolbar" aria-label="{{ me.t("Formatting") }}" aria-controls="visual-editor">
+                <button type="button" data-format="heading" title="{{ me.t("Heading") }}" aria-label="{{ me.t("Heading") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/><path d="M6 20V4"/><path d="M18 20V4"/></svg></button>
+                <span class="format-sep" aria-hidden="true"></span>
+                <button type="button" data-format="bold" title="{{ me.t("Bold") }} (⌘B)" aria-label="{{ me.t("Bold") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></svg></button>
+                <button type="button" data-format="italic" title="{{ me.t("Italic") }} (⌘I)" aria-label="{{ me.t("Italic") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg></button>
+                <button type="button" data-format="code" title="{{ me.t("Code") }}" aria-label="{{ me.t("Code") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>
+                <span class="format-sep" aria-hidden="true"></span>
+                <button type="button" data-format="link" title="{{ me.t("Link") }} (⌘K)" aria-label="{{ me.t("Link") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+                <button type="button" data-picker="insert" title="{{ me.t("Insert image") }}" aria-label="{{ me.t("Insert image") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></button>
+                <button type="button" data-format="video" title="{{ me.t("Video") }}" aria-label="{{ me.t("Video") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></button>
+                <span class="format-sep" aria-hidden="true"></span>
+                <button type="button" data-format="bullets" title="{{ me.t("Bulleted list") }}" aria-label="{{ me.t("Bulleted list") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/></svg></button>
+                <button type="button" data-format="numbers" title="{{ me.t("Numbered list") }}" aria-label="{{ me.t("Numbered list") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 12h11"/><path d="M10 18h11"/><path d="M10 6h11"/><path d="M4 10h2"/><path d="M4 6h1v4"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></button>
+                <button type="button" data-format="quote" title="{{ me.t("Quote") }}" aria-label="{{ me.t("Quote") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6H3"/><path d="M21 12H8"/><path d="M21 18H8"/><path d="M3 12v6"/></svg></button>
+                <button type="button" data-format="divider" title="{{ me.t("Divider") }}" aria-label="{{ me.t("Divider") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+            </div>
+            <!-- What gets saved: the post as Markdown, kept up to date by the editor. -->
+            <textarea id="content" name="content" hidden>{{ post.content }}</textarea>
+            <div id="visual-editor" class="visual-editor prose"></div>
             <div id="preview" class="preview-pane prose" hidden></div>
 
             <details class="card panel fields-panel" style="margin-top: 1.25rem" {% if !post.fields.is_empty() %}open{% endif %}>
@@ -202,5 +213,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/visual-editor.js"></script>
 <script src="/static/js/editor.js"></script>
 {% endblock %}

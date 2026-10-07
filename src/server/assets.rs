@@ -19,12 +19,7 @@ pub async fn serve_static(Path(path): Path<String>, headers: HeaderMap) -> Respo
 
     let etag = format!(
         "\"{}\"",
-        file.metadata
-            .sha256_hash()
-            .iter()
-            .take(8)
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>()
+        crate::app::security::to_hex(&file.metadata.sha256_hash()[..8])
     );
     let cache_headers = [
         (header::ETAG, etag.clone()),

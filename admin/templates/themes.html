@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Themes") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Themes") }}</h1>
+        <p>{{ me.t("Choose how your site looks to visitors.") }}</p>
+    </div>
+</div>
+
+{% if let Some((kind, text)) = message %}
+<div class="alert alert-{{ kind }}">{{ text }}</div>
+{% endif %}
+
+<div class="theme-grid">
+    {% for theme in themes %}
+    <div class="theme-card {% if theme.id == active_theme %}theme-card-active{% endif %}" id="theme-{{ theme.id }}">
+        <div class="theme-preview-wrapper">
+            {% if let Some(img) = theme.preview_url() %}
+            <img src="{{ img }}" alt="" class="theme-preview-img" loading="lazy" />
+            {% else %}
+            <div class="theme-preview-placeholder">{{ me.t("No preview") }}</div>
+            {% endif %}
+        </div>
+
+        <div class="theme-info">
+            <div>
+                <div class="theme-title">
+                    <h2>{{ theme.meta.name }}</h2>
+                    <span class="text-muted">v{{ theme.meta.version }}</span>
+                </div>
+                {% if !theme.meta.author.is_empty() %}
+                <p class="text-muted theme-author">{{ me.tv("By {author}", theme.meta.author) }}</p>
+                {% endif %}
+                <p class="form-hint">{{ theme.meta.description }}</p>
+                {% if let Some(error) = theme.error %}
+                <div class="theme-error">
+                    <strong>{{ me.t("This theme can't be used.") }}</strong>
+                    <pre>{{ error }}</pre>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="theme-actions">
+                {% if theme.id == active_theme %}
+                <button type="button" class="btn btn-secondary btn-sm" disabled>{{ me.t("Active") }}</button>
+                {% else if theme.error.is_none() %}
+                <form method="POST" action="/admin/themes/activate">
+                    <input type="hidden" name="theme" value="{{ theme.id }}" />
+                    <button type="submit" class="btn btn-primary btn-sm">{{ me.t("Activate") }}</button>
+                </form>
+                {% endif %}
+                {% if theme.id != active_theme && !theme.is_bundled() %}
+                <button type="button" class="btn btn-ghost-danger btn-sm" aria-label="{{ me.t("Delete") }}"
+                    title="{{ me.t("Delete") }}"
+                    data-delete-url="/admin/themes/{{ theme.id }}" data-delete-target="#theme-{{ theme.id }}"
+                    data-confirm-title="{{ me.t("Delete this theme?") }}"
+                    data-confirm-text="{{ me.t("A copy is kept in data/theme-backups on the server.") }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    </svg>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<section class="card" style="margin-top: 1.5rem">
+    <h2 class="section-title">{{ me.t("Upload a theme") }}</h2>
+    <form action="/admin/themes/upload" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="theme-file">{{ me.t("Theme file (.zip)") }}</label>
+            <input type="file" id="theme-file" name="theme" class="form-control" accept=".zip,application/zip" required />
+            <span class="form-hint">
+                {{ me.t("A .zip with a theme.toml and templates, up to 20 MB. Uploading a theme with the same name replaces it, and the old copy is kept in data/theme-backups.") }}
+            </span>
+        </div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Upload") }}</button>
+    </form>
+</section>
+{% endblock %}

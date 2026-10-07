@@ -7,7 +7,8 @@
            away (the first one first). The rest load as the visitor scrolls. #}
         <img src="{{ post.cover_image }}" alt="" class="post-cover" decoding="async"
             {% if loop.first %}fetchpriority="high"{% elif loop.index > 2 %}loading="lazy"{% endif %}
-            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
+            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
+            {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="(max-width: 768px) calc(100vw - 6rem), 700px"{% endif %} />
     </a>
     {% endif %}
 

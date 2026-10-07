@@ -58,8 +58,6 @@
     {% endfor %}
 </div>
 
-{% if media.is_empty() %}
-<p class="empty-state" data-empty-for="media-list">{{ me.t("No images yet.") }}</p>
-{% endif %}
+<p class="empty-state" data-empty-for="media-list" {% if !media.is_empty() %}hidden{% endif %}>{{ me.t("No images yet.") }}</p>
 {% endblock %}
 

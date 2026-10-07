@@ -19,6 +19,8 @@ use sqlx::SqlitePool;
 pub const POST_SELECT: &str = "SELECT id, title, slug, content, cover_image,
         (SELECT width FROM media WHERE media.filename = substr(posts.cover_image, 10)) AS cover_width,
         (SELECT height FROM media WHERE media.filename = substr(posts.cover_image, 10)) AS cover_height,
+        (SELECT '/uploads/' || small_filename FROM media
+         WHERE media.filename = substr(posts.cover_image, 10)) AS cover_small,
         COALESCE(views, 0) AS views, status, is_page, author_id,
         (SELECT NULLIF(name, '') FROM users WHERE users.id = posts.author_id) AS author_name,
         COALESCE(published_at, CURRENT_TIMESTAMP) AS published_at,

@@ -4,8 +4,12 @@
 //! - `state`: `AppState`, what every request handler can reach
 //! - `models`: shared data types (Post, Tag, Role, CurrentUser...)
 //! - `security`: password hashing, random tokens, API token hashing
+//! - `secrets`: encrypting secrets stored in the database (key in data/secret.key)
+//! - `totp`: two-factor login codes from authenticator apps
 
 pub mod config;
 pub mod models;
+pub mod secrets;
 pub mod security;
 pub mod state;
+pub mod totp;

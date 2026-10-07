@@ -7,10 +7,10 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 ## Features
 
 - **Single Binary:** Server, admin panel, migrations, admin assets and the default theme compiled into one executable. Copy it to a server and run it.
-- **Easy Setup:** Like WordPress, the first visit opens a setup page in the browser. Scripted installs can use `BLOOGLA_ADMIN_*` variables instead.
+- **Easy Setup:** Like WordPress, you create your account in the browser: Bloogla prints a one-time setup link when it starts (the installer shows it), so nobody else can claim a fresh site first. Scripted installs can use `BLOOGLA_ADMIN_*` variables instead.
 - **High Performance:** Compile-time HTML templates, sub-millisecond SQLite queries, zero JS heavy frameworks.
 - **Content:** Posts with drafts and scheduling, standalone pages (About, Contact), tags, navigation menu, pagination, custom URL slugs with automatic redirects.
-- **Editor:** Full-page Markdown editor with preview, image picker, cover images, keyboard saving, revision history and a local backup of unsaved text.
+- **Editor:** Visual editor (bold looks bold as you type) with a preview; posts are saved as Markdown, and HTML it can't show (like video embeds) is kept as written. Image picker, cover images, keyboard saving, revision history and a local backup of unsaved text.
 - **Search:** Full-text search (SQLite FTS5), accent-insensitive with prefix matching.
 - **People:** Admin, editor and author roles, bylines, and each person's own profile and password.
 - **Languages:** English, Deutsch, Español, Français, Italiano, Português, Türkçe, Русский, 日本語 and 中文 for the admin panel, the theme and emails. The site has a language, and each person can pick their own for the admin.
@@ -26,7 +26,7 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 - **Fast by default:** Settings are cached in memory and public pages answer repeat visits with `304 Not Modified`.
 - **WordPress Import:** Bring posts, pages, categories, tags and featured images from a WordPress export; old WordPress links redirect to the new ones.
 - **Operations:** Daily automatic backups, graceful shutdown, systemd/Caddy/nginx/Docker templates.
-- **Security:** Argon2 hashing, session-based auth, CSRF protection, rate-limiting on login, security headers.
+- **Security:** Argon2 hashing, optional two-factor login, encrypted secrets, CSRF protection, login rate limits, strict Content Security Policy, security headers.
 
 ---
 
@@ -50,6 +50,7 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 
 ```bash
 cargo run
+# then open the setup link it prints (http://localhost:8080/setup?code=...)
 
 ```
 
@@ -94,6 +95,7 @@ bloogla                          # start the server (same as `bloogla serve`)
 bloogla backup [FILE]            # consistent copy of the live database
 bloogla reset-password [EMAIL]   # set a new admin password and sign out all sessions
 bloogla import-wordpress FILE    # import a WordPress export (.xml)
+bloogla disable-2fa EMAIL        # turn off two-factor login for someone locked out
 ```
 
 ---
@@ -114,7 +116,7 @@ scp target/release/bloogla deploy/install.sh root@your-server:
 ssh root@your-server 'sh install.sh example.com'
 ```
 
-The script installs Bloogla as a hardened systemd service in `/var/lib/bloogla` and sets up Caddy for automatic HTTPS. Without Caddy (or with `HTTPS=builtin`), Bloogla gets its own certificates instead. Then open your domain in a browser to create your account. Re-run the script with a new binary to upgrade.
+The script installs Bloogla as a hardened systemd service in `/var/lib/bloogla` and sets up Caddy for automatic HTTPS. Without Caddy (or with `HTTPS=builtin`), Bloogla gets its own certificates instead. At the end it prints a one-time setup link; open it to create your account. Re-run the script with a new binary to upgrade.
 
 Manual alternatives are in [`deploy/`](deploy/): a systemd unit, a Caddyfile and an nginx config.
 
@@ -123,7 +125,7 @@ Manual alternatives are in [`deploy/`](deploy/): a systemd unit, a Caddyfile and
 ```bash
 docker build -t bloogla .
 docker run -d -p 8080:8080 -v bloogla:/app -e BLOOGLA_BASE_URL=https://example.com bloogla
-# then open the site in your browser to finish setup
+# then open the setup link from `docker logs <container>` to create your account
 ```
 
 ### Releasing
@@ -174,11 +176,14 @@ Categories and tags both become tags. Images still load from the old site, so ke
 
 - **Content Security Policy:** The admin panel, login and setup only run scripts from Bloogla's own files (no inline scripts, no `eval`), so injected HTML can't run code. Admin JavaScript lives in `admin/static/js/`; a test fails if inline scripts return to the templates.
 - **CSRF:** Cross-site `POST`/`DELETE` requests are rejected using the browser's `Sec-Fetch-Site` header, falling back to an `Origin` check against `BLOOGLA_BASE_URL`.
-- **Rate Limiting:** Per-address limits on login, comments, newsletter sign-ups and webmentions. Behind nginx, use the included config: it overwrites `X-Forwarded-For` so visitors can't fake their address.
+- **Rate Limiting:** Per-address limits on login, comments, newsletter sign-ups and webmentions. After 5 failed sign-ins in 15 minutes, an account accepts one attempt per minute from anywhere, which stops guessing spread across many addresses (accounts are slowed, never locked, so nobody can lock the owner out). Behind nginx, use the included config: it overwrites `X-Forwarded-For` so visitors can't fake their address.
 - **Visibility:** Drafts and not-yet-due scheduled posts are hidden from every public page, search, RSS and sitemap. Publish dates are UTC.
 - **Backups:** Automatic daily backups in `data/backups/`; run `bloogla backup` for an on-demand copy. Restore by stopping Bloogla and replacing `data/bloogla.db` with a backup.
-- **Uploads:** Files are checked by content (JPEG, PNG, GIF, WebP only), stored under random names, and photos are resized and stripped of metadata.
-- **Themes:** Only files in a theme's `static/` folder are public; templates and `theme.toml` are not served.
+- **Uploads:** Files are checked by content (JPEG, PNG, GIF, WebP only), stored under random names, and photos are resized, stripped of metadata, and get an 800px-wide copy for phones.
+- **Themes:** Only files in a theme's `static/` folder are public; templates and `theme.toml` are not served. Only admins can upload themes; uploads are checked for unsafe paths, allowed file types and size (20 MB, 100 MB unpacked) before anything is installed, and are logged as security events.
+- **Two-factor login (optional, recommended):** Turn it on in Profile with any authenticator app; you get 10 one-time recovery codes. Nobody is forced to use it. Admins can turn it off for someone who lost their phone, and `bloogla disable-2fa EMAIL` works on the server.
+- **Stored secrets:** The mail server password and two-factor keys are encrypted with a key in `data/secret.key`. Keep that file with your backups; without it you re-enter the mail password and set up two-factor login again.
+- **Setup:** A fresh site can only be set up with the one-time code from the setup link Bloogla prints at start.
 - **Passwords:** At least 12 characters with a lowercase letter, an uppercase letter, a number and a symbol. Forms show what's missing as you type, and the server checks again. Rules live in `src/app/security.rs`.
 - **Sessions:** HTTP-only, same-site cookies (HTTPS-only in production); expired sessions are removed hourly. Changing a password (or an admin resetting it) signs that account out on every other device.
 - **Security log:** Sign-ins, failed sign-ins, password and role changes, new people and API tokens are logged as `security event=...` lines. On a server: `journalctl -u bloogla | grep "security event"`.
@@ -186,8 +191,7 @@ Categories and tags both become tags. Images still load from the old site, so ke
 
 ### Planned
 
-- **Two-factor login (2FA):** sign-in codes from an authenticator app (TOTP), set up in Profile. It will be **optional and recommended, never forced**: the Profile page suggests turning it on (especially for admins), but nobody is locked out or made to set it up. A later option may let a site owner require it for admins only, and only if they choose to.
-- **Content Security Policy for the public site:** the admin panel already has a strict one; the public theme gets its own during the theme rework, so themes can declare what they load (fonts, embeds).
+- **Content Security Policy for custom themes:** themes can already add sources in `theme.toml`; a settings screen for this may follow.
 
 ---
 
@@ -199,7 +203,8 @@ Categories and tags both become tags. Images still load from the old site, so ke
 ├── askama.toml             # Tells Askama where the admin templates are
 ├── admin/                  # The admin panel's look (compiled into the binary)
 │   ├── templates/          #   HTML pages (Askama)
-│   └── static/             #   CSS and JS, served at /static
+│   ├── static/             #   CSS and JS, served at /static
+│   └── visual-editor/      #   Source of the visual editor (built into static/js/visual-editor.js)
 ├── themes/default/         # The bundled public theme (written to themes/ on first start)
 ├── migrations/             # Database tables, applied automatically on start
 ├── deploy/                 # install.sh, systemd unit, Caddy and nginx configs
@@ -254,7 +259,16 @@ Before sending changes: `cargo fmt`, `cargo clippy -- -D warnings` and `cargo te
 
 ## Writing Themes
 
-A theme is a folder in `themes/` with a `theme.toml` and Tera templates in `templates/`:
+A theme is a folder in `themes/` with a `theme.toml` and Tera templates in `templates/`. The easiest start is a copy of `themes/default` with a new folder name. Install a theme by uploading it as a .zip in **Admin → Themes** (the files at the top of the .zip or inside one folder; the folder or file name becomes the theme's name), or by copying its folder into `themes/` on the server.
+
+```toml
+name = "My Theme"
+version = "1.0.0"
+author = "Your Name"
+description = "One sentence about it."
+preview_image = "static/preview.png"   # optional, shown in Admin → Themes
+```
+
 
 | Template       | Used for                                           | Required |
 | -------------- | -------------------------------------------------- | -------- |
@@ -265,12 +279,16 @@ A theme is a folder in `themes/` with a `theme.toml` and Tera templates in `temp
 | `404.html`     | Not found page                                     | No       |
 | `message.html` | Short notices (newsletter confirm, unsubscribe)    | Yes      |
 
+Templates refer to each other by their path inside the theme, so a copied theme works under any name: `{% extends "templates/layout.html" %}`, `{% include "templates/post_card.html" %}`.
+
+A theme with a mistake (a template that doesn't parse, a missing required template, a broken `theme.toml`) is never used: Admin → Themes shows what's wrong, and the site keeps using its current theme. Uploads are checked the same way before they're installed, and may only contain templates, styles, scripts, images and fonts.
+
 Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `newsletter_enabled`, `seo_head` and `asset_version`. Put `{{ seo_head | safe }}` inside `<head>`.
 
 Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
 
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
-- Single pages get `post` (with `post.fields.<name>` for custom fields, `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library) and `content_html`.
+- Single pages get `post` (with `post.fields.<name>` for custom fields, `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small`, an 800px-wide copy for `srcset`) and `content_html`.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html` and `subscribe.html`.
 
 ### Scripts and the security policy
@@ -291,4 +309,4 @@ Add `shortcodes/<name>.html` to a theme to make `[name ...]` available in posts.
 
 ### Updating the bundled theme
 
-Bump `version` in `theme.toml`. On start, Bloogla replaces an older installed copy and keeps the previous one in `data/theme-backups/`.
+Bump `version` in `theme.toml`. On start, Bloogla replaces an older installed copy and keeps the previous one in `data/theme-backups/`. Themes replaced by an upload or deleted in the admin are kept there too.

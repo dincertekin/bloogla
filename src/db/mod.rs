@@ -28,9 +28,34 @@ pub async fn connect(database_url: &str) -> Result<SqlitePool, Box<dyn std::erro
         .connect_with(options)
         .await?;
 
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    let migrator = sqlx::migrate!("./migrations");
+    refuse_pre_release_database(&pool, &migrator).await?;
+    migrator.run(&pool).await?;
 
     Ok(pool)
+}
+
+/// Databases made by development versions of Bloogla (before the schema was
+/// merged into one file) can't be upgraded. Say so plainly instead of
+/// sqlx's "previously applied but is missing" error.
+async fn refuse_pre_release_database(
+    pool: &SqlitePool,
+    migrator: &sqlx::migrate::Migrator,
+) -> Result<(), String> {
+    let applied: Vec<i64> = sqlx::query_scalar("SELECT version FROM _sqlx_migrations")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default(); // No table yet: a new database.
+    let known: Vec<i64> = migrator.iter().map(|m| m.version).collect();
+    if applied.iter().any(|version| !known.contains(version)) {
+        return Err(
+            "This database was made by a development version of Bloogla and can't be \
+                    upgraded. Move data/bloogla.db somewhere safe and start again to create a \
+                    fresh one."
+                .into(),
+        );
+    }
+    Ok(())
 }
 
 /// Unwrap a database result, logging the error and falling back to the default value.

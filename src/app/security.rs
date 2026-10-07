@@ -84,14 +84,17 @@ pub fn missing_password_rules(password: &str) -> Vec<&'static PasswordRule> {
 /// and role changes, API tokens. Every line starts with `security event=`, so
 /// `journalctl -u bloogla | grep "security event"` lists them all.
 ///
-/// Failures (`*_failed`, `*_rejected`) are warnings. Values are quoted, so
+/// Failures (`*_failed`, `*_rejected`, `*_throttled`) are warnings. Values are quoted, so
 /// text people typed (like an email address) can't fake extra log lines.
 pub fn log_event(event: &str, details: &[(&str, &str)]) {
     let details: String = details
         .iter()
         .map(|(key, value)| format!(" {key}={value:?}"))
         .collect();
-    if event.ends_with("_failed") || event.ends_with("_rejected") {
+    if ["_failed", "_rejected", "_throttled"]
+        .iter()
+        .any(|suffix| event.ends_with(suffix))
+    {
         tracing::warn!("security event={event}{details}");
     } else {
         tracing::info!("security event={event}{details}");
@@ -122,11 +125,27 @@ pub fn verify_password(password: &str, stored_hash: Option<&str>) -> bool {
     matches && stored_hash.is_some()
 }
 
+/// Bytes as lowercase hex, two characters per byte.
+pub fn to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Hex back to bytes; `None` if it isn't valid hex.
+pub fn from_hex(hex: &str) -> Option<Vec<u8>> {
+    if !hex.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok())
+        .collect()
+}
+
 /// `bytes` random bytes as lowercase hex (twice as many characters).
 pub fn random_hex(bytes: usize) -> String {
     let mut buffer = vec![0u8; bytes];
     rand::thread_rng().fill_bytes(&mut buffer);
-    buffer.iter().map(|b| format!("{b:02x}")).collect()
+    to_hex(&buffer)
 }
 
 /// A readable temporary password that meets [`PASSWORD_RULES`]: no
@@ -145,6 +164,29 @@ pub fn temporary_password() -> String {
     }
 }
 
+/// Ten one-time recovery codes for two-factor login, like `k7m2p-9xq4t`.
+/// Only their [`hash_recovery_code`] is stored.
+pub fn new_recovery_codes() -> Vec<String> {
+    const CHARS: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
+    let mut rng = rand::thread_rng();
+    let mut part = || -> String {
+        (0..5)
+            .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+            .collect()
+    };
+    (0..10).map(|_| format!("{}-{}", part(), part())).collect()
+}
+
+/// SHA-256 of a recovery code, ignoring case, spaces and dashes as typed.
+pub fn hash_recovery_code(code: &str) -> String {
+    let normalized: String = code
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_lowercase())
+        .collect();
+    hash_token(&normalized)
+}
+
 /// A new API token. Only its [`hash_token`] is stored.
 pub fn new_api_token() -> String {
     format!("bl_{}", random_hex(24))
@@ -153,10 +195,7 @@ pub fn new_api_token() -> String {
 /// SHA-256 of an API token, as stored in the database. Tokens are long and
 /// random, so a fast hash is enough (unlike passwords).
 pub fn hash_token(token: &str) -> String {
-    Sha256::digest(token.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    to_hex(&Sha256::digest(token.as_bytes()))
 }
 
 #[cfg(test)]
@@ -213,6 +252,19 @@ mod tests {
                 rule.id
             );
         }
+    }
+
+    #[test]
+    fn recovery_codes_are_readable_and_forgiving() {
+        let codes = new_recovery_codes();
+        assert_eq!(codes.len(), 10);
+        assert!(codes
+            .iter()
+            .all(|c| c.len() == 11 && c.as_bytes()[5] == b'-'));
+        assert_eq!(
+            hash_recovery_code("K7M2P 9XQ4T"),
+            hash_recovery_code("k7m2p-9xq4t")
+        );
     }
 
     #[test]

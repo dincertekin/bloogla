@@ -129,12 +129,20 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             "/admin/settings/general",
             post(admin::settings::update_general),
         )
-        .route("/admin/settings/theme", post(admin::settings::update_theme))
         .route("/admin/settings/email", post(admin::settings::update_email))
         .route(
             "/admin/settings/email/test",
             post(admin::settings::send_test_email),
         )
+        .route("/admin/themes", get(admin::themes::page))
+        .route("/admin/themes/activate", post(admin::themes::activate))
+        .route(
+            "/admin/themes/upload",
+            post(admin::themes::upload).layer(DefaultBodyLimit::max(
+                crate::services::themes::MAX_ZIP_BYTES,
+            )),
+        )
+        .route("/admin/themes/:id", delete(admin::themes::delete))
         .route("/admin/subscribers", get(admin::subscribers::page))
         .route(
             "/admin/subscribers.csv",
@@ -150,6 +158,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route(
             "/admin/users/:id/password",
             post(admin::users::reset_password),
+        )
+        .route(
+            "/admin/users/:id/two-factor/off",
+            post(admin::users::disable_two_factor),
         )
         .route_layer(from_fn(middleware::require_admin));
 
@@ -189,6 +201,18 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route(
             "/admin/profile/password",
             post(admin::profile::update_password),
+        )
+        .route(
+            "/admin/profile/two-factor",
+            get(admin::profile::two_factor_page).post(admin::profile::enable_two_factor),
+        )
+        .route(
+            "/admin/profile/two-factor/recovery",
+            post(admin::profile::new_recovery_codes_page),
+        )
+        .route(
+            "/admin/profile/two-factor/off",
+            post(admin::profile::disable_two_factor),
         )
         .route("/admin/profile/tokens", post(admin::profile::create_token))
         .route(
@@ -232,6 +256,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
     Ok(Router::new()
         .merge(signed_in)
         .route("/admin/login", login_route(state)?)
+        .route(
+            "/admin/login/code",
+            get(admin::auth::code_page).post(admin::auth::check_code),
+        )
         .route("/admin/logout", get(admin::auth::logout))
         .route("/setup", get(admin::setup::page).post(admin::setup::submit))
         .layer(SetResponseHeaderLayer::overriding(

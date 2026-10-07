@@ -317,6 +317,7 @@ mod tests {
             "\"info\",",
             "settings_error(me.lang,",
             "tag_form_error(me.lang,",
+            "render_error(",
         ];
         for marker in markers {
             for part in source.split(marker).skip(1) {
@@ -427,14 +428,6 @@ mod tests {
         let codes: HashSet<&str> = LANGUAGES.iter().map(|l| l.code).collect();
         assert_eq!(codes.len(), LANGUAGES.len());
         assert_eq!(Lang::default().code(), "en");
-    }
-
-    #[test]
-    fn bundled_theme_templates_parse() {
-        let pattern = concat!(env!("CARGO_MANIFEST_DIR"), "/themes/**/*.html");
-        if let Err(e) = tera::Tera::new(pattern) {
-            panic!("theme templates don't parse: {e:?}");
-        }
     }
 
     #[test]

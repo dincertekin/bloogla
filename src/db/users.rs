@@ -82,3 +82,122 @@ pub async fn set_password(
     .fetch_one(pool)
     .await
 }
+
+// ---- Two-factor login ----
+
+/// The authenticator key and the last time step used, when two-factor login is on.
+pub async fn two_factor(pool: &SqlitePool, id: i64) -> Option<(Vec<u8>, u64)> {
+    let row: Option<(Option<String>, i64)> = or_log(
+        sqlx::query_as("SELECT totp_secret, totp_last_step FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "load two-factor key",
+    );
+    let (stored, last_step) = row?;
+    let secret = crate::app::security::from_hex(&crate::app::secrets::decrypt(&stored?)?)?;
+    Some((secret, last_step.max(0) as u64))
+}
+
+/// Remember the time step a code was used in, so it can't be used again.
+pub async fn set_two_factor_step(pool: &SqlitePool, id: i64, step: u64) {
+    let _ = sqlx::query("UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?")
+        .bind(step as i64)
+        .bind(id)
+        .bind(step as i64)
+        .execute(pool)
+        .await;
+}
+
+/// Turn two-factor login on with `secret` (already confirmed with a code from
+/// `step`), replacing any recovery codes with `recovery_hashes`.
+pub async fn enable_two_factor(
+    pool: &SqlitePool,
+    id: i64,
+    secret: &[u8],
+    step: u64,
+    recovery_hashes: &[String],
+) -> Result<(), sqlx::Error> {
+    let hex = crate::app::security::to_hex(secret);
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?")
+        .bind(crate::app::secrets::encrypt(&hex))
+        .bind(step as i64)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    replace_recovery_codes(&mut tx, id, recovery_hashes).await?;
+    tx.commit().await
+}
+
+/// New recovery codes for someone who has two-factor login on.
+pub async fn set_recovery_codes(
+    pool: &SqlitePool,
+    id: i64,
+    hashes: &[String],
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    replace_recovery_codes(&mut tx, id, hashes).await?;
+    tx.commit().await
+}
+
+async fn replace_recovery_codes(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: i64,
+    hashes: &[String],
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM recovery_codes WHERE user_id = ?")
+        .bind(id)
+        .execute(&mut **tx)
+        .await?;
+    for hash in hashes {
+        sqlx::query("INSERT INTO recovery_codes (user_id, code_hash) VALUES (?, ?)")
+            .bind(id)
+            .bind(hash)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Turn two-factor login off and delete the recovery codes.
+/// Returns false when the person doesn't exist.
+pub async fn disable_two_factor(pool: &SqlitePool, id: i64) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let changed =
+        sqlx::query("UPDATE users SET totp_secret = NULL, totp_last_step = 0 WHERE id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+    replace_recovery_codes(&mut tx, id, &[]).await?;
+    tx.commit().await?;
+    Ok(changed > 0)
+}
+
+/// Use up a recovery code. True when it was valid and unused.
+pub async fn use_recovery_code(pool: &SqlitePool, id: i64, code: &str) -> bool {
+    let hash = crate::app::security::hash_recovery_code(code);
+    let used = sqlx::query(
+        "UPDATE recovery_codes SET used_at = CURRENT_TIMESTAMP
+         WHERE user_id = ? AND code_hash = ? AND used_at IS NULL",
+    )
+    .bind(id)
+    .bind(hash)
+    .execute(pool)
+    .await;
+    matches!(used, Ok(r) if r.rows_affected() > 0)
+}
+
+/// Unused recovery codes left.
+pub async fn recovery_codes_left(pool: &SqlitePool, id: i64) -> i64 {
+    or_log(
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM recovery_codes WHERE user_id = ? AND used_at IS NULL",
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await,
+        "count recovery codes",
+    )
+}

@@ -1,4 +1,4 @@
-{% extends "default/templates/layout.html" %}
+{% extends "templates/layout.html" %}
 
 {% block title %}
 {% if search_query %}
@@ -20,18 +20,18 @@
         {% endif %}
 
         {% for post in posts %}
-        {% include "default/templates/post_card.html" %}
+        {% include "templates/post_card.html" %}
         {% else %}
         <p class="empty-state">{{ t.no_posts_found }}</p>
         {% endfor %}
 
-        {% include "default/templates/pagination.html" %}
+        {% include "templates/pagination.html" %}
     </section>
 
     <aside class="sidebar">
         {% if newsletter_enabled %}
         <div class="widget">
-            {% include "default/templates/subscribe.html" %}
+            {% include "templates/subscribe.html" %}
         </div>
         {% endif %}
         {% if tags %}

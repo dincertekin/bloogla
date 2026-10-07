@@ -41,9 +41,7 @@
     {% endfor %}
 </div>
 
-{% if subscribers.is_empty() %}
-<p class="empty-state" data-empty-for="subscriber-list">
+<p class="empty-state" data-empty-for="subscriber-list" {% if !subscribers.is_empty() %}hidden{% endif %}>
     {% if active_filter == "active" %}{{ me.t("No subscribers yet.") }}{% else %}{{ me.t("Nobody here.") }}{% endif %}
 </p>
-{% endif %}
 {% endblock %}

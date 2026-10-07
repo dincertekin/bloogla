@@ -12,6 +12,7 @@
 //   data-clear-on-success="#id"        element emptied after a successful save
 //   data-navigate="lang"               <select> that reloads with ?lang=<value>
 //   data-empty-text="..."              list that shows this text when empty
+//   data-menu-toggle                   button that opens the menu on phones
 
 // ---- Modals ----
 
@@ -154,20 +155,43 @@ document.querySelectorAll(".nav-list .nav-item").forEach((link) => {
 });
 
 // ---- Lists marked with data-empty-text show a message when their last item goes away ----
+// The message is the list's `[data-empty-for]` element if the page has one,
+// otherwise a paragraph with the data-empty-text.
 
-function syncEmptyLists() {
-    document.querySelectorAll("[data-empty-text]").forEach((list) => {
-        const hasItems = list.querySelector("[data-item]") !== null;
-        let message = document.querySelector(`[data-empty-for="${list.id}"]`);
-        list.hidden = !hasItems;
-        if (hasItems && message) message.remove();
-        if (!hasItems && !message) {
-            message = document.createElement("p");
-            message.className = "empty-state";
-            message.dataset.emptyFor = list.id;
-            message.textContent = list.dataset.emptyText;
-            list.after(message);
+function syncEmptyList(list) {
+    const hasItems = list.querySelector("[data-item]") !== null;
+    let message = document.querySelector(`[data-empty-for="${list.id}"]`);
+    list.hidden = !hasItems;
+    if (!message && !hasItems) {
+        message = document.createElement("p");
+        message.className = "empty-state";
+        message.dataset.emptyFor = list.id;
+        message.textContent = list.dataset.emptyText;
+        list.after(message);
+    }
+    if (message) message.hidden = hasItems;
+}
+
+// Each list watches its own items, so it updates however an item was added
+// or removed (deleted, approved, created...).
+document.querySelectorAll("[data-empty-text]").forEach((list) => {
+    new MutationObserver(() => syncEmptyList(list)).observe(list, { childList: true, subtree: true });
+});
+
+// ---- The menu on phones: opens and closes with the Menu button ----
+
+const menuToggle = document.querySelector("[data-menu-toggle]");
+if (menuToggle) {
+    const sidebar = menuToggle.closest(".sidebar");
+    const setMenu = (open) => {
+        sidebar.classList.toggle("menu-open", open);
+        menuToggle.setAttribute("aria-expanded", String(open));
+    };
+    menuToggle.addEventListener("click", () => setMenu(!sidebar.classList.contains("menu-open")));
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && sidebar.classList.contains("menu-open")) {
+            setMenu(false);
+            menuToggle.focus();
         }
     });
 }
-document.addEventListener("htmx:afterSettle", syncEmptyLists);

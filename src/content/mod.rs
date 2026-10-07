@@ -19,15 +19,17 @@ pub async fn render(state: &AppState, markdown: &str) -> String {
     if !html.contains('[') {
         return html;
     }
-    let theme = crate::db::settings::load(&state.pool)
+    let chosen = crate::db::settings::load(&state.pool)
         .await
         .active_theme
         .clone();
-    let Ok(tera) = state.tera.read() else {
+    let Ok(themes) = state.themes.read() else {
         return html;
     };
+    let tera = themes.pick(&chosen).map(|theme| theme.tera);
     shortcodes::expand(&html, &|name, args| {
-        let template = format!("{theme}/shortcodes/{name}.html");
+        let tera = tera?;
+        let template = format!("shortcodes/{name}.html");
         if !tera.get_template_names().any(|t| t == template) {
             return None;
         }

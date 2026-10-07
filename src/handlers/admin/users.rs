@@ -22,6 +22,7 @@ pub struct UserRow {
     pub email: String,
     pub role: Role,
     pub post_count: i64,
+    pub two_factor: bool,
 }
 
 /// Admin page for managing who can sign in.
@@ -56,10 +57,11 @@ pub struct RoleForm {
 }
 
 async fn user_rows(state: &AppState) -> Vec<UserRow> {
-    let rows: Vec<(i64, String, String, String, i64)> = or_log(
+    let rows: Vec<(i64, String, String, String, i64, bool)> = or_log(
         sqlx::query_as(
             "SELECT u.id, u.name, u.email, u.role,
-                    (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.is_page = 0)
+                    (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.is_page = 0),
+                    u.totp_secret IS NOT NULL
              FROM users u ORDER BY u.id",
         )
         .fetch_all(&state.pool)
@@ -67,12 +69,13 @@ async fn user_rows(state: &AppState) -> Vec<UserRow> {
         "list users",
     );
     rows.into_iter()
-        .map(|(id, name, email, role, post_count)| UserRow {
+        .map(|(id, name, email, role, post_count, two_factor)| UserRow {
             id,
             name,
             email,
             role: Role::parse(&role).unwrap_or(Role::Author),
             post_count,
+            two_factor,
         })
         .collect()
 }
@@ -168,6 +171,7 @@ pub async fn create(
             email: email.to_string(),
             role,
             post_count: 0,
+            two_factor: false,
         },
         roles: Role::ALL,
     };
@@ -315,6 +319,36 @@ pub async fn delete(
         Err(e) => {
             tracing::error!("Failed to delete user: {e}");
             StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+/// POST /admin/users/:id/two-factor/off -> Turn off someone's two-factor
+/// login, for when they lost their phone and their recovery codes.
+pub async fn disable_two_factor(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<i64>,
+) -> Response {
+    if id == me.id {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    match crate::db::users::disable_two_factor(&state.pool, id).await {
+        Ok(true) => {
+            log_event(
+                "two_factor_disabled_by_admin",
+                &[("user_id", &id.to_string()), ("by", &me.email)],
+            );
+            alert(
+                me.lang,
+                "info",
+                "Two-factor login is off for this person. They sign in with just their password now.",
+            )
+        }
+        Ok(false) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => {
+            tracing::error!("Failed to turn off two-factor login: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }

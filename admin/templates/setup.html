@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
+    <link rel="icon" href="data:,">
     <title>{{ lang.t("Set up your site") }}</title>
     <link rel="stylesheet" href="/static/css/style.css" />
 </head>
@@ -32,6 +33,16 @@
             {% endif %}
 
             <form method="POST" action="/setup">
+                {% if code_from_link %}
+                <input type="hidden" name="code" value="{{ code }}" />
+                {% else %}
+                <div class="form-group">
+                    <label for="code">{{ lang.t("Setup code") }}</label>
+                    <input type="text" id="code" name="code" class="form-control" value="{{ code }}"
+                        autocomplete="off" spellcheck="false" required />
+                    <span class="form-hint">{{ lang.t("Bloogla shows a setup link with this code when it starts. You'll find it at the end of the installer and in the server log.") }}</span>
+                </div>
+                {% endif %}
                 <div class="form-group">
                     <label for="language">{{ lang.t("Language") }}</label>
                     <select id="language" name="language" class="form-control"

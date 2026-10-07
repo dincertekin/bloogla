@@ -1,0 +1,21 @@
+{
+  "name": "bloogla-visual-editor",
+  "private": true,
+  "description": "Builds admin/static/js/visual-editor.js (TipTap with Markdown).",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=none --outfile=../static/js/visual-editor.body.js && node header.js"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
+    "@tiptap/extension-image": "3.31.4",
+    "@tiptap/extension-placeholder": "3.31.4",
+    "@tiptap/extension-table": "3.31.4",
+    "@tiptap/extension-list": "3.31.4",
+    "@tiptap/markdown": "3.31.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

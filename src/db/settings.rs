@@ -114,7 +114,12 @@ impl Settings {
             smtp_port: text("smtp_port", "587").parse().unwrap_or(587),
             smtp_security: text("smtp_security", "starttls"),
             smtp_username: text("smtp_username", ""),
-            smtp_password: rows.get("smtp_password").cloned().unwrap_or_default(),
+            // Stored encrypted; if it can't be read (moved without data/secret.key),
+            // it's treated as not set and has to be entered again.
+            smtp_password: rows
+                .get("smtp_password")
+                .and_then(|stored| crate::app::secrets::decrypt(stored))
+                .unwrap_or_default(),
             smtp_from: text("smtp_from", ""),
             newsletter: flag("newsletter", false),
             notify_comments: flag("notify_comments", true),
@@ -164,10 +169,18 @@ pub async fn load(pool: &SqlitePool) -> Arc<Settings> {
     }
 }
 
+/// Settings stored encrypted (see `app/secrets.rs`).
+const SECRET_KEYS: &[&str] = &["smtp_password"];
+
 /// Save several settings at once (all or nothing), then refresh the cache.
 pub async fn save(pool: &SqlitePool, values: &[(&str, String)]) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
     for (key, value) in values {
+        let value = if SECRET_KEYS.contains(key) {
+            crate::app::secrets::encrypt(value)
+        } else {
+            value.clone()
+        };
         sqlx::query(
             "INSERT INTO settings (key, value) VALUES (?, ?)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",

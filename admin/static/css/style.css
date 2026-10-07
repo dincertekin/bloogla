@@ -257,6 +257,11 @@ body {
     border-top: 1px solid var(--border-light);
 }
 
+/* The menu button is only shown on phones (see SMALL SCREENS). */
+.menu-toggle {
+    display: none;
+}
+
 .sidebar-brand {
     font-size: 1.25rem;
     font-weight: 700;
@@ -400,11 +405,8 @@ body.auth-body {
 
 .theme-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.25rem;
-    max-height: 65vh;
-    overflow-y: auto;
-    padding-right: 0.25rem;
 }
 
 .theme-card {
@@ -450,6 +452,60 @@ body.auth-body {
     flex-direction: column;
     flex: 1;
     justify-content: space-between;
+}
+
+.theme-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.theme-title h2 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.theme-title span,
+.theme-author {
+    font-size: 0.75rem;
+}
+
+.theme-author {
+    margin: 0.2rem 0 0.5rem;
+}
+
+.theme-error {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+}
+
+.theme-error pre {
+    margin: 0.35rem 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.theme-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.theme-actions form,
+.theme-actions .btn:not(.btn-ghost-danger) {
+    flex: 1;
+}
+
+.theme-actions form .btn {
+    width: 100%;
 }
 
 /* ============================================================
@@ -672,9 +728,19 @@ label.tag-chip:has(input:checked) {
 .filter-tabs {
     display: flex;
     gap: 0.25rem;
-    border-bottom: 1px solid var(--border-light);
+    /* The grey line is drawn inside the row (not as a border), so the active
+       tab's underline can cover it without poking out; otherwise the row
+       scrolls by a pixel and shows a scrollbar. */
+    box-shadow: inset 0 -1px 0 var(--border-light);
     margin-bottom: 1.25rem;
+    /* Narrow screens scroll the tabs sideways, without a visible scrollbar. */
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+.filter-tabs::-webkit-scrollbar {
+    display: none;
 }
 
 .filter-tabs a {
@@ -684,7 +750,6 @@ label.tag-chip:has(input:checked) {
     color: var(--text-secondary);
     text-decoration: none;
     border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
     white-space: nowrap;
 }
 
@@ -851,11 +916,133 @@ code {
     box-shadow: var(--shadow-card);
 }
 
-.editor-textarea {
+/* Formatting buttons joined to the top of the writing area. */
+.format-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border-light);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: var(--bg-card);
+}
+
+.format-bar[hidden] {
+    display: none;
+}
+
+.format-bar button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.format-bar button:hover {
+    background: var(--chip-bg);
+    color: var(--text-primary);
+}
+
+.format-bar svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.format-sep {
+    width: 1px;
+    height: 20px;
+    margin: 0 4px;
+    background: var(--border-light);
+}
+
+/* The editor: looks like the finished post while you write. */
+.visual-editor {
     min-height: 60vh;
+    border: 1px solid var(--border-light);
+    border-radius: 0 0 8px 8px;
+    background: var(--bg-card);
+    cursor: text;
+}
+
+.visual-editor:focus-within,
+.format-bar:has(~ .visual-editor:focus-within) {
+    border-color: var(--accent-black);
+}
+
+.visual-editor .ProseMirror {
+    min-height: 60vh;
+    padding: 1.25rem 1.5rem;
+    outline: none;
+}
+
+.visual-editor .ProseMirror > :first-child {
+    margin-top: 0;
+}
+
+/* "Start writing…" in an empty post. */
+.visual-editor p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+/* Shortcodes like [youtube …] stay as text, shown as a block. */
+.visual-editor .shortcode-block {
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px dashed var(--border-light);
+    border-radius: 6px;
+    background: var(--chip-bg);
+    color: var(--text-secondary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.875rem;
-    line-height: 1.7;
+    font-size: 0.85rem;
+}
+
+/* List items hold paragraphs here; keep them as close as in the post. */
+.visual-editor li > p {
+    margin: 0;
+}
+
+.visual-editor .ProseMirror-selectednode {
+    outline: 2px solid var(--accent-black);
+    outline-offset: 2px;
+}
+
+.visual-editor ul[data-type="taskList"] {
+    padding-left: 0.25rem;
+    list-style: none;
+}
+
+.visual-editor ul[data-type="taskList"] li {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.visual-editor ul[data-type="taskList"] li > label {
+    margin-top: 0.2rem;
+}
+
+.visual-editor ul[data-type="taskList"] li > div {
+    flex: 1;
+}
+
+.format-bar button[aria-pressed="true"] {
+    background: var(--chip-bg);
+    color: var(--text-primary);
 }
 
 .preview-pane {
@@ -1088,36 +1275,90 @@ code {
         flex-direction: column;
     }
 
+    /* A slim bar with the site name and a Menu button that opens the links. */
     .sidebar {
         position: static;
         width: 100%;
         height: auto;
-        padding: 1rem;
+        padding: 0.75rem 1rem;
         border-right: 0;
         border-bottom: 1px solid var(--border-light);
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
         gap: 0.75rem;
     }
 
+    .sidebar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
     .sidebar-brand {
-        margin-bottom: 0.5rem;
+        margin-bottom: 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .menu-toggle {
+        display: inline-flex;
+        flex-shrink: 0;
+    }
+
+    .sidebar:not(.menu-open) nav,
+    .sidebar:not(.menu-open) .sidebar-bottom {
+        display: none;
+    }
+
+    .sidebar nav {
+        margin-top: 0.75rem;
     }
 
     .nav-list {
-        flex-direction: row;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
     }
 
     .sidebar-bottom {
-        flex-direction: row;
-        border-top: 0;
-        padding-top: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
     }
 
     .main-content {
         padding: 1.5rem 1rem;
+    }
+
+    /* Three small numbers side by side on the dashboard. */
+    .stats-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        padding: 0.85rem;
+    }
+
+    .stat-card h3 {
+        font-size: 0.7rem;
+    }
+
+    .stat-card .stat-number {
+        font-size: 1.5rem;
+        margin-top: 0.25rem;
+    }
+
+    /* A shorter writing area, so Save isn't far away. */
+    .visual-editor,
+    .visual-editor .ProseMirror,
+    .preview-pane {
+        min-height: 45vh;
+    }
+
+    .visual-editor .ProseMirror,
+    .preview-pane {
+        padding: 1rem;
     }
 
     .list-row {
@@ -1300,4 +1541,55 @@ code {
 
 .password-mismatch[hidden] {
     display: none;
+}
+
+/* Two-factor login setup (admin/templates/two_factor.html) */
+.two-factor-setup {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.two-factor-setup > div:last-child {
+    flex: 1 1 320px;
+}
+
+.two-factor-qr svg {
+    display: block;
+    width: 200px;
+    height: 200px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+}
+
+.two-factor-key {
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    user-select: all;
+}
+
+.code-input {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.15em;
+    max-width: 12rem;
+}
+
+.recovery-codes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.5rem;
+    max-width: 32rem;
+}
+
+.recovery-codes code {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    text-align: center;
 }

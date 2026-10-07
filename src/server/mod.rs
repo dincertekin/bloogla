@@ -56,13 +56,14 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
     for line in crate::services::themes::install_bundled()? {
         tracing::info!("{line}");
     }
-    let setup_pending = crate::handlers::admin::setup::prepare(&pool, &config.base_url).await?;
+    let setup_code = crate::handlers::admin::setup::prepare(&pool, &config.base_url).await?;
 
     let state = AppState {
         pool: pool.clone(),
         config: config.clone(),
-        tera: Arc::new(RwLock::new(crate::services::themes::load_templates()?)),
-        setup_pending: Arc::new(AtomicBool::new(setup_pending)),
+        themes: Arc::new(RwLock::new(crate::services::themes::Themes::load())),
+        setup_pending: Arc::new(AtomicBool::new(setup_code.is_some())),
+        setup_code: setup_code.unwrap_or_default().into(),
     };
 
     // Sign-in sessions are stored in the database. Cookies are HTTP-only and
