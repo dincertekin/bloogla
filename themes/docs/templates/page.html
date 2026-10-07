@@ -1,0 +1,38 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<div class="docs-layout">
+    <aside class="docs-sidebar">{% include "templates/sidebar.html" %}</aside>
+
+    <article class="docs-main">
+        {% if post.fields.section %}<p class="docs-eyebrow">{{ post.fields.section }}</p>{% endif %}
+        <h1 class="docs-title">{{ post.title }}</h1>
+
+        <div class="post-body">
+            {{ content_html | safe }}
+        </div>
+
+        {# Previous and next page, in sidebar order. #}
+        {% set_global previous = "" %}
+        {% set_global next = "" %}
+        {% set_global found = false %}
+        {% for page in pages %}
+        {% if found and not next %}{% set_global next = page %}{% endif %}
+        {% if page.slug == post.slug %}{% set_global found = true %}{% endif %}
+        {% if not found %}{% set_global previous = page %}{% endif %}
+        {% endfor %}
+        {% if found %}
+        <nav class="docs-pager">
+            {% if previous %}
+            <a href="{{ previous.url }}" class="docs-pager-prev"><small>{{ t.previous }}</small>{{ previous.title }}</a>
+            {% else %}<span></span>{% endif %}
+            {% if next %}
+            <a href="{{ next.url }}" class="docs-pager-next"><small>{{ t.next }}</small>{{ next.title }}</a>
+            {% endif %}
+        </nav>
+        {% endif %}
+    </article>
+</div>
+{% endblock %}

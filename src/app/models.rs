@@ -32,6 +32,9 @@ pub struct Post {
     /// Custom fields, e.g. `post.fields.location` in themes.
     #[sqlx(skip)]
     pub fields: Fields,
+    /// Public address (`/post/slug`, or `/slug` for a page), filled in for themes.
+    #[sqlx(skip)]
+    pub url: String,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
@@ -240,6 +243,7 @@ impl PostForm {
             reading_time: 0,
             tags: Vec::new(),
             fields: self.fields(),
+            url: String::new(),
         }
     }
 }

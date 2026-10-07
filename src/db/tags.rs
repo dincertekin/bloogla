@@ -18,6 +18,28 @@ pub async fn all(pool: &SqlitePool) -> Vec<Tag> {
         .unwrap_or_default()
 }
 
+/// The id of the tag with this name (compared by slug, so "Rust" and "rust"
+/// are the same tag).
+pub async fn find_id(pool: &SqlitePool, name: &str) -> Option<i64> {
+    crate::db::or_log(
+        sqlx::query_scalar("SELECT id FROM tags WHERE slug = ?")
+            .bind(slugify(name))
+            .fetch_optional(pool)
+            .await,
+        "find tag",
+    )
+}
+
+/// Create a tag and return its id.
+pub async fn create(pool: &SqlitePool, name: &str) -> Result<i64, sqlx::Error> {
+    let result = sqlx::query("INSERT INTO tags (name, slug) VALUES (?, ?)")
+        .bind(name.trim())
+        .bind(slugify(name))
+        .execute(pool)
+        .await?;
+    Ok(result.last_insert_rowid())
+}
+
 pub async fn find_by_slug(pool: &SqlitePool, slug: &str) -> Option<Tag> {
     crate::db::or_log(
         sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags WHERE slug = ?")

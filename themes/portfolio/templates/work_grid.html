@@ -1,0 +1,24 @@
+{# Projects as a grid of pictures (home, tags, search). #}
+{% if posts %}
+<div class="work-grid{% if theme_options.columns == "3" %} work-grid-3{% endif %}">
+    {% for post in posts %}
+    <a class="work-card" href="{{ post.url }}">
+        <div class="work-image">
+            {% if post.cover_image %}
+            <img src="{{ post.cover_image }}" alt="" decoding="async"
+                {% if loop.index > 2 %}loading="lazy"{% endif %}
+                {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
+                {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="(max-width: 768px) 100vw, 50vw"{% endif %} />
+            {% endif %}
+        </div>
+        <h2 class="work-title">{{ post.title }}</h2>
+        <p class="work-meta">
+            {% for tag in post.tags %}{{ tag.name }}{% if not loop.last %} · {% endif %}{% endfor %}
+            {% if post.fields.year %}<span class="work-year">{{ post.fields.year }}</span>{% endif %}
+        </p>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty-state">{{ t.no_posts_found }}</p>
+{% endif %}

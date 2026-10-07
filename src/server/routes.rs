@@ -118,6 +118,7 @@ fn public_routes() -> Router<AppState> {
         // Standalone pages (About, Contact...). Listed last among public
         // routes; the fixed paths above take priority.
         .route("/:slug", get(site::pages::show_page))
+        .route_layer(from_fn(middleware::theme_preview))
 }
 
 /// The admin panel. Everything except login and setup needs a signed-in person.
@@ -143,6 +144,15 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             )),
         )
         .route("/admin/themes/:id", delete(admin::themes::delete))
+        .route("/admin/themes/:id/preview", post(admin::themes::preview))
+        .route(
+            "/admin/themes/preview/stop",
+            post(admin::themes::stop_preview),
+        )
+        .route(
+            "/admin/themes/:id/options",
+            get(admin::themes::options_page).post(admin::themes::save_options),
+        )
         .route("/admin/subscribers", get(admin::subscribers::page))
         .route(
             "/admin/subscribers.csv",

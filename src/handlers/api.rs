@@ -237,32 +237,17 @@ async fn resolve_tags(
 ) -> Result<Vec<i64>, Response> {
     let mut ids = Vec::new();
     for name in names.iter().map(|n| n.trim()).filter(|n| !n.is_empty()) {
-        let slug = tags::slugify(name);
-        let existing: Option<i64> = or_log(
-            sqlx::query_scalar("SELECT id FROM tags WHERE slug = ?")
-                .bind(&slug)
-                .fetch_optional(&state.pool)
-                .await,
-            "api find tag",
-        );
-        match existing {
+        match tags::find_id(&state.pool, name).await {
             Some(id) => ids.push(id),
-            None if me.can_edit_all() => {
-                match sqlx::query("INSERT INTO tags (name, slug) VALUES (?, ?)")
-                    .bind(name)
-                    .bind(&slug)
-                    .execute(&state.pool)
-                    .await
-                {
-                    Ok(r) => ids.push(r.last_insert_rowid()),
-                    Err(_) => {
-                        return Err(error(
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            "Could not create tag",
-                        ))
-                    }
+            None if me.can_edit_all() => match tags::create(&state.pool, name).await {
+                Ok(id) => ids.push(id),
+                Err(_) => {
+                    return Err(error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Could not create tag",
+                    ))
                 }
-            }
+            },
             None => {
                 return Err(error(
                     StatusCode::UNPROCESSABLE_ENTITY,

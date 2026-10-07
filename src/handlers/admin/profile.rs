@@ -418,7 +418,7 @@ pub async fn two_factor_page(
         .await
         .is_some()
     {
-        return Redirect::to("/admin/profile").into_response();
+        return Redirect::to("/admin/profile#two-factor").into_response();
     }
     // A new key each time the page opens; it's saved only once confirmed.
     let secret = crate::app::totp::new_secret();
@@ -465,7 +465,7 @@ pub async fn new_recovery_codes_page(
         .await
         .is_none()
     {
-        return Redirect::to("/admin/profile").into_response();
+        return Redirect::to("/admin/profile#two-factor").into_response();
     }
     log_event("recovery_codes_replaced", &[("user", &me.email)]);
     show_new_codes(&state, me, None).await

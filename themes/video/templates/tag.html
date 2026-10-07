@@ -1,0 +1,15 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ tag_name }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<h1 class="listing-title">{{ tag_name }}</h1>
+{% include "templates/categories.html" %}
+{% set videos = posts %}
+{% if videos %}
+{% include "templates/video_grid.html" %}
+{% else %}
+<p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
+{% endif %}
+{% include "templates/pagination.html" %}
+{% endblock %}

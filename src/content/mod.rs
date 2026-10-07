@@ -19,10 +19,11 @@ pub async fn render(state: &AppState, markdown: &str) -> String {
     if !html.contains('[') {
         return html;
     }
-    let chosen = crate::db::settings::load(&state.pool)
+    let active = crate::db::settings::load(&state.pool)
         .await
         .active_theme
         .clone();
+    let chosen = crate::services::themes::chosen_theme(&active);
     let Ok(themes) = state.themes.read() else {
         return html;
     };

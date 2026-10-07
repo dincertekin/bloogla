@@ -210,6 +210,16 @@ pub async fn theme_static_only(req: Request, next: Next) -> Response {
     response
 }
 
+/// Public pages for an admin previewing a theme (Admin → Themes → Preview)
+/// use that theme. The choice is kept in their session.
+pub async fn theme_preview(session: Session, req: Request, next: Next) -> Response {
+    let theme: Option<String> = session
+        .get(crate::services::themes::PREVIEW_SESSION_KEY)
+        .await
+        .unwrap_or(None);
+    crate::services::themes::with_preview(theme, next.run(req)).await
+}
+
 /// Add an `ETag` to public HTML and XML responses and answer `304 Not Modified`
 /// when the browser or feed reader already has the same version.
 pub async fn etag(req: Request, next: Next) -> Response {
@@ -226,7 +236,12 @@ pub async fn etag(req: Request, next: Next) -> Response {
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|ct| ct.starts_with("text/html") || ct.contains("xml"));
-    if !eligible || response.status() != StatusCode::OK || !is_page {
+    // Pages that must not be kept (a theme preview) get no ETag.
+    let no_store = response
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .is_some_and(|v| v.as_bytes().ends_with(b"no-store"));
+    if !eligible || response.status() != StatusCode::OK || !is_page || no_store {
         return response;
     }
 

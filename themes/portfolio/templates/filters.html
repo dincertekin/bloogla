@@ -1,0 +1,9 @@
+{# Tags as filters above the projects: All, Branding, Web... #}
+{% if tags %}
+<nav class="filters" aria-label="{{ t.tags }}">
+    <a href="/" {% if tag_name is not defined %}class="active" aria-current="page"{% endif %}>{{ t.all }}</a>
+    {% for tag in tags %}
+    <a href="/tag/{{ tag.slug }}" {% if tag_name is defined and tag.name == tag_name %}class="active" aria-current="page"{% endif %}>{{ tag.name }}</a>
+    {% endfor %}
+</nav>
+{% endif %}

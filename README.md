@@ -6,12 +6,14 @@ A lightweight, high-performance, single-binary CMS built with Rust and SQLite as
 
 ## Features
 
-- **Single Binary:** Server, admin panel, migrations, admin assets and the default theme compiled into one executable. Copy it to a server and run it.
+- **Single Binary:** Server, admin panel, migrations, admin assets and the bundled themes compiled into one executable. Copy it to a server and run it.
+- **Starters:** Setup asks what you're making (blog, portfolio, docs or video site) and starts you with a matching theme and sample content. A shop starter is coming.
+- **Themes:** Upload themes as .zip files, preview them before switching, and change their colors and texts in Customize.
 - **Easy Setup:** Like WordPress, you create your account in the browser: Bloogla prints a one-time setup link when it starts (the installer shows it), so nobody else can claim a fresh site first. Scripted installs can use `BLOOGLA_ADMIN_*` variables instead.
 - **High Performance:** Compile-time HTML templates, sub-millisecond SQLite queries, zero JS heavy frameworks.
 - **Content:** Posts with drafts and scheduling, standalone pages (About, Contact), tags, navigation menu, pagination, custom URL slugs with automatic redirects.
 - **Editor:** Visual editor (bold looks bold as you type) with a preview; posts are saved as Markdown, and HTML it can't show (like video embeds) is kept as written. Image picker, cover images, keyboard saving, revision history and a local backup of unsaved text.
-- **Search:** Full-text search (SQLite FTS5), accent-insensitive with prefix matching.
+- **Search:** Full-text search of posts and pages (SQLite FTS5), accent-insensitive with prefix matching.
 - **People:** Admin, editor and author roles, bylines, and each person's own profile and password.
 - **Languages:** English, Deutsch, Español, Français, Italiano, Português, Türkçe, Русский, 日本語 and 中文 for the admin panel, the theme and emails. The site has a language, and each person can pick their own for the admin.
 - **Email & newsletter:** Comment notifications and a double opt-in newsletter over your own SMTP server, with one-click unsubscribe.
@@ -77,6 +79,7 @@ Set via environment variables:
 | `BLOOGLA_ADMIN_EMAIL`    |                          | With `BLOOGLA_ADMIN_PASSWORD`, creates the admin on first start instead of the browser setup page. |
 | `BLOOGLA_ADMIN_PASSWORD` |                          | See above.                                                    |
 | `BLOOGLA_BLOG_NAME`      | `My Blog`                | Site title for scripted setup.                                |
+| `BLOOGLA_SITE_TYPE`      | `blog`                   | What the site is, for scripted setup: `blog`, `portfolio`, `docs` or `video` (`shop` is coming). |
 | `BLOOGLA_TLS_DOMAINS`    |                          | Comma-separated domains. Turns on built-in HTTPS with automatic Let's Encrypt certificates (port 443, and 80 redirects). |
 | `BLOOGLA_TLS_EMAIL`      |                          | Contact address for certificate expiry notices.               |
 | `BLOOGLA_TLS_STAGING`    | `false`                  | Use Let's Encrypt's test server while trying things out.      |
@@ -279,17 +282,59 @@ preview_image = "static/preview.png"   # optional, shown in Admin → Themes
 | `404.html`     | Not found page                                     | No       |
 | `message.html` | Short notices (newsletter confirm, unsubscribe)    | Yes      |
 
-Templates refer to each other by their path inside the theme, so a copied theme works under any name: `{% extends "templates/layout.html" %}`, `{% include "templates/post_card.html" %}`.
+Templates refer to each other by their path inside the theme, so a copied theme works under any name: `{% extends "templates/layout.html" %}`, `{% include "templates/post_card.html" %}`. For the theme's own files use `theme_url`: `<link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">`.
+
+Admins can **preview** a theme before switching to it (Admin → Themes → Preview): the site opens in that theme for them only, with a bar on top to use it or stop.
 
 A theme with a mistake (a template that doesn't parse, a missing required template, a broken `theme.toml`) is never used: Admin → Themes shows what's wrong, and the site keeps using its current theme. Uploads are checked the same way before they're installed, and may only contain templates, styles, scripts, images and fonts.
 
-Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `newsletter_enabled`, `seo_head` and `asset_version`. Put `{{ seo_head | safe }}` inside `<head>`.
+Every template gets `pages`: the published pages (`title`, `url`, `slug`, `fields`), ordered by their `order` custom field and then by title, for menus and sidebars. Lists of posts give each one a `post.url` (search results include pages too), and a single post gets `more_posts`, the six newest others.
+
+Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `newsletter_enabled`, `seo_head`, `asset_version`, `theme_url` and `theme_options`. Put `{{ seo_head | safe }}` inside `<head>`.
 
 Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
 
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
 - Single pages get `post` (with `post.fields.<name>` for custom fields, `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small`, an 800px-wide copy for `srcset`) and `content_html`.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html` and `subscribe.html`.
+
+### Starter content
+
+A new site starts with the sample content of its theme, so it isn't empty. Put it in the theme's `starter/` folder: `site.toml` sets the site description and menu, and every `.md` file is a post or page with a TOML header:
+
+```text
++++
+title = "About"
+page = true              # a page instead of a post
+tags = ["Branding"]
+cover = "/theme-assets/my-theme/static/starter/about.jpg"
+[fields]                 # custom fields
+client = "Northwind"
++++
+The text, in Markdown.
+```
+
+Files are added in name order, the first shown first. Bloogla comes with four starters, chosen at setup ("What are you making?"): **Blog** (the default theme), **Portfolio**, **Docs** (pages grouped into a sidebar with the `section` and `order` custom fields) and **Video site**.
+
+### Theme options
+
+A theme can offer settings that admins change in **Admin → Themes → Customize**, without touching code. List them in `theme.toml`; templates read them as `theme_options.<name>`:
+
+```toml
+[[options]]
+name = "accent_color"
+label = "Accent color"
+type = "color"            # text, textarea, color, checkbox, select (with choices = [...]) or image
+default = "#2563eb"
+hint = "Used for links, buttons and highlights."
+```
+
+```html
+<style>:root { --accent: {{ theme_options.accent_color }}; }</style>
+{% if theme_options.show_powered_by %}Powered by Bloogla{% endif %}
+```
+
+Values are checked before they're saved (colors must look like `#2563eb`, images must be from the media library or `https://`, a select only accepts its choices), so they're safe to use in styles. The default theme has three: accent color, footer text and "Powered by Bloogla".
 
 ### Scripts and the security policy
 

@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.tv("Customize {name}", theme.meta.name) }}{% endblock %}
+{% block content %}
+<a href="/admin/themes" class="back-link">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m15 18-6-6 6-6" />
+    </svg>
+    {{ me.t("All themes") }}
+</a>
+
+<div class="page-header">
+    <div>
+        <h1>{{ me.tv("Customize {name}", theme.meta.name) }}</h1>
+        <p>{{ me.t("Options this theme offers. Changes show on your site as soon as you save.") }}</p>
+    </div>
+</div>
+
+{% if let Some((kind, text)) = message %}
+<div class="alert alert-{{ kind }}">{{ text }}</div>
+{% endif %}
+
+<form method="POST" action="/admin/themes/{{ theme.id }}/options" class="card">
+    {% if fields.is_empty() %}
+    <p class="text-secondary">{{ me.t("This theme has no options.") }}</p>
+    {% endif %}
+
+    {% for field in fields %}
+    {% let id = format!("option-{}", field.option.name) %}
+    {% if field.option.is_checkbox() %}
+    <label class="check-row" style="margin-bottom: 1.25rem">
+        <input type="checkbox" name="{{ field.option.name }}" value="true" {% if field.value == "true" %}checked{% endif %} />
+        <span>
+            {{ me.lang.t_owned(field.option.label) }}
+            {% if !field.option.hint.is_empty() %}<small>{{ me.lang.t_owned(field.option.hint) }}</small>{% endif %}
+        </span>
+    </label>
+    {% else %}
+    <div class="form-group">
+        <label for="{{ id }}">{{ me.lang.t_owned(field.option.label) }}</label>
+        {% if field.option.is_textarea() %}
+        <textarea id="{{ id }}" name="{{ field.option.name }}" class="form-control" rows="4">{{ field.value }}</textarea>
+        {% else if field.option.is_color() %}
+        <div class="color-field">
+            <input type="color" id="{{ id }}" name="{{ field.option.name }}" value="{{ field.value }}" />
+            <code>{{ field.value }}</code>
+            <button type="button" class="btn btn-ghost btn-sm" data-reset-color="{{ id }}"
+                data-default="{{ field.option.default_value() }}">{{ me.t("Reset") }}</button>
+        </div>
+        {% else if field.option.is_select() %}
+        <select id="{{ id }}" name="{{ field.option.name }}" class="form-control">
+            {% for choice in field.option.choices %}
+            <option value="{{ choice }}" {% if choice.as_str() == field.value.as_str() %}selected{% endif %}>{{ me.lang.t_owned(choice) }}</option>
+            {% endfor %}
+        </select>
+        {% else if field.option.is_image() %}
+        <div class="image-field" data-image-option>
+            <img src="{{ field.value }}" alt="" class="thumb" data-image-preview {% if field.value.is_empty() %}hidden{% endif %} />
+            <button type="button" class="btn btn-secondary btn-sm" data-image-choose>{{ me.t("Choose") }}</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-image-remove {% if field.value.is_empty() %}hidden{% endif %}>{{ me.t("Remove") }}</button>
+            <input type="hidden" id="{{ id }}" name="{{ field.option.name }}" value="{{ field.value }}" />
+        </div>
+        {% else %}
+        <input type="text" id="{{ id }}" name="{{ field.option.name }}" class="form-control" value="{{ field.value }}" />
+        {% endif %}
+        {% if let Some(error) = field.error %}
+        <span class="error-message">{{ me.t(error) }}</span>
+        {% endif %}
+        {% if !field.option.hint.is_empty() %}
+        <span class="form-hint">{{ me.lang.t_owned(field.option.hint) }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% if !fields.is_empty() %}
+    <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
+    {% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/theme-options.js"></script>
+{% endblock %}

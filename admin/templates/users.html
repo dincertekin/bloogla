@@ -6,10 +6,32 @@
         <h1>{{ me.t("People") }}</h1>
         <p>{{ me.t("Everyone who can sign in and write on this site.") }}</p>
     </div>
+    <button type="button" class="btn btn-primary" data-open-modal="user-modal">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+        </svg>
+        {{ me.t("Add Person") }}
+    </button>
 </div>
 
-<section class="card">
-    <h2 class="section-title">{{ me.t("Add someone") }}</h2>
+<div id="user-list" class="item-list" data-empty-text="{{ me.t("Nobody else yet.") }}">
+    {% for user in users %}
+    {% include "user_item.html" %}
+    {% endfor %}
+</div>
+<!-- Adding someone, in a pop-up opened from the header. -->
+<div id="user-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
+    <div class="modal-card" style="max-width: 520px">
+        <div class="modal-header">
+            <h3 id="user-modal-title">{{ me.t("Add someone") }}</h3>
+            <button type="button" class="btn btn-ghost btn-sm" data-modal-close aria-label="{{ me.t("Close") }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            </button>
+        </div>
     <form hx-post="/admin/users" hx-target="#user-form-status" hx-swap="innerHTML"
         data-reset-on-success>
         <div class="form-row">
@@ -34,11 +56,6 @@
         <div id="user-form-status"></div>
         <button type="submit" class="btn btn-primary">{{ me.t("Add Person") }}</button>
     </form>
-</section>
-
-<div id="user-list" class="item-list" data-empty-text="{{ me.t("Nobody else yet.") }}">
-    {% for user in users %}
-    {% include "user_item.html" %}
-    {% endfor %}
+    </div>
 </div>
 {% endblock %}

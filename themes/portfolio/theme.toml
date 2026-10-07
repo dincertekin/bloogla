@@ -1,0 +1,33 @@
+name = "Portfolio"
+author = "Bloogla Team"
+version = "1.0.0"
+description = "Show your work: a gallery of projects with their details, filtered by tag."
+
+# Shown in Admin → Themes → Customize; templates read them as theme_options.<name>.
+[[options]]
+name = "accent_color"
+label = "Accent color"
+type = "color"
+default = "#d9480f"
+hint = "Used for links, buttons and highlights."
+
+[[options]]
+name = "columns"
+label = "Projects per row"
+type = "select"
+choices = ["2", "3"]
+default = "2"
+hint = "On wide screens. Phones always show one."
+
+[[options]]
+name = "footer_text"
+label = "Footer text"
+type = "text"
+default = ""
+hint = "Shown at the bottom of every page. Leave empty to show © and the site name."
+
+[[options]]
+name = "show_powered_by"
+label = "Show “Powered by Bloogla”"
+type = "checkbox"
+default = true

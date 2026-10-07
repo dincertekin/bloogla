@@ -27,7 +27,7 @@
                 autocomplete="one-time-code" placeholder="123 456" aria-label="{{ me.t("Code") }}" autofocus />
             <button type="submit" class="btn btn-primary">{{ me.t("Turn on") }}</button>
         </form>
-        <p style="margin-top: 1rem"><a href="/admin/profile" class="text-secondary">{{ me.t("Cancel") }}</a></p>
+        <p style="margin-top: 1rem"><a href="/admin/profile#two-factor" class="text-secondary">{{ me.t("Cancel") }}</a></p>
     </div>
 </section>
 {% else %}
@@ -45,7 +45,7 @@
             data-copied="{{ me.t("Copied") }}" data-copy-failed="{{ me.t("Copy failed") }}">{{ me.t("Copy codes") }}</button>
         <a class="btn btn-secondary" download="recovery-codes.txt"
             href="data:text/plain;charset=utf-8,{% for code in codes %}{{ code }}%0A{% endfor %}">{{ me.t("Download") }}</a>
-        <a class="btn btn-primary" href="/admin/profile">{{ me.t("Done") }}</a>
+        <a class="btn btn-primary" href="/admin/profile#two-factor">{{ me.t("Done") }}</a>
     </div>
 </section>
 {% endif %}

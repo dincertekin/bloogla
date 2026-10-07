@@ -24,9 +24,29 @@ use std::time::{Duration, Instant};
 const RATE_LIMIT: usize = 5;
 const RATE_WINDOW: Duration = Duration::from_secs(10 * 60);
 
-/// Context every theme template receives: site info, menu, tags and default SEO tags.
+/// A published page for theme menus and sidebars (`pages` in templates).
+#[derive(serde::Serialize)]
+struct PageLink {
+    title: String,
+    url: String,
+    slug: String,
+    fields: crate::db::fields::Fields,
+}
+
+/// Context every theme template receives: site info, menu, tags, pages and
+/// default SEO tags.
 async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
     let tags = crate::db::tags::all(&state.pool).await;
+    let pages: Vec<PageLink> = crate::db::posts::public_pages(&state.pool)
+        .await
+        .into_iter()
+        .map(|page| PageLink {
+            url: crate::server::routes::post_path(&page.slug, true),
+            title: page.title,
+            slug: page.slug,
+            fields: page.fields,
+        })
+        .collect();
     let seo_head = seo_head(
         state,
         site,
@@ -46,6 +66,7 @@ async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
     context.insert("base_url", &state.config.base_url);
     context.insert("menu", &site.menu());
     context.insert("tags", &tags);
+    context.insert("pages", &pages);
     context.insert("search_query", "");
     context.insert("show_views", &site.show_views);
     context.insert("newsletter_enabled", &site.newsletter);

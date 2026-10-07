@@ -7,7 +7,11 @@
     <meta name="color-scheme" content="light dark">
     <title>{% block title %}{{ blog_name }}{% endblock %}</title>
     {{ seo_head | safe }}
-    <link rel="stylesheet" href="/theme-assets/default/static/css/style.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">
+    {% if theme_options.accent_color != "#2563eb" %}
+    {# The chosen accent color, in light and dark mode. #}
+    <style>:root { --accent: {{ theme_options.accent_color }}; --accent-hover: color-mix(in srgb, {{ theme_options.accent_color }} 80%, currentColor); }</style>
+    {% endif %}
 </head>
 
 <body>
@@ -40,7 +44,10 @@
 
     <footer class="site-footer">
         <div class="container footer-content">
-            <p>&copy; {{ blog_name }}. {{ t.powered_by_name | replace(from="{name}", to='<a href="https://github.com/dincertekin/bloogla">Bloogla</a>') | safe }}</p>
+            <p>
+                {% if theme_options.footer_text %}{{ theme_options.footer_text }}{% else %}&copy; {{ blog_name }}.{% endif %}
+                {% if theme_options.show_powered_by %}{{ t.powered_by_name | replace(from="{name}", to='<a href="https://github.com/dincertekin/bloogla">Bloogla</a>') | safe }}{% endif %}
+            </p>
             <nav class="footer-links">
                 <a href="/rss.xml">RSS</a>
                 {% if newsletter_enabled %}<a href="#subscribe">{{ t.subscribe }}</a>{% endif %}
@@ -50,8 +57,8 @@
 
     {# Syntax highlighting only on pages that contain code. #}
     {% if content_html is defined and "<pre" in content_html %}
-    <script src="/theme-assets/default/static/js/prism.js?v={{ asset_version }}" defer></script>
-    <script src="/theme-assets/default/static/js/code.js?v={{ asset_version }}" defer
+    <script src="{{ theme_url }}/static/js/prism.js?v={{ asset_version }}" defer></script>
+    <script src="{{ theme_url }}/static/js/code.js?v={{ asset_version }}" defer
         data-copy="{{ t.copy }}" data-copied="{{ t.copied }}" data-copy-failed="{{ t.copy_failed }}"></script>
     {% endif %}
 </body>

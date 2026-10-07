@@ -1,11 +1,13 @@
-//! The themes page: choose how the site looks, upload themes as .zip files
-//! and delete uploaded ones. Admins only.
+//! The themes page: choose how the site looks, preview a theme before
+//! switching, change a theme's options (Customize), upload themes as .zip
+//! files and delete uploaded ones. Admins only.
 
 use crate::app::models::CurrentUser;
 use crate::app::security::log_event;
 use crate::app::state::AppState;
 use crate::db::settings;
-use crate::services::themes::{self, ThemeInfo};
+use crate::services::themes::options::{self, ThemeOption};
+use crate::services::themes::{self, ThemeInfo, PREVIEW_SESSION_KEY};
 
 use askama::Template;
 use axum::extract::{Extension, Multipart, Path, Query, State};
@@ -13,6 +15,8 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum_extra::extract::Form;
 use serde::Deserialize;
+use std::collections::HashMap;
+use tower_sessions::Session;
 
 #[derive(Template)]
 #[template(path = "themes.html")]
@@ -94,8 +98,10 @@ pub async fn page(
 pub async fn activate(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    session: Session,
     Form(form): Form<ActivateForm>,
 ) -> Response {
+    let _ = session.remove::<String>(PREVIEW_SESSION_KEY).await;
     let usable = state
         .themes
         .read()
@@ -187,4 +193,159 @@ pub async fn delete(
         }
         Err(error) => (StatusCode::UNPROCESSABLE_ENTITY, me.t(error)).into_response(),
     }
+}
+
+/// POST /admin/themes/:id/preview -> Show the site in this theme, only to
+/// this admin, until they stop the preview or switch.
+pub async fn preview(
+    State(state): State<AppState>,
+    session: Session,
+    Path(id): Path<String>,
+) -> Response {
+    let usable = state
+        .themes
+        .read()
+        .is_ok_and(|themes| themes.usable(&id).is_some());
+    if !usable {
+        return Redirect::to("/admin/themes").into_response();
+    }
+    if let Err(e) = session.insert(PREVIEW_SESSION_KEY, id).await {
+        tracing::error!("Failed to start theme preview: {e}");
+    }
+    Redirect::to("/").into_response()
+}
+
+/// POST /admin/themes/preview/stop -> Back to the active theme.
+pub async fn stop_preview(session: Session) -> Response {
+    let _ = session.remove::<String>(PREVIEW_SESSION_KEY).await;
+    Redirect::to("/admin/themes").into_response()
+}
+
+#[derive(Template)]
+#[template(path = "theme_options.html")]
+pub struct OptionsTemplate {
+    pub blog_name: String,
+    pub me: CurrentUser,
+    pub theme: ThemeInfo,
+    /// Each option with its current value.
+    pub fields: Vec<OptionField>,
+    pub message: Option<(&'static str, String)>,
+}
+
+pub struct OptionField {
+    pub option: ThemeOption,
+    pub value: String,
+    pub error: Option<&'static str>,
+}
+
+#[derive(Deserialize)]
+pub struct Saved {
+    saved: Option<String>,
+}
+
+/// An installed theme by id.
+fn find_theme(state: &AppState, id: &str) -> Option<ThemeInfo> {
+    let themes = state.themes.read().ok()?;
+    themes.list().into_iter().find(|t| t.id == id)
+}
+
+/// GET /admin/themes/:id/options -> The theme's options.
+pub async fn options_page(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<String>,
+    Query(saved): Query<Saved>,
+) -> Response {
+    let Some(theme) = find_theme(&state, &id) else {
+        return Redirect::to("/admin/themes").into_response();
+    };
+    let site = settings::load(&state.pool).await;
+    let fields = theme
+        .meta
+        .options
+        .iter()
+        .map(|option| OptionField {
+            value: options::current(&theme.id, option, &site.theme_options),
+            option: option.clone(),
+            error: None,
+        })
+        .collect();
+    let message = saved.saved.map(|_| ("success", me.t("Saved.").to_string()));
+    OptionsTemplate {
+        blog_name: site.blog_name.clone(),
+        me,
+        theme,
+        fields,
+        message,
+    }
+    .into_response()
+}
+
+/// POST /admin/themes/:id/options -> Save the theme's options.
+pub async fn save_options(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<String>,
+    Form(form): Form<HashMap<String, String>>,
+) -> Response {
+    let Some(theme) = find_theme(&state, &id) else {
+        return Redirect::to("/admin/themes").into_response();
+    };
+
+    // Check every value; show the form again if any is wrong.
+    let fields: Vec<OptionField> = theme
+        .meta
+        .options
+        .iter()
+        .map(|option| {
+            // Unticked checkboxes aren't sent at all.
+            let typed = form.get(&option.name).map_or("", String::as_str);
+            match option.clean(typed) {
+                Ok(value) => OptionField {
+                    option: option.clone(),
+                    value,
+                    error: None,
+                },
+                Err(error) => OptionField {
+                    option: option.clone(),
+                    value: typed.to_string(),
+                    error: Some(error),
+                },
+            }
+        })
+        .collect();
+
+    if fields.iter().any(|f| f.error.is_some()) {
+        let message = me.t("Some values need fixing.").to_string();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            OptionsTemplate {
+                blog_name: settings::load(&state.pool).await.blog_name.clone(),
+                me,
+                theme,
+                fields,
+                message: Some(("error", message)),
+            },
+        )
+            .into_response();
+    }
+
+    let keys: Vec<String> = fields
+        .iter()
+        .map(|f| options::storage_key(&theme.id, &f.option.name))
+        .collect();
+    let values: Vec<(&str, String)> = keys
+        .iter()
+        .zip(&fields)
+        .map(|(key, f)| (key.as_str(), f.value.clone()))
+        .collect();
+    if let Err(e) = settings::save(&state.pool, &values).await {
+        tracing::error!("Failed to save theme options: {e}");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            me.t("Couldn't save your changes. Please try again."),
+        )
+            .into_response();
+    }
+    Redirect::to(&format!("/admin/themes/{}/options?saved=1", theme.id)).into_response()
 }

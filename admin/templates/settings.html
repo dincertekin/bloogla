@@ -8,6 +8,14 @@
     </div>
 </div>
 
+<!-- One card at a time (see "Tabs" in admin/static/js/admin.js). -->
+<nav class="filter-tabs" role="tablist" data-tabs hidden>
+    <a href="#site" role="tab" data-tab="site">{{ me.t("Site") }}</a>
+    <a href="#reading" role="tab" data-tab="reading">{{ me.t("Reading") }}</a>
+    <a href="#email" role="tab" data-tab="email">{{ me.t("Email") }}</a>
+</nav>
+
+<div data-tab-panel="site">
 <form hx-post="/admin/settings/general" hx-target="find .form-status" hx-swap="innerHTML">
     <section class="card">
         <h2 class="section-title">{{ me.t("Site") }}</h2>
@@ -80,7 +88,9 @@
         <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
     </section>
 </form>
+</div>
 
+<div data-tab-panel="reading">
 <form hx-post="/admin/settings/general" hx-target="find .form-status" hx-swap="innerHTML">
     <section class="card">
         <h2 class="section-title">{{ me.t("Reading") }}</h2>
@@ -130,7 +140,9 @@
         <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
     </section>
 </form>
+</div>
 
+<div data-tab-panel="email">
 <form hx-post="/admin/settings/email" hx-target="find .form-status" hx-swap="innerHTML">
     <section class="card">
         <h2 class="section-title">{{ me.t("Email") }}</h2>
@@ -199,6 +211,7 @@
         </div>
     </section>
 </form>
+</div>
 
 {% endblock %}
 

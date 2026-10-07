@@ -136,6 +136,18 @@ body {
     resize: vertical;
 }
 
+/* Dropdowns: our own chevron, set in from the right edge like the text is
+   from the left (the browser's arrow sits against the edge). */
+select.form-control {
+    appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    background-size: 16px;
+    cursor: pointer;
+}
+
 .form-control:focus {
     border-color: var(--accent-black);
     box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.05);
@@ -215,6 +227,19 @@ body {
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
     transform: scale(0.95);
     transition: transform 0.2s ease;
+}
+
+/* A pop-up's title with its close button. */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.modal-header h3 {
+    font-size: 1.125rem;
 }
 
 .modal-overlay.active .modal-card {
@@ -495,17 +520,49 @@ body.auth-body {
 
 .theme-actions {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
     margin-top: 1rem;
 }
 
-.theme-actions form,
-.theme-actions .btn:not(.btn-ghost-danger) {
+/* Activate (or Active) takes the whole first row. */
+.theme-actions > form,
+.theme-actions > .btn:not(.btn-ghost-danger) {
+    flex: 1 0 100%;
+}
+
+.theme-actions > form .btn {
+    width: 100%;
+}
+
+/* Preview and Customize, with Delete at the end of the row. */
+.theme-links {
+    display: flex;
+    gap: 0.25rem;
     flex: 1;
 }
 
-.theme-actions form .btn {
-    width: 100%;
+.theme-links form {
+    margin: 0;
+}
+
+/* Customize page: a color swatch with its code, and an image chooser. */
+.color-field,
+.image-field {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.color-field input[type="color"] {
+    width: 44px;
+    height: 36px;
+    padding: 2px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-card);
+    cursor: pointer;
 }
 
 /* ============================================================
@@ -761,6 +818,11 @@ label.tag-chip:has(input:checked) {
     color: var(--text-primary);
     border-bottom-color: var(--accent-black);
     font-weight: 600;
+}
+
+/* With tabs, the tab names the card, so its own title isn't repeated. */
+.has-tabs [data-tab-panel] .card > .section-title:first-child {
+    display: none;
 }
 
 .filter-tabs .count {
@@ -1258,6 +1320,223 @@ code {
 .upload-inline input[type="file"] {
     flex: 1;
     font-size: 0.8rem;
+}
+
+/* Setup: the steps, with the progress above the form. */
+.setup-progress {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.25rem;
+    counter-reset: step;
+}
+
+.setup-progress li {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    position: relative;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* The line joining one step to the next. */
+.setup-progress li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    left: calc(50% + 20px);
+    right: calc(-50% + 20px);
+    height: 2px;
+    background: var(--border-light);
+}
+
+.setup-progress li.done:not(:last-child)::after {
+    background: var(--accent-black);
+}
+
+.setup-progress span {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--border-light);
+    background: var(--bg-card);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.setup-progress li.current {
+    color: var(--text-primary);
+}
+
+.setup-progress li.current span {
+    border-color: var(--accent-black);
+    color: var(--text-primary);
+}
+
+.setup-progress li.done span {
+    border-color: var(--accent-black);
+    background: var(--accent-black);
+    color: #fff;
+}
+
+.setup-progress b {
+    font-weight: inherit;
+}
+
+/* Finished steps show a check mark instead of their number. */
+.step-check {
+    display: none;
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.setup-progress li.done b {
+    display: none;
+}
+
+.setup-progress li.done .step-check {
+    display: block;
+}
+
+.setup-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.setup-buttons .btn {
+    flex: 1;
+}
+
+/* Setup: "What are you making?" */
+.site-types {
+    border: 0;
+    padding: 0;
+    margin-inline: 0;
+}
+
+.site-types legend {
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Two columns of tiles, so the first step fits without scrolling. */
+.site-types {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.site-types legend,
+.site-types .form-hint {
+    grid-column: 1 / -1;
+}
+
+.site-types .site-type {
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 0;
+    position: relative;
+}
+
+.site-types .site-type svg {
+    margin-top: 1px;
+}
+
+/* "Coming soon" in the tile's corner. */
+.site-types .site-type em {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+}
+
+@media (max-width: 480px) {
+    .site-types {
+        grid-template-columns: 1fr;
+    }
+}
+
+.site-type {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-card);
+    cursor: pointer;
+}
+
+.site-type:has(input:checked) {
+    border-color: var(--accent-black);
+    box-shadow: inset 0 0 0 1px var(--accent-black);
+}
+
+.site-type input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.site-type:has(input:focus-visible) {
+    outline: 2px solid var(--accent-black);
+    outline-offset: 2px;
+}
+
+.site-type svg {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+
+.site-type span {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.site-type strong {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.site-type small {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 400;
+}
+
+.site-type em {
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--chip-bg);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.site-type-soon {
+    cursor: default;
+}
+
+.site-type-soon svg,
+.site-type-soon strong {
+    color: var(--text-muted);
 }
 
 /* ============================================================

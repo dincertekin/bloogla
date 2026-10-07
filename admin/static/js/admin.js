@@ -13,6 +13,7 @@
 //   data-navigate="lang"               <select> that reloads with ?lang=<value>
 //   data-empty-text="..."              list that shows this text when empty
 //   data-menu-toggle                   button that opens the menu on phones
+//   data-tabs / data-tab-panel="x"     tabs that show one panel at a time
 
 // ---- Modals ----
 
@@ -194,4 +195,36 @@ if (menuToggle) {
             menuToggle.focus();
         }
     });
+}
+
+// ---- Tabs: one panel at a time (Settings, Profile) ----
+// <nav data-tabs><a href="#email" data-tab="email">...</a></nav> and
+// <div data-tab-panel="email">. The open tab is in the address (#email), so
+// reloading or sharing the link opens it again. Without JavaScript every
+// panel shows, one under the other.
+
+const tabs = document.querySelector("[data-tabs]");
+if (tabs) {
+    const links = [...tabs.querySelectorAll("[data-tab]")];
+    const panels = [...document.querySelectorAll("[data-tab-panel]")];
+    const openTab = (name) => {
+        const known = links.some((link) => link.dataset.tab === name);
+        const current = known ? name : links[0].dataset.tab;
+        links.forEach((link) => {
+            const active = link.dataset.tab === current;
+            link.classList.toggle("active", active);
+            link.setAttribute("aria-selected", String(active));
+        });
+        panels.forEach((panel) => (panel.hidden = panel.dataset.tabPanel !== current));
+    };
+    tabs.addEventListener("click", (event) => {
+        const link = event.target.closest("[data-tab]");
+        if (!link) return;
+        event.preventDefault();
+        history.replaceState(null, "", "#" + link.dataset.tab);
+        openTab(link.dataset.tab);
+    });
+    tabs.hidden = false;
+    document.body.classList.add("has-tabs");
+    openTab(location.hash.slice(1));
 }

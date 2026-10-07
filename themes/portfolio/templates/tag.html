@@ -1,0 +1,10 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ tag_name }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<h1 class="listing-title">{{ tag_name }}</h1>
+{% include "templates/filters.html" %}
+{% include "templates/work_grid.html" %}
+{% include "templates/pagination.html" %}
+{% endblock %}

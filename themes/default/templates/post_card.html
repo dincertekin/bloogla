@@ -2,7 +2,7 @@
 <article class="post-card">
     {% if post.cover_image %}
     {# The title below links to the post too, so keyboards and screen readers skip this link. #}
-    <a href="/post/{{ post.slug }}" tabindex="-1" aria-hidden="true">
+    <a href="{{ post.url }}" tabindex="-1" aria-hidden="true">
         {# Images in the first two cards are usually on screen at once: load them right
            away (the first one first). The rest load as the visitor scrolls. #}
         <img src="{{ post.cover_image }}" alt="" class="post-cover" decoding="async"
@@ -23,7 +23,7 @@
     </div>
 
     <h2 class="post-title">
-        <a href="/post/{{ post.slug }}">{{ post.title }}</a>
+        <a href="{{ post.url }}">{{ post.title }}</a>
     </h2>
 
     <div class="post-excerpt">

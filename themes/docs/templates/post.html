@@ -1,0 +1,36 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<div class="docs-layout">
+    <aside class="docs-sidebar">{% include "templates/sidebar.html" %}</aside>
+
+    <article class="docs-main h-entry">
+        <p class="docs-eyebrow"><time class="dt-published" datetime="{{ post.published_at }}">{{ post.created_at }}</time></p>
+        <h1 class="docs-title p-name"><a class="u-url" href="{{ base_url }}{{ post.url }}">{{ post.title }}</a></h1>
+
+        <div class="post-body e-content">
+            {{ content_html | safe }}
+        </div>
+
+        {% if post.tags %}
+        <div class="post-tags">
+            {% for tag in post.tags %}
+            <a href="/tag/{{ tag.slug }}" class="tag-badge p-category">#{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% include "templates/subscribe.html" %}
+
+        {% if comments_enabled %}
+        {% include "templates/comments.html" %}
+        {% endif %}
+
+        <footer class="single-footer">
+            <a href="/" class="back-link">&larr; {{ blog_name }}</a>
+        </footer>
+    </article>
+</div>
+{% endblock %}

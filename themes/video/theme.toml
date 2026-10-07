@@ -1,0 +1,32 @@
+name = "Video"
+author = "Bloogla Team"
+version = "1.0.0"
+description = "A dark video site: a featured video, categories and a grid of thumbnails."
+
+# Shown in Admin → Themes → Customize; templates read them as theme_options.<name>.
+[[options]]
+name = "accent_color"
+label = "Accent color"
+type = "color"
+default = "#e5484d"
+hint = "Used for links, buttons and highlights."
+
+[[options]]
+name = "feature_newest"
+label = "Feature the newest video"
+type = "checkbox"
+default = true
+hint = "Shows the newest video large at the top of the home page."
+
+[[options]]
+name = "footer_text"
+label = "Footer text"
+type = "text"
+default = ""
+hint = "Shown at the bottom of every page. Leave empty to show © and the site name."
+
+[[options]]
+name = "show_powered_by"
+label = "Show “Powered by Bloogla”"
+type = "checkbox"
+default = true

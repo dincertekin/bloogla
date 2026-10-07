@@ -8,6 +8,15 @@
     </div>
 </div>
 
+<!-- One card at a time (see "Tabs" in admin/static/js/admin.js). -->
+<nav class="filter-tabs" role="tablist" data-tabs hidden>
+    <a href="#about" role="tab" data-tab="about">{{ me.t("Profile") }}</a>
+    <a href="#password" role="tab" data-tab="password">{{ me.t("Password") }}</a>
+    <a href="#two-factor" role="tab" data-tab="two-factor">{{ me.t("Two-factor login") }}</a>
+    <a href="#tokens" role="tab" data-tab="tokens">{{ me.t("API tokens") }}</a>
+</nav>
+
+<div data-tab-panel="about">
 <form hx-post="/admin/profile" hx-target="find .form-status" hx-swap="innerHTML">
     <section class="card">
         <h2 class="section-title">{{ me.t("About you") }}</h2>
@@ -40,7 +49,9 @@
         <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
     </section>
 </form>
+</div>
 
+<div data-tab-panel="password">
 <section class="card">
     <h2 class="section-title">{{ me.t("Password") }}</h2>
 
@@ -72,6 +83,8 @@
         <button type="submit" class="btn btn-primary">{{ me.t("Update Password") }}</button>
     </form>
 </section>
+</div>
+<div data-tab-panel="two-factor">
 <section class="card">
     <h2 class="section-title">{{ me.t("Two-factor login") }}</h2>
     {% if two_factor %}
@@ -98,7 +111,9 @@
     <a href="/admin/profile/two-factor" class="btn btn-primary">{{ me.t("Set up two-factor login") }}</a>
     {% endif %}
 </section>
+</div>
 
+<div data-tab-panel="tokens">
 <section class="card">
     <h2 class="section-title">{{ me.t("API tokens") }}</h2>
     <p class="form-hint" style="margin-bottom: 1rem">
@@ -119,5 +134,6 @@
     {% endfor %}
 </div>
 <p class="empty-state" data-empty-for="token-list" {% if !tokens.is_empty() %}hidden{% endif %}>{{ me.t("No tokens yet.") }}</p>
+</div>
 <script src="/static/js/password.js"></script>
 {% endblock %}

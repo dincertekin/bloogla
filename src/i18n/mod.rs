@@ -225,21 +225,28 @@ fn placeholder_names(text: &str) -> Vec<&str> {
     names
 }
 
-/// Strings the default theme uses as `{{ t.<id> }}`: (id, English text).
+/// Strings the bundled themes use as `{{ t.<id> }}`: (id, English text).
 /// Ids avoid Tera's dot-path lookup, which breaks on keys containing periods.
 pub const THEME_STRINGS: &[(&str, &str)] = &[
+    ("all", "All"),
+    ("all_projects", "All projects"),
     ("all_tags", "All Tags"),
+    ("all_videos", "All videos"),
     ("back_to_all_posts", "Back to all posts"),
     ("by_name", "by {name}"),
     ("comment", "Comment"),
     ("comments", "Comments"),
+    ("contents", "Contents"),
     ("copied", "Copied"),
     ("copy", "Copy"),
     ("copy_failed", "Copy failed"),
     ("email", "Email"),
     ("get_new_posts_by_email", "Get new posts by email"),
+    ("latest_updates", "Latest updates"),
+    ("latest_videos", "Latest videos"),
     ("leave_a_comment", "Leave a comment"),
     ("mentioned_this", "mentioned this"),
+    ("more_videos", "More videos"),
     ("n1_comment", "1 comment"),
     ("n1_view", "1 view"),
     ("n_comments", "{n} comments"),
@@ -248,6 +255,7 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("name", "Name"),
     ("never_shown", "Never shown"),
     ("newer", "Newer"),
+    ("next", "Next"),
     ("no_posts_found", "No posts found."),
     (
         "no_posts_found_with_tag_tag",
@@ -266,9 +274,12 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("posts_tagged_with_hashtag", "Posts tagged with “#{tag}”"),
     ("posts_tagged_with_tag", "Posts tagged with {tag}"),
     ("powered_by_name", "Powered by {name}"),
+    ("previous", "Previous"),
+    ("search_docs", "Search the docs..."),
     ("search_posts", "Search posts..."),
     ("search_query", "Search: {query}"),
     ("search_results_for_query", "Search results for “{query}”"),
+    ("search_videos", "Search videos..."),
     ("skip_to_content", "Skip to content"),
     ("subscribe", "Subscribe"),
     ("tag_tag", "Tag: {tag}"),
@@ -433,8 +444,13 @@ mod tests {
     #[test]
     fn theme_templates_only_use_known_ids() {
         let ids: HashSet<&str> = THEME_STRINGS.iter().map(|(id, _)| *id).collect();
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/themes/default/templates");
-        for entry in std::fs::read_dir(dir).unwrap() {
+        let themes = concat!(env!("CARGO_MANIFEST_DIR"), "/themes");
+        let templates = std::fs::read_dir(themes)
+            .unwrap()
+            .flatten()
+            .filter_map(|theme| std::fs::read_dir(theme.path().join("templates")).ok())
+            .flatten();
+        for entry in templates {
             let path = entry.unwrap().path();
             let source = std::fs::read_to_string(&path).unwrap();
             for part in source.split("t.").skip(1) {

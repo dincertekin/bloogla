@@ -1,0 +1,19 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ message_title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<section class="single-post message">
+    <h1 class="single-title">{{ message_title }}</h1>
+    <p>{{ message_text }}</p>
+    {% if message_action %}
+    <form method="POST" action="{{ message_action }}">
+        <input type="hidden" name="token" value="{{ message_token }}" />
+        <button type="submit" class="button">{{ message_button }}</button>
+    </form>
+    {% endif %}
+    <footer class="single-footer">
+        <a href="/" class="back-link">&larr; {{ blog_name }}</a>
+    </footer>
+</section>
+{% endblock %}

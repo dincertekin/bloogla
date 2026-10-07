@@ -78,6 +78,10 @@ pub struct Settings {
     pub smtp_from: String,
     pub newsletter: bool,
     pub notify_comments: bool,
+
+    /// Theme options (`theme.<theme>.<name>` → value), see
+    /// `services/themes/options.rs`.
+    pub theme_options: HashMap<String, String>,
 }
 
 impl Settings {
@@ -123,6 +127,12 @@ impl Settings {
             smtp_from: text("smtp_from", ""),
             newsletter: flag("newsletter", false),
             notify_comments: flag("notify_comments", true),
+
+            theme_options: rows
+                .iter()
+                .filter(|(key, _)| key.starts_with("theme."))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
         }
     }
 

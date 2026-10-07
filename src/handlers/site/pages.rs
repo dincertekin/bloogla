@@ -49,8 +49,16 @@ pub struct SearchQuery {
 /// GET / -> Newest posts.
 pub async fn home(State(state): State<AppState>, Query(query): Query<ListingQuery>) -> Response {
     let site = settings::load(&state.pool).await;
-    let Some((posts, pagination)) =
-        fetch_listing(&state, &site, "", &[], query.page, |p| with_page("/", p)).await
+    let Some((posts, pagination)) = fetch_listing(
+        &state,
+        &site,
+        LISTED_POST_FILTER,
+        "",
+        &[],
+        query.page,
+        |p| with_page("/", p),
+    )
+    .await
     else {
         return not_found(&state).await;
     };
@@ -119,6 +127,7 @@ pub async fn tag(
     let Some((posts, pagination)) = fetch_listing(
         &state,
         &site,
+        LISTED_POST_FILTER,
         "AND id IN (SELECT pt.post_id FROM post_tags pt
                     JOIN tags t ON t.id = pt.tag_id WHERE t.slug = ?)",
         &[&tag.slug],
@@ -149,9 +158,11 @@ pub async fn search(State(state): State<AppState>, Query(query): Query<SearchQue
     let base_path = format!("/search?q={}", url_encode(&search_term));
     // A query of only punctuation matches nothing.
     let fts_query = posts::search_query(&search_term).unwrap_or_else(|| "\"\"".to_string());
+    // Search finds pages too (docs, About...); cards link with `post.url`.
     let Some((posts, pagination)) = fetch_listing(
         &state,
         &site,
+        PUBLIC_POST_FILTER,
         "AND id IN (SELECT rowid FROM posts_fts WHERE posts_fts MATCH ?)",
         &[&fts_query],
         query.page,
@@ -211,6 +222,7 @@ async fn render_post(
     posts::load_tags_and_fields(&state.pool, std::slice::from_mut(&mut post)).await;
 
     let path = post_path(&post.slug, post.is_page);
+    post.url = path.clone();
     let canonical_url = format!("{}{path}", state.config.base_url);
     let tag_names: Vec<&str> = post.tags.iter().map(|t| t.name.as_str()).collect();
     let seo_head = seo_head(
@@ -258,6 +270,10 @@ async fn render_post(
             "comment_notice",
             &super::comments::notice(comment_notice).map(|n| lang.t(n)),
         );
+    }
+
+    if !post.is_page {
+        context.insert("more_posts", &more_posts(state, &site, post.id).await);
     }
 
     let templates: &[&str] = if post.is_page {
@@ -314,13 +330,15 @@ async fn redirect_old_slug(state: &AppState, slug: &str) -> Option<Response> {
     })
 }
 
-/// One page of listed posts matching `extra_filter` (with `binds` for its `?`s).
+/// One page of posts matching `base_filter` (which posts are public, e.g.
+/// [`LISTED_POST_FILTER`]) and `extra_filter` (with `binds` for its `?`s).
 ///
 /// `page_url` builds the link for a page number. Returns `None` when `page` is
 /// past the last page.
 async fn fetch_listing(
     state: &AppState,
     site: &Settings,
+    base_filter: &str,
     extra_filter: &str,
     binds: &[&str],
     page: Option<i64>,
@@ -328,7 +346,7 @@ async fn fetch_listing(
 ) -> Option<(Vec<Post>, Pagination)> {
     let per_page = site.posts_per_page;
     let current = page.unwrap_or(1).max(1);
-    let filter = format!("{LISTED_POST_FILTER} {extra_filter}");
+    let filter = format!("{base_filter} {extra_filter}");
 
     let count_sql = format!("SELECT COUNT(*) FROM posts WHERE {filter}");
     let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
@@ -357,14 +375,7 @@ async fn fetch_listing(
         "fetch listing",
     );
 
-    // Post cards show a date, reading time and a short excerpt.
-    for post in &mut posts {
-        post.reading_time = reading_time(&post.content);
-        post.created_at = display_date(site.language, &post.published_at);
-        // Themes print the excerpt with `| safe`, so it must be escaped here.
-        post.content = escape_html(&excerpt(&post.content, EXCERPT_CHARS));
-    }
-    posts::load_tags_and_fields(&state.pool, &mut posts).await;
+    as_cards(state, site, &mut posts).await;
 
     let pagination = Pagination {
         current,
@@ -373,6 +384,36 @@ async fn fetch_listing(
         next_url: (current < total_pages).then(|| page_url(current + 1)),
     };
     Some((posts, pagination))
+}
+
+/// Ready posts for a list: post cards show a date, reading time, a short
+/// excerpt, tags and fields.
+async fn as_cards(state: &AppState, site: &Settings, posts: &mut [Post]) {
+    for post in posts.iter_mut() {
+        post.url = post_path(&post.slug, post.is_page);
+        post.reading_time = reading_time(&post.content);
+        post.created_at = display_date(site.language, &post.published_at);
+        // Themes print the excerpt with `| safe`, so it must be escaped here.
+        post.content = escape_html(&excerpt(&post.content, EXCERPT_CHARS));
+    }
+    posts::load_tags_and_fields(&state.pool, posts).await;
+}
+
+/// The newest listed posts other than `exclude_id`, as cards ("More videos",
+/// "Read next").
+async fn more_posts(state: &AppState, site: &Settings, exclude_id: i64) -> Vec<Post> {
+    let sql = format!(
+        "{POST_SELECT} WHERE {LISTED_POST_FILTER} AND id != ? ORDER BY published_at DESC LIMIT 6"
+    );
+    let mut posts = or_log(
+        sqlx::query_as::<_, Post>(&sql)
+            .bind(exclude_id)
+            .fetch_all(&state.pool)
+            .await,
+        "fetch more posts",
+    );
+    as_cards(state, site, &mut posts).await;
+    posts
 }
 
 /// Add `page=N` to a URL, leaving it out for the first page.

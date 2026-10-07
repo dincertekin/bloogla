@@ -1,0 +1,4 @@
+# Sample content for a new Video site: open movies by the Blender Foundation
+# (CC BY), played from YouTube. Replace them with your own videos.
+description = "Short films, behind-the-scenes and stories, all in one place."
+menu = "Videos | /\nAbout | /about"

@@ -241,6 +241,9 @@
             if (!url) return editor.commands.focus();
             const name = /vimeo\.com/.test(url) ? "vimeo" : "youtube";
             run().insertContent({ type: "shortcode", attrs: { text: `[${name} ${url}]` } }).run();
+            // No cover yet: use the YouTube video's thumbnail.
+            const youtube = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/);
+            if (youtube && !coverInput.value) setCover(`https://i.ytimg.com/vi/${youtube[1]}/hqdefault.jpg`);
         },
         bullets: () => run().toggleBulletList().run(),
         numbers: () => run().toggleOrderedList().run(),

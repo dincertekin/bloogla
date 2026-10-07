@@ -80,6 +80,32 @@ pub async fn find_public(pool: &SqlitePool, slug: &str, is_page: bool) -> Option
     )
 }
 
+/// Pages visitors may see, with their tags and fields, ordered for menus and
+/// sidebars: by the `order` custom field (as a number), then by title.
+pub async fn public_pages(pool: &SqlitePool) -> Vec<Post> {
+    let mut pages: Vec<Post> = or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE is_page = 1 AND {PUBLIC_POST_FILTER}"
+        ))
+        .fetch_all(pool)
+        .await,
+        "list public pages",
+    );
+    load_tags_and_fields(pool, &mut pages).await;
+    let order = |page: &Post| {
+        page.fields
+            .get("order")
+            .and_then(|o| o.trim().parse::<f64>().ok())
+            .unwrap_or(f64::MAX)
+    };
+    pages.sort_by(|a, b| {
+        order(a)
+            .total_cmp(&order(b))
+            .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+    });
+    pages
+}
+
 /// Fill in `tags` and `fields` for several posts with two queries in total.
 pub async fn load_tags_and_fields(pool: &SqlitePool, posts: &mut [Post]) {
     let ids: Vec<i64> = posts.iter().map(|p| p.id).collect();

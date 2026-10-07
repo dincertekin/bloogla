@@ -231,6 +231,7 @@ async fn new_page_for(
         reading_time: 0,
         tags: Vec::new(),
         fields: Default::default(),
+        url: String::new(),
     };
     editor(&state, me, post, &HashSet::new(), None, false, None).await
 }
