@@ -24,7 +24,7 @@ jobs:
   draft:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Sites check that the program they download says this version, so the
       # tag and Cargo.toml must agree.
       - name: Check the version
@@ -66,7 +66,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -104,7 +104,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Download the programs
         run: gh release download "$GITHUB_REF_NAME" --pattern 'bloogla-*' --dir programs --clobber
       # Each signature covers "bloogla <version> <asset>" + the program, so it
@@ -146,7 +146,7 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Get the Linux programs
         env:
           GH_TOKEN: ${{ github.token }}
