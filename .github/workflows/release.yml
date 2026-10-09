@@ -156,7 +156,7 @@ jobs:
           cp downloads/bloogla-x86_64-linux image/amd64/bloogla
           cp downloads/bloogla-aarch64-linux image/arm64/bloogla
           cp .github/release.Dockerfile image/Dockerfile
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
