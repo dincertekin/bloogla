@@ -6,9 +6,7 @@ use crate::app::models::{Pagination, Post};
 use crate::app::state::AppState;
 use crate::content::markdown::excerpt;
 use crate::content::seo::{SeoKind, SeoMeta};
-use crate::content::text::{
-    display_date, escape_html, percent_decode, reading_time, slugify, url_encode,
-};
+use crate::content::text::{display_date, escape_html, reading_time, url_encode};
 use crate::db::posts::{self, LISTED_POST_FILTER, POST_SELECT, PUBLIC_POST_FILTER};
 use crate::db::settings::{self, CommentMode, Settings};
 use crate::db::{or_log, tags};
@@ -16,7 +14,7 @@ use crate::server::routes::post_path;
 use crate::services::themes;
 
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, Method, StatusCode, Uri};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use serde::Deserialize;
 use tower_sessions::Session;
@@ -28,16 +26,12 @@ const META_DESCRIPTION_CHARS: usize = 160;
 #[derive(Deserialize)]
 pub struct ListingQuery {
     page: Option<i64>,
-    /// Result of the newsletter form.
-    subscribe: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct PostQuery {
     /// Result of sending a comment (`pending`, `slow`, `invalid`).
     comment: Option<String>,
-    /// Result of the newsletter form.
-    subscribe: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -66,11 +60,6 @@ pub async fn home(State(state): State<AppState>, Query(query): Query<ListingQuer
     let mut context = base_context(&state, &site).await;
     context.insert("posts", &posts);
     context.insert("pagination", &pagination);
-    context.insert(
-        "subscribe_notice",
-        &super::newsletter::notice(query.subscribe.as_deref()).map(|n| site.language.t(n)),
-    );
-    context.insert("return_to", "/");
 
     themes::render(&state, &["templates/index.html"], context, StatusCode::OK).await
 }
@@ -84,8 +73,7 @@ pub async fn show_post(
     session: Session,
 ) -> Response {
     if let Some(post) = posts::find_public(&state.pool, &slug, false).await {
-        let notices = (query.comment.as_deref(), query.subscribe.as_deref());
-        return render_post(&state, post, &headers, &session, notices).await;
+        return render_post(&state, post, &headers, &session, query.comment.as_deref()).await;
     }
     match redirect_to_slug(&state, &slug).await {
         Some(redirect) => redirect,
@@ -95,8 +83,8 @@ pub async fn show_post(
 
 /// GET /:slug -> A standalone page (About, Contact...).
 ///
-/// A post with this slug is redirected to its post URL, which keeps
-/// WordPress-style `/post-name` links working after an import.
+/// A post with this slug is redirected to its post URL, so a link that
+/// leaves out `/post/` still works.
 pub async fn show_page(
     State(state): State<AppState>,
     Path(slug): Path<String>,
@@ -104,7 +92,7 @@ pub async fn show_page(
     session: Session,
 ) -> Response {
     if let Some(page) = posts::find_public(&state.pool, &slug, true).await {
-        return render_post(&state, page, &headers, &session, (None, None)).await;
+        return render_post(&state, page, &headers, &session, None).await;
     }
     match redirect_to_slug(&state, &slug).await {
         Some(redirect) => redirect,
@@ -182,36 +170,23 @@ pub async fn search(State(state): State<AppState>, Query(query): Query<SearchQue
     themes::render(&state, &["templates/index.html"], context, StatusCode::OK).await
 }
 
-/// Any other address. Old WordPress permalinks (`/post-name/`,
-/// `/2020/05/post-name/`) end with the slug, so the last part of the path is
-/// tried before giving up.
-pub async fn fallback(State(state): State<AppState>, method: Method, uri: Uri) -> Response {
-    if uri.path().starts_with("/api/") {
-        return crate::handlers::api::not_found().await;
-    }
-    if method == Method::GET {
-        let last_segment = uri.path().trim_end_matches('/').rsplit('/').next();
-        if let Some(segment) = last_segment.filter(|s| !s.is_empty()) {
-            if let Some(redirect) = redirect_to_slug(&state, &percent_decode(segment)).await {
-                return redirect;
-            }
-        }
-    }
+/// Any other address: the theme's "not found" page.
+pub async fn fallback(State(state): State<AppState>) -> Response {
     not_found(&state).await
 }
 
-/// Render a post or page with its SEO tags, comments and newsletter form.
-/// `notices` are the results of the comment and newsletter forms.
+/// Render a post or page with its SEO tags and comments.
+/// `comment_notice` is the result of sending the comment form.
 async fn render_post(
     state: &AppState,
     mut post: Post,
     headers: &HeaderMap,
     session: &Session,
-    (comment_notice, subscribe_notice): (Option<&str>, Option<&str>),
+    comment_notice: Option<&str>,
 ) -> Response {
     if analytics::is_countable_view(headers, session).await {
         let referrer = analytics::referrer_host(headers, &state.config.base_url);
-        analytics::record_view(state, post.id, referrer);
+        analytics::record_view(post.id, referrer);
     }
 
     let site = settings::load(&state.pool).await;
@@ -219,7 +194,7 @@ async fn render_post(
     let content_html = crate::content::render(state, &post.content).await;
     let description = excerpt(&post.content, META_DESCRIPTION_CHARS);
     post.reading_time = reading_time(&post.content);
-    posts::load_tags_and_fields(&state.pool, std::slice::from_mut(&mut post)).await;
+    posts::load_tags(&state.pool, std::slice::from_mut(&mut post)).await;
 
     let path = post_path(&post.slug, post.is_page);
     post.url = path.clone();
@@ -246,16 +221,11 @@ async fn render_post(
         },
     );
     // Themes show `created_at` as the post's date.
-    post.created_at = display_date(lang, &post.published_at);
+    post.created_at = display_date(lang, site.timezone, &post.published_at);
 
     let mut context = base_context(state, &site).await;
     context.insert("seo_head", &seo_head);
     context.insert("content_html", &content_html);
-    context.insert(
-        "subscribe_notice",
-        &super::newsletter::notice(subscribe_notice).map(|n| lang.t(n)),
-    );
-    context.insert("return_to", &path);
 
     // Comments are for posts only. Themes check `comments_enabled`.
     let comments_enabled = !post.is_page && site.comments != CommentMode::Off;
@@ -272,10 +242,6 @@ async fn render_post(
         );
     }
 
-    if !post.is_page {
-        context.insert("more_posts", &more_posts(state, &site, post.id).await);
-    }
-
     let templates: &[&str] = if post.is_page {
         &["templates/page.html", "templates/post.html"]
     } else {
@@ -286,29 +252,13 @@ async fn render_post(
 }
 
 /// Permanent redirect to the public post or page currently or formerly at `slug`.
-///
-/// Imported slugs are transliterated (`dünya` → `dunya`), so that form is tried too.
 async fn redirect_to_slug(state: &AppState, slug: &str) -> Option<Response> {
-    let slugified = slugify(slug);
-    let candidates = if slugified == slug {
-        vec![slug]
-    } else {
-        vec![slug, slugified.as_str()]
-    };
-
-    for candidate in candidates {
-        for is_page in [false, true] {
-            if let Some(post) = posts::find_public(&state.pool, candidate, is_page).await {
-                return Some(
-                    Redirect::permanent(&post_path(&post.slug, post.is_page)).into_response(),
-                );
-            }
-        }
-        if let Some(redirect) = redirect_old_slug(state, candidate).await {
-            return Some(redirect);
+    for is_page in [false, true] {
+        if let Some(post) = posts::find_public(&state.pool, slug, is_page).await {
+            return Some(Redirect::permanent(&post_path(&post.slug, post.is_page)).into_response());
         }
     }
-    None
+    redirect_old_slug(state, slug).await
 }
 
 /// If `slug` is an old URL of a public post, redirect to its current URL.
@@ -392,28 +342,11 @@ async fn as_cards(state: &AppState, site: &Settings, posts: &mut [Post]) {
     for post in posts.iter_mut() {
         post.url = post_path(&post.slug, post.is_page);
         post.reading_time = reading_time(&post.content);
-        post.created_at = display_date(site.language, &post.published_at);
+        post.created_at = display_date(site.language, site.timezone, &post.published_at);
         // Themes print the excerpt with `| safe`, so it must be escaped here.
         post.content = escape_html(&excerpt(&post.content, EXCERPT_CHARS));
     }
-    posts::load_tags_and_fields(&state.pool, posts).await;
-}
-
-/// The newest listed posts other than `exclude_id`, as cards ("More videos",
-/// "Read next").
-async fn more_posts(state: &AppState, site: &Settings, exclude_id: i64) -> Vec<Post> {
-    let sql = format!(
-        "{POST_SELECT} WHERE {LISTED_POST_FILTER} AND id != ? ORDER BY published_at DESC LIMIT 6"
-    );
-    let mut posts = or_log(
-        sqlx::query_as::<_, Post>(&sql)
-            .bind(exclude_id)
-            .fetch_all(&state.pool)
-            .await,
-        "fetch more posts",
-    );
-    as_cards(state, site, &mut posts).await;
-    posts
+    posts::load_tags(&state.pool, posts).await;
 }
 
 /// Add `page=N` to a URL, leaving it out for the first page.

@@ -76,6 +76,16 @@ a:hover {
     outline-offset: 2px;
 }
 
+/* Text only screen readers (and search engines) read. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 .skip-link {
     position: absolute;
     left: -10000px;
@@ -735,8 +745,7 @@ a:hover {
 }
 
 .comment-form input,
-.comment-form textarea,
-.subscribe-form input[type="email"] {
+.comment-form textarea {
     font: inherit;
     font-weight: 400;
     padding: 0.6rem 0.75rem;
@@ -747,8 +756,7 @@ a:hover {
 }
 
 .comment-form input:focus,
-.comment-form textarea:focus,
-.subscribe-form input[type="email"]:focus {
+.comment-form textarea:focus {
     outline: none;
     border-color: var(--accent);
 }
@@ -841,44 +849,55 @@ a:hover {
     background: color-mix(in srgb, #f59e0b 12%, var(--bg-card));
 }
 
-/* Newsletter */
-.subscribe {
-    border-top: 1px solid var(--border-color);
-    padding-top: 2rem;
-    margin-bottom: 2rem;
-}
-
-.widget .subscribe {
-    border-top: 0;
-    padding-top: 0;
-    margin-bottom: 0;
-}
-
-.subscribe-title {
-    font-size: 1.15rem;
-    margin-bottom: 0.25rem;
-}
-
-.subscribe-text {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
-}
-
-.subscribe-form {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.subscribe-form input[type="email"] {
-    flex: 1 1 200px;
-}
-
-.message p {
-    margin-bottom: 1.5rem;
-}
-
 .empty-state {
     color: var(--text-muted);
+}
+
+/* Motion */
+
+/* Moving to another page fades instead of flashing, and the header stays
+   put. Browsers without view transitions simply load the page. */
+@view-transition {
+    navigation: auto;
+}
+
+.site-header {
+    view-transition-name: site-header;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.2s;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+
+/* "Thanks! Your comment…" appears gently; while sending, the button waits. */
+.comment-notice {
+    animation: fade-in 0.3s ease;
+}
+
+.comment-form.is-sending button {
+    opacity: 0.7;
+    cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
 }

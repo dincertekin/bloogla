@@ -17,15 +17,14 @@
         <!-- Which step we're on. Shown by setup.js; without JavaScript the
              whole form is one page. -->
         <ol class="setup-progress" hidden>
-            <li data-step-marker="1"><span><b>1</b><svg class="step-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>{{ lang.t("Site type") }}</li>
-            <li data-step-marker="2"><span><b>2</b><svg class="step-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>{{ lang.t("Details") }}</li>
-            <li data-step-marker="3"><span><b>3</b><svg class="step-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>{{ lang.t("Account") }}</li>
+            <li data-step-marker="1"><span><b>1</b><svg class="step-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>{{ lang.t("Your site") }}</li>
+            <li data-step-marker="2"><span><b>2</b><svg class="step-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>{{ lang.t("Your account") }}</li>
         </ol>
 
         <div class="card">
             <h1 style="font-size: 1.375rem; font-weight: 700; margin-bottom: 0.35rem">{{ lang.t("Set up your site") }}</h1>
             <p class="text-secondary" style="margin-bottom: 1.5rem; font-size: 0.9rem">
-                {{ lang.t("Three quick steps. You can change all of this later.") }}
+                {{ lang.t("Two quick steps. You can change all of this later.") }}
             </p>
 
             {% if let Some(err) = error %}
@@ -41,8 +40,10 @@
             {% endif %}
 
             <form method="POST" action="/setup" data-setup-steps data-start-step="{{ step }}">
-                <!-- Step 1: language and what kind of site -->
+                <!-- Step 1: language, the site's name (and the setup code if it didn't come with the link) -->
                 <section class="setup-step" data-step="1">
+                    <!-- Filled in by setup.js with this computer's time zone. -->
+                    <input type="hidden" name="timezone" value="" data-timezone />
                     <div class="form-group">
                         <label for="language">{{ lang.t("Language") }}</label>
                         <select id="language" name="language" class="form-control" data-navigate="lang">
@@ -52,31 +53,6 @@
                         </select>
                     </div>
 
-                    <fieldset class="form-group site-types">
-                        <legend>{{ lang.t("What are you making?") }}</legend>
-                        {% for kind in site_types %}
-                        <label class="site-type {% if !kind.ready %}site-type-soon{% endif %}">
-                            <input type="radio" name="site_type" value="{{ kind.id }}"
-                                {% if kind.id == site_type.as_str() %}checked{% endif %} {% if !kind.ready %}disabled{% endif %} />
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                aria-hidden="true">{{ kind.icon|safe }}</svg>
-                            <span>
-                                <strong>{{ lang.t(kind.name) }}</strong>
-                                <small>{{ lang.t(kind.description) }}</small>
-                            </span>
-                            {% if !kind.ready %}<em>{{ lang.t("Coming soon") }}</em>{% endif %}
-                        </label>
-                        {% endfor %}
-                    </fieldset>
-
-                    <div class="setup-buttons" hidden>
-                        <button type="button" class="btn btn-primary" data-next>{{ lang.t("Next") }} &rarr;</button>
-                    </div>
-                </section>
-
-                <!-- Step 2: the site's name (and the setup code if it didn't come with the link) -->
-                <section class="setup-step" data-step="2">
                     {% if code_from_link %}
                     <input type="hidden" name="code" value="{{ code }}" />
                     {% else %}
@@ -84,7 +60,7 @@
                         <label for="code">{{ lang.t("Setup code") }}</label>
                         <input type="text" id="code" name="code" class="form-control" value="{{ code }}"
                             autocomplete="off" spellcheck="false" required />
-                        <span class="form-hint">{{ lang.t("Bloogla shows a setup link with this code when it starts. You'll find it at the end of the installer and in the server log.") }}</span>
+                        <span class="form-hint">{{ lang.t("Bloogla shows a setup link with this code when it starts. You'll find it in the server log (with Docker: docker logs bloogla).") }}</span>
                     </div>
                     {% endif %}
 
@@ -95,13 +71,12 @@
                     </div>
 
                     <div class="setup-buttons" hidden>
-                        <button type="button" class="btn btn-secondary" data-back>&larr; {{ lang.t("Back") }}</button>
                         <button type="button" class="btn btn-primary" data-next>{{ lang.t("Next") }} &rarr;</button>
                     </div>
                 </section>
 
-                <!-- Step 3: the admin account -->
-                <section class="setup-step" data-step="3">
+                <!-- Step 2: the admin account -->
+                <section class="setup-step" data-step="2">
                     <div class="form-group">
                         <label for="name">{{ lang.t("Your name") }}</label>
                         <input type="text" id="name" name="name" class="form-control" value="{{ name }}"

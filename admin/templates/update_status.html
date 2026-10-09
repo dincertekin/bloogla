@@ -1,0 +1,41 @@
+<!-- Settings → Updates: the version and what the last check found. Also sent
+     alone after "Check for updates" (handlers/admin/updates.rs). -->
+<div id="update-status" aria-live="polite">
+    <p style="margin-bottom: 1rem">
+        <strong>{{ me.tv("You have Bloogla {version}.", update.current) }}</strong>
+        {% if !update.last_checked.is_empty() %}<span class="form-hint">{{ me.tv("Last checked {when}.", update.last_checked) }}</span>{% endif %}
+    </p>
+
+    {% if let Some(error) = update.error %}
+    <div class="alert alert-error">{{ error|safe }}</div>
+    {% endif %}
+
+    {% if let Some(release) = update.newer %}
+    <div class="alert alert-info update-notice">
+        <span>{{ me.tv("Bloogla {version} is available.", release.version) }}</span>
+        <span class="update-links">
+            <a href="{{ release.url }}" target="_blank" rel="noopener" style="color: inherit">{{ me.t("What's new") }}</a>
+        </span>
+    </div>
+    {% if update.can_install() %}
+    <div class="update-install">
+        <button type="button" class="btn btn-primary" hx-post="/admin/updates/install" hx-target="#update-status"
+            hx-swap="innerHTML"
+            hx-confirm="{{ me.tv("Install Bloogla {version}? Your site restarts and is unavailable for a few seconds.", release.version) }}">{{ me.tv("Install Bloogla {version}", release.version) }}</button>
+        <p class="form-hint">{{ me.t("It's checked to be a genuine Bloogla release before it's installed. Download a backup first (Backup tab), just in case.") }}</p>
+    </div>
+    {% else if update.in_docker() %}
+    <p class="form-hint">
+        {{ me.t("This site runs in Docker, so it's updated by getting the new image: run docker pull ghcr.io/dincertekin/bloogla, then start the container again.") }}
+        <a href="https://github.com/dincertekin/bloogla#updating" target="_blank" rel="noopener">{{ me.t("How to update") }}</a>
+    </p>
+    {% else %}
+    <p class="form-hint">
+        {{ me.t("This server can't update Bloogla by itself. Replace the program with the new version and start it again.") }}
+        <a href="https://github.com/dincertekin/bloogla#updating" target="_blank" rel="noopener">{{ me.t("How to update") }}</a>
+    </p>
+    {% endif %}
+    {% else if update.checked && update.error.is_none() %}
+    <p class="form-hint" style="margin-bottom: 1rem">{{ me.t("You have the latest version.") }}</p>
+    {% endif %}
+</div>

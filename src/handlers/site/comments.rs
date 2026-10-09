@@ -30,15 +30,14 @@ pub struct PublicComment {
     pub date: String,
     /// Escaped text with paragraphs; safe to print with `| safe`.
     pub html: String,
-    /// For webmentions: the page that mentioned the post.
-    pub url: Option<String>,
 }
 
 /// Approved comments on a post, oldest first.
 pub async fn approved_for(state: &AppState, post_id: i64, lang: Lang) -> Vec<PublicComment> {
-    let rows: Vec<(i64, String, String, String, Option<String>)> = or_log(
+    let tz = crate::db::settings::load(&state.pool).await.timezone;
+    let rows: Vec<(i64, String, String, String)> = or_log(
         sqlx::query_as(
-            "SELECT id, author_name, content, created_at, source_url FROM comments
+            "SELECT id, author_name, content, created_at FROM comments
              WHERE post_id = ? AND status = 'approved' ORDER BY id",
         )
         .bind(post_id)
@@ -47,12 +46,11 @@ pub async fn approved_for(state: &AppState, post_id: i64, lang: Lang) -> Vec<Pub
         "load comments",
     );
     rows.into_iter()
-        .map(|(id, author, content, created_at, url)| PublicComment {
+        .map(|(id, author, content, created_at)| PublicComment {
             id,
             author,
-            date: display_date(lang, &created_at),
+            date: display_date(lang, tz, &created_at),
             html: paragraphs(&content),
-            url,
         })
         .collect()
 }

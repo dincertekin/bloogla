@@ -1,0 +1,19 @@
+{# The column next to the feed: what the site is about and its topics. #}
+<aside class="sidebar">
+    {% if blog_description %}
+    <section class="widget">
+        <h2 class="widget-title">{{ blog_name }}</h2>
+        <p class="widget-text">{{ blog_description }}</p>
+    </section>
+    {% endif %}
+    {% if tags %}
+    <section class="widget">
+        <h2 class="widget-title">{{ t.tags }}</h2>
+        <div class="topics">
+            {% for tag in tags %}
+            <a href="/tag/{{ tag.slug }}" class="topic{% if tag_name is defined and tag.name == tag_name %} active{% endif %}">{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</aside>

@@ -1,0 +1,21 @@
+name: Idea
+description: Suggest something that would make Bloogla better.
+labels: ["idea"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe what you're trying to achieve, not only the solution. "I want readers to…" helps more than "add a setting for…".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Bloogla help?
+      description: Your idea of how it could work, if you have one.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you do it today?
+      description: Workarounds, or how other tools (like WordPress) handle it.

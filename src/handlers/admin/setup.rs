@@ -2,16 +2,14 @@
 //!
 //! Like WordPress, the first visit to a new site opens a setup page in the
 //! browser. Scripted installs can skip it with `BLOOGLA_ADMIN_EMAIL` /
-//! `BLOOGLA_ADMIN_PASSWORD` (and optional `BLOOGLA_BLOG_NAME` and
-//! `BLOOGLA_SITE_TYPE`).
+//! `BLOOGLA_ADMIN_PASSWORD` (and optional `BLOOGLA_BLOG_NAME`).
 //!
 //! So that a stranger who finds a fresh server first can't claim it, setup
 //! needs a one-time code. Bloogla prints it at start as a ready-made link
-//! (`https://example.com/setup?code=...`), and `install.sh` shows that link,
-//! so for the owner it's still one click.
+//! (`https://example.com/setup?code=...`; with Docker, `docker logs` shows
+//! it), so for the owner it's still one click.
 
 use crate::app::security::{hash_password, missing_password_rules, PasswordRule, PASSWORD_RULES};
-use crate::app::site_types::{self, SiteType, SITE_TYPES};
 use crate::app::state::AppState;
 use crate::i18n::Lang;
 
@@ -31,9 +29,6 @@ pub struct SetupTemplate {
     pub lang: Lang,
     /// Choices for the language picker.
     pub languages: Vec<Lang>,
-    /// "What are you making?"
-    pub site_types: &'static [SiteType],
-    pub site_type: String,
     pub blog_name: String,
     pub name: String,
     pub email: String,
@@ -45,7 +40,7 @@ pub struct SetupTemplate {
     pub password_rules: &'static [PasswordRule],
     /// What the submitted password still needs (translated).
     pub password_missing: Vec<String>,
-    /// The step to show first (1 site type, 2 details, 3 account): after a
+    /// The step to show first (1 the site, 2 the account): after a
     /// refused try, the one with the problem.
     pub step: u8,
 }
@@ -56,8 +51,6 @@ impl SetupTemplate {
         Self {
             lang,
             languages: Lang::all(),
-            site_types: SITE_TYPES,
-            site_type: "blog".into(),
             blog_name: String::new(),
             name: String::new(),
             email: String::new(),
@@ -83,7 +76,6 @@ async fn needs_setup(pool: &SqlitePool) -> Result<bool, sqlx::Error> {
 /// Returns the new user's id.
 async fn create_site(
     pool: &SqlitePool,
-    site_type: &SiteType,
     blog_name: &str,
     name: &str,
     email: &str,
@@ -137,15 +129,8 @@ async fn create_site(
 
     let default_settings = [
         ("blog_name", blog_name),
-        (
-            "blog_description",
-            "A lightweight, high-performance blog built with Bloogla.",
-        ),
-        ("blog_keywords", "blog"),
         ("publisher_type", "Person"),
         ("publisher_name", publisher_name),
-        ("site_type", site_type.id),
-        ("active_theme", site_type.theme),
     ];
     for (key, value) in default_settings {
         sqlx::query(
@@ -184,11 +169,7 @@ pub async fn prepare(
     ) {
         let blog_name = std::env::var("BLOOGLA_BLOG_NAME").unwrap_or_else(|_| "My Blog".into());
         let name = std::env::var("BLOOGLA_ADMIN_NAME").unwrap_or_default();
-        let type_id = std::env::var("BLOOGLA_SITE_TYPE").unwrap_or_else(|_| "blog".into());
-        let site_type = site_types::ready(&type_id)
-            .ok_or_else(|| format!("BLOOGLA_SITE_TYPE: \"{type_id}\" isn't available"))?;
-        let user_id = create_site(pool, site_type, &blog_name, &name, &email, &password).await?;
-        crate::services::themes::starter::install(pool, site_type.theme, user_id).await;
+        create_site(pool, &blog_name, &name, &email, &password).await?;
         crate::app::security::log_event(
             "setup_completed",
             &[
@@ -207,9 +188,10 @@ pub async fn prepare(
 /// The setup step a problem belongs to, so the form opens there.
 fn step_of(message: &str) -> u8 {
     match message {
-        "Choose what you're making." | "This site has already been set up." => 1,
-        "That setup code isn't right." | "Give your site a title." => 2,
-        _ => 3,
+        "This site has already been set up."
+        | "That setup code isn't right."
+        | "Give your site a title." => 1,
+        _ => 2,
     }
 }
 
@@ -240,14 +222,15 @@ pub struct SetupForm {
     code: String,
     #[serde(default)]
     language: String,
-    #[serde(default)]
-    site_type: String,
     blog_name: String,
     #[serde(default)]
     name: String,
     email: String,
     password: String,
     confirm_password: String,
+    /// The browser's time zone, e.g. `Europe/Istanbul` (may be empty).
+    #[serde(default)]
+    timezone: String,
 }
 
 /// GET /setup -> Browser setup form.
@@ -299,7 +282,6 @@ pub async fn submit(
     // Show the form again with what was typed (except passwords) and a message.
     let code_ok = is_setup_code(&state, &form.code);
     let refill = || SetupTemplate {
-        site_type: form.site_type.clone(),
         blog_name: form.blog_name.clone(),
         name: form.name.clone(),
         email: form.email.clone(),
@@ -324,7 +306,7 @@ pub async fn submit(
     if !missing.is_empty() {
         return SetupTemplate {
             password_missing: missing.iter().map(|r| lang.t_owned(r.text)).collect(),
-            step: 3,
+            step: 2,
             ..refill()
         }
         .into_response();
@@ -332,12 +314,8 @@ pub async fn submit(
     if form.password != form.confirm_password {
         return render_error("The passwords don't match.");
     }
-    let Some(site_type) = site_types::ready(&form.site_type) else {
-        return render_error("Choose what you're making.");
-    };
     let user_id = match create_site(
         &state.pool,
-        site_type,
         &form.blog_name,
         &form.name,
         &form.email,
@@ -349,24 +327,22 @@ pub async fn submit(
         Err(e) => return render_error(&e),
     };
 
-    let _ = crate::db::settings::save(&state.pool, &[("language", lang.code().to_string())]).await;
-    let _ = sqlx::query("UPDATE users SET language = ? WHERE id = ?")
-        .bind(lang.code())
-        .bind(user_id)
-        .execute(&state.pool)
-        .await;
-
-    let added =
-        crate::services::themes::starter::install(&state.pool, site_type.theme, user_id).await;
-    tracing::info!(
-        "Started a {} site with {added} sample posts and pages",
-        site_type.id
-    );
+    let mut values = vec![("language", lang.code().to_string())];
+    if form.timezone.parse::<chrono_tz::Tz>().is_ok() {
+        values.push(("timezone", form.timezone.clone()));
+    }
+    // The owner's admin panel follows the site's language ("Same as the site"
+    // in Profile), so changing it in Settings changes both.
+    let _ = crate::db::settings::save(&state.pool, &values).await;
 
     state.setup_pending.store(false, Ordering::Release);
     crate::app::security::log_event("setup_completed", &[("user", form.email.trim())]);
     // A brand-new account starts at session version 0.
     super::auth::sign_in(&session, user_id, 0).await;
+    // The Dashboard says "Your site is ready" once (see dashboard.rs).
+    let _ = session
+        .insert(super::dashboard::SESSION_WELCOME, true)
+        .await;
 
-    Redirect::to("/admin?welcome=1").into_response()
+    Redirect::to("/admin").into_response()
 }

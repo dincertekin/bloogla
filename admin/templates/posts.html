@@ -21,7 +21,7 @@
     </a>
 </div>
 
-<nav class="filter-tabs" aria-label="{{ me.t("Filter by status") }}">
+<nav class="filter-tabs" id="filter-tabs" data-live aria-label="{{ me.t("Filter by status") }}">
     {% for filter in filters %}
     <a href="{{ admin_path }}{% if !filter.value.is_empty() %}?status={{ filter.value }}{% endif %}"
         class="{% if filter.value == active_filter.as_str() %}active{% endif %}">

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+  <!-- Preview for Admin → Appearance: header, feed with thumbnails, topics. -->
+  <rect width="640" height="400" fill="#ffffff"/>
+  <rect x="0" y="0" width="640" height="44" fill="#ffffff"/>
+  <line x1="0" y1="44" x2="640" y2="44" stroke="#f2f2f2" stroke-width="2"/>
+  <text x="24" y="30" font-family="Georgia, serif" font-weight="700" font-size="20" fill="#242424">Story</text>
+  <rect x="96" y="12" width="150" height="20" rx="10" fill="#f2f2f2"/>
+  <g fill="#242424">
+    <rect x="24" y="76" width="12" height="12" rx="6" fill="#e6e6e6"/>
+    <rect x="42" y="78" width="70" height="8" rx="2" fill="#6b6b6b"/>
+    <rect x="24" y="98" width="300" height="16" rx="3"/>
+    <rect x="24" y="122" width="250" height="16" rx="3"/>
+    <rect x="24" y="148" width="320" height="8" rx="2" fill="#b3b3b3"/>
+    <rect x="24" y="162" width="280" height="8" rx="2" fill="#b3b3b3"/>
+  </g>
+  <rect x="368" y="92" width="80" height="54" fill="#d9e8d8"/>
+  <line x1="24" y1="196" x2="448" y2="196" stroke="#f2f2f2" stroke-width="2"/>
+  <g fill="#242424">
+    <rect x="24" y="220" width="12" height="12" rx="6" fill="#e6e6e6"/>
+    <rect x="42" y="222" width="60" height="8" rx="2" fill="#6b6b6b"/>
+    <rect x="24" y="242" width="280" height="16" rx="3"/>
+    <rect x="24" y="268" width="320" height="8" rx="2" fill="#b3b3b3"/>
+    <rect x="24" y="282" width="260" height="8" rx="2" fill="#b3b3b3"/>
+  </g>
+  <rect x="368" y="236" width="80" height="54" fill="#e8e1d8"/>
+  <line x1="472" y1="44" x2="472" y2="400" stroke="#f2f2f2" stroke-width="2"/>
+  <rect x="496" y="76" width="90" height="10" rx="2" fill="#242424"/>
+  <g fill="#f2f2f2">
+    <rect x="496" y="100" width="54" height="22" rx="11"/>
+    <rect x="556" y="100" width="64" height="22" rx="11"/>
+    <rect x="496" y="130" width="70" height="22" rx="11"/>
+    <rect x="572" y="130" width="48" height="22" rx="11"/>
+  </g>
+  <rect x="24" y="330" width="96" height="28" rx="14" fill="#1a8917"/>
+</svg>

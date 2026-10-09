@@ -13,6 +13,9 @@ mod i18n;
 mod server;
 mod services;
 
+#[cfg(test)]
+mod tests;
+
 use commands::Command;
 
 #[tokio::main]

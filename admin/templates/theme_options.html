@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
-{% block title %}{{ me.tv("Customize {name}", theme.meta.name) }}{% endblock %}
+{% block title %}{{ me.t("Appearance") }}{% endblock %}
 {% block content %}
+{% if other_themes %}
 <a href="/admin/themes" class="back-link">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -8,19 +9,24 @@
     </svg>
     {{ me.t("All themes") }}
 </a>
+{% endif %}
 
 <div class="page-header">
     <div>
-        <h1>{{ me.tv("Customize {name}", theme.meta.name) }}</h1>
-        <p>{{ me.t("Options this theme offers. Changes show on your site as soon as you save.") }}</p>
+        <h1>{{ me.t("Appearance") }}</h1>
+        <p>{{ me.t("How your site looks. Changes show on your site as soon as you save.") }}</p>
     </div>
+    <a href="/" class="btn btn-secondary" target="_blank">{{ me.t("View Site") }}</a>
 </div>
 
-{% if let Some((kind, text)) = message %}
-<div class="alert alert-{{ kind }}">{{ text }}</div>
-{% endif %}
+<!-- Saving swaps in the form from the page the server answers with (htmx,
+     hx-select), so messages and field errors show without a reload. -->
+<form method="POST" action="/admin/themes/{{ theme.id }}/options" class="card" id="theme-options-form"
+    hx-post="/admin/themes/{{ theme.id }}/options" hx-target="this" hx-select="#theme-options-form" hx-swap="outerHTML">
+    {% if let Some((kind, text)) = message %}
+    <div class="alert alert-{{ kind }}">{{ text }}</div>
+    {% endif %}
 
-<form method="POST" action="/admin/themes/{{ theme.id }}/options" class="card">
     {% if fields.is_empty() %}
     <p class="text-secondary">{{ me.t("This theme has no options.") }}</p>
     {% endif %}

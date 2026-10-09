@@ -1,0 +1,18 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+{# A tag is shown like a newspaper section. #}
+<header class="section-header">
+    <h1 class="section-name">{{ tag_name }}</h1>
+</header>
+
+{% for post in posts %}
+{% include "templates/river_item.html" %}
+{% else %}
+<p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
+{% endfor %}
+
+{% include "templates/pagination.html" %}
+{% endblock %}

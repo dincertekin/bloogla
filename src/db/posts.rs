@@ -3,12 +3,12 @@
 //!
 //! Pages are rows in the same `posts` table with `is_page = 1`.
 //!
-//! The admin editor and the JSON API both save through [`create`] and
-//! [`update`], so the rules about who may change what live in one place.
+//! The admin editor saves through [`create`] and [`update`], which also hold
+//! the rules about who may change what.
 
 use crate::app::models::{CurrentUser, Post, PostForm};
 use crate::content::text::slugify;
-use crate::db::{fields, or_log, tags};
+use crate::db::{or_log, tags};
 
 use sqlx::SqlitePool;
 
@@ -47,12 +47,9 @@ const RESERVED_SLUGS: &[&str] = &[
     "search",
     "setup",
     "static",
-    "subscribe",
     "tag",
     "theme-assets",
-    "unsubscribe",
     "uploads",
-    "webmention",
 ];
 
 /// A post or page in any status.
@@ -80,40 +77,26 @@ pub async fn find_public(pool: &SqlitePool, slug: &str, is_page: bool) -> Option
     )
 }
 
-/// Pages visitors may see, with their tags and fields, ordered for menus and
-/// sidebars: by the `order` custom field (as a number), then by title.
+/// Pages visitors may see, for the menu editor in Settings:
+/// in the order they were published (oldest first), so a new page goes last.
 pub async fn public_pages(pool: &SqlitePool) -> Vec<Post> {
-    let mut pages: Vec<Post> = or_log(
+    or_log(
         sqlx::query_as::<_, Post>(&format!(
-            "{POST_SELECT} WHERE is_page = 1 AND {PUBLIC_POST_FILTER}"
+            "{POST_SELECT} WHERE is_page = 1 AND {PUBLIC_POST_FILTER}
+             ORDER BY published_at, title COLLATE NOCASE"
         ))
         .fetch_all(pool)
         .await,
         "list public pages",
-    );
-    load_tags_and_fields(pool, &mut pages).await;
-    let order = |page: &Post| {
-        page.fields
-            .get("order")
-            .and_then(|o| o.trim().parse::<f64>().ok())
-            .unwrap_or(f64::MAX)
-    };
-    pages.sort_by(|a, b| {
-        order(a)
-            .total_cmp(&order(b))
-            .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
-    });
-    pages
+    )
 }
 
-/// Fill in `tags` and `fields` for several posts with two queries in total.
-pub async fn load_tags_and_fields(pool: &SqlitePool, posts: &mut [Post]) {
+/// Fill in `tags` for several posts with one query.
+pub async fn load_tags(pool: &SqlitePool, posts: &mut [Post]) {
     let ids: Vec<i64> = posts.iter().map(|p| p.id).collect();
     let mut tag_map = tags::for_posts(pool, &ids).await;
-    let mut field_map = fields::for_posts(pool, &ids).await;
     for post in posts {
         post.tags = tag_map.remove(&post.id).unwrap_or_default();
-        post.fields = field_map.remove(&post.id).unwrap_or_default();
     }
 }
 
@@ -178,7 +161,8 @@ pub async fn create(
         .await
         .map_err(|e| database_error("generate slug", e))?;
 
-    let post = form.to_post(0, is_page, Some(me.id), slug);
+    let tz = crate::db::settings::load(pool).await.timezone;
+    let post = form.to_post(0, is_page, Some(me.id), slug, tz);
     let id = sqlx::query(
         "INSERT INTO posts (title, slug, content, cover_image, status, published_at, is_page,
                             author_id)
@@ -197,8 +181,8 @@ pub async fn create(
     .map_err(|e| database_error("insert post", e))?
     .last_insert_rowid();
 
-    tags::set_for_post(pool, id, &form.tag_ids).await;
-    fields::set_for_post(pool, id, &form.fields()).await;
+    let tag_ids = tags::with_new(pool, &form.tag_ids, &form.new_tags).await;
+    tags::set_for_post(pool, id, &tag_ids).await;
     Ok(id)
 }
 
@@ -237,7 +221,8 @@ pub async fn update(
         _ => old_slug.clone(),
     };
 
-    let post = form.to_post(id, is_page, author_id, slug);
+    let tz = crate::db::settings::load(pool).await.timezone;
+    let post = form.to_post(id, is_page, author_id, slug, tz);
     if old_title != title || old_content != post.content {
         save_revision(pool, id, &old_title, &old_content).await;
     }
@@ -273,8 +258,8 @@ pub async fn update(
         .await;
     }
 
-    tags::set_for_post(pool, id, &form.tag_ids).await;
-    fields::set_for_post(pool, id, &form.fields()).await;
+    let tag_ids = tags::with_new(pool, &form.tag_ids, &form.new_tags).await;
+    tags::set_for_post(pool, id, &tag_ids).await;
     Ok(())
 }
 

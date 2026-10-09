@@ -92,9 +92,15 @@ pub fn to_plain_text(markdown: &str) -> String {
             NodeValue::Text(t) => text.push_str(t),
             NodeValue::Code(c) => text.push_str(&c.literal),
             NodeValue::SoftBreak | NodeValue::LineBreak => text.push(' '),
+            // A new block: end the one before as a sentence, so headings and
+            // list items don't run into the next text ("The plan. Keep it small.").
             NodeValue::Paragraph | NodeValue::Heading(_) | NodeValue::Item(_)
-                if !text.is_empty() && !text.ends_with(' ') =>
+                if !text.trim_end().is_empty() =>
             {
+                text.truncate(text.trim_end().len());
+                if !text.ends_with(['.', '!', '?', ':', ';', '…']) {
+                    text.push('.');
+                }
                 text.push(' ');
             }
             _ => {}
@@ -105,7 +111,7 @@ pub fn to_plain_text(markdown: &str) -> String {
 
 /// Plain-text excerpt of a Markdown document, cut at a word boundary.
 pub fn excerpt(markdown: &str, max_chars: usize) -> String {
-    let text = super::shortcodes::strip(&to_plain_text(markdown));
+    let text = super::shortcodes::strip(&to_plain_text(beginning(markdown, max_chars * 20)));
     if text.chars().count() <= max_chars {
         return text;
     }
@@ -120,17 +126,54 @@ pub fn excerpt(markdown: &str, max_chars: usize) -> String {
     )
 }
 
+/// The start of a long document, enough for an excerpt: about `limit`
+/// characters, cut at a paragraph break when there's one. Lists of posts
+/// show many excerpts, and parsing whole long posts for each was slow.
+fn beginning(markdown: &str, limit: usize) -> &str {
+    let Some((end, _)) = markdown.char_indices().nth(limit) else {
+        return markdown; // Short enough already.
+    };
+    let head = &markdown[..end];
+    match head.rfind("\n\n") {
+        Some(i) if i > limit / 2 => &head[..i],
+        _ => head,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn excerpts_of_long_posts_only_read_the_beginning() {
+        let section = "A first paragraph with **bold** words. ".repeat(10)
+            + "\n\n"
+            + &"Another paragraph that goes on. ".repeat(20)
+            + "\n\n";
+        let long = section.repeat(200);
+        assert_eq!(excerpt(&long, 200), {
+            let text = crate::content::shortcodes::strip(&to_plain_text(&long));
+            let cut: String = text.chars().take(200).collect();
+            let cut = &cut[..cut.rfind(' ').unwrap()];
+            format!(
+                "{}…",
+                cut.trim_end_matches(|c: char| c.is_ascii_punctuation())
+            )
+        });
+        assert_eq!(beginning("short", 100), "short");
+    }
+
+    #[test]
     fn excerpt_strips_markup_and_cuts_on_words() {
         assert_eq!(
             excerpt("# Title\n\nSome **bold** `code`.", 100),
-            "Title Some bold code."
+            "Title. Some bold code."
         );
         assert_eq!(excerpt("one two three four", 9), "one two…");
+        assert_eq!(
+            excerpt("Is it fast?\n\n- One binary\n- One database", 100),
+            "Is it fast? One binary. One database"
+        );
     }
 
     #[test]

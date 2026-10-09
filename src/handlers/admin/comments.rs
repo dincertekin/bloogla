@@ -19,8 +19,6 @@ use std::collections::HashMap;
 /// A comment in the moderation queue.
 pub struct CommentRow {
     pub id: i64,
-    /// Set for webmentions: the page that linked to the post.
-    pub source_url: Option<String>,
     pub author: String,
     pub email: String,
     /// Escaped text with paragraphs.
@@ -52,7 +50,6 @@ struct QueueRow {
     created_at: String,
     post_title: String,
     slug: String,
-    source_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -90,7 +87,7 @@ pub async fn page(
     let rows: Vec<QueueRow> = or_log(
         sqlx::query_as(
             "SELECT c.id, c.author_name, c.author_email, c.content, c.created_at,
-                    p.title AS post_title, p.slug, c.source_url
+                    p.title AS post_title, p.slug
              FROM comments c JOIN posts p ON p.id = c.post_id
              WHERE c.status = ? ORDER BY c.id DESC LIMIT 200",
         )
@@ -99,6 +96,7 @@ pub async fn page(
         .await,
         "list comments",
     );
+    let tz = settings::load(&state.pool).await.timezone;
     let comments = rows
         .into_iter()
         .map(|row| CommentRow {
@@ -106,13 +104,12 @@ pub async fn page(
             author: row.author_name,
             email: row.author_email,
             html: paragraphs(&row.content),
-            date: display_datetime(me.lang, &row.created_at),
+            date: display_datetime(me.lang, tz, &row.created_at),
             post_link: format!(
                 r#"<a href="{}#comments" target="_blank" style="color: inherit">{}</a>"#,
                 post_path(&row.slug, false),
                 escape_html(&row.post_title)
             ),
-            source_url: row.source_url,
         })
         .collect();
 

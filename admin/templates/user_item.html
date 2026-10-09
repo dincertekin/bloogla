@@ -5,7 +5,7 @@
     <div class="row-main">
         <span class="row-title">{% if user.name.is_empty() %}{{ user.email }}{% else %}{{ user.name }}{% endif %}</span>
         {% if user.id == me.id %}<span class="badge badge-scheduled">{{ me.t("You") }}</span>{% endif %}
-        <div class="row-meta">
+        <div class="row-meta" id="user-{{ user.id }}-meta" data-live>
             <span>{{ user.email }}</span>
             <span>{{ me.count(user.post_count, "{n} post", "{n} posts") }}</span>
             {% if user.two_factor %}<span>{{ me.t("Two-factor login on") }}</span>{% endif %}
@@ -25,11 +25,13 @@
         </select>
         <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/users/{{ user.id }}/password"
             hx-target="#user-{{ user.id }}-status">{{ me.t("New password") }}</button>
-        {% if user.two_factor %}
-        <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/users/{{ user.id }}/two-factor/off"
-            hx-target="#user-{{ user.id }}-status"
-            hx-confirm="{{ me.t("Turn off two-factor login for this person? Do this only if they lost their phone and recovery codes.") }}">{{ me.t("Turn off two-factor") }}</button>
-        {% endif %}
+        <span id="user-{{ user.id }}-two-factor" data-live>
+            {% if user.two_factor %}
+            <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/users/{{ user.id }}/two-factor/off"
+                hx-target="#user-{{ user.id }}-status"
+                hx-confirm="{{ me.t("Turn off two-factor login for this person? Do this only if they lost their phone and recovery codes.") }}">{{ me.t("Turn off two-factor") }}</button>
+            {% endif %}
+        </span>
         <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/users/{{ user.id }}"
             data-delete-target="#user-{{ user.id }}"
             data-confirm-title="{% if user.name.is_empty() %}{{ me.tv("Remove {name}?", user.email) }}{% else %}{{ me.tv("Remove {name}?", user.name) }}{% endif %}"

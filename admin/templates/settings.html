@@ -13,6 +13,8 @@
     <a href="#site" role="tab" data-tab="site">{{ me.t("Site") }}</a>
     <a href="#reading" role="tab" data-tab="reading">{{ me.t("Reading") }}</a>
     <a href="#email" role="tab" data-tab="email">{{ me.t("Email") }}</a>
+    <a href="#backup" role="tab" data-tab="backup">{{ me.t("Backup") }}</a>
+    <a href="#updates" role="tab" data-tab="updates">{{ me.t("Updates") }}</a>
 </nav>
 
 <div data-tab-panel="site">
@@ -35,6 +37,17 @@
             <span class="form-hint">{{ me.t("For your site, emails, and anyone who hasn't picked their own.") }}</span>
         </div>
 
+        <div class="form-group" style="max-width: 320px">
+            <label for="timezone">{{ me.t("Time zone") }}</label>
+            <select id="timezone" name="timezone" class="form-control">
+                {% for zone in timezones %}
+                <option value="{{ zone }}" {% if self.is_timezone(zone) %}selected{% endif %}>{{ zone.replace("_", " ") }}</option>
+                {% endfor %}
+            </select>
+            <span class="form-hint">{{ me.t("Dates on your site and publish times use it.") }}
+                <button type="button" class="link-button" id="timezone-detect" hidden>{{ me.t("Use my computer's time zone") }}</button></span>
+        </div>
+
         <div class="form-group">
             <label for="blog_description">{{ me.t("Description") }}</label>
             <textarea id="blog_description" name="blog_description" rows="2"
@@ -55,13 +68,6 @@
                     <option value="Organization" {% if publisher_type == "Organization" %}selected{% endif %}>{{ me.t("An organization") }}</option>
                 </select>
             </div>
-        </div>
-
-        <div class="form-group">
-            <label for="blog_keywords">{{ me.t("Keywords") }}</label>
-            <input type="text" id="blog_keywords" name="blog_keywords" class="form-control"
-                value="{{ blog_keywords }}" placeholder="{{ me.t("travel, photography, food") }}" />
-            <span class="form-hint">{{ me.t("Comma-separated.") }}</span>
         </div>
 
         <div class="form-group">
@@ -97,9 +103,40 @@
 
         <div class="form-group">
             <label for="nav_menu">{{ me.t("Menu") }}</label>
+            <span class="form-hint">{{ me.t("The links at the top of your site. Pick one of your pages or tags, or paste any web address.") }}</span>
+            <!-- The menu editor (admin/static/js/settings.js) fills this in. Without
+                 JavaScript, the text box is edited directly: one "Name | /address" per line. -->
             <textarea id="nav_menu" name="nav_menu" rows="4" class="form-control"
-                placeholder="About | /about&#10;Travel | /tag/travel&#10;GitHub | https://github.com/you">{{ nav_menu }}</textarea>
-            <span class="form-hint">{{ me.tv2("One link per line, written as {example1} or {example2}", "<code>Label | /path</code>", "<code>Label | https://…</code>")|safe }}</span>
+                placeholder="About | /about&#10;Travel | /tag/travel">{{ nav_menu }}</textarea>
+            <div id="menu-editor" class="menu-editor" hidden>
+                <ol id="menu-rows" class="menu-rows"></ol>
+                <p id="menu-empty" class="form-hint" hidden>{{ me.t("No links yet.") }}</p>
+                <button type="button" class="btn btn-secondary btn-sm" id="menu-add">{{ me.t("Add a link") }}</button>
+            </div>
+            <datalist id="menu-links">
+                {% for (name, url) in menu_suggestions %}
+                <option value="{{ url }}" label="{{ name }}"></option>
+                {% endfor %}
+            </datalist>
+            <template id="menu-row-template">
+                <li class="menu-row">
+                    <input type="text" class="form-control" data-menu-label maxlength="60"
+                        placeholder="{{ me.t("Name") }}" aria-label="{{ me.t("Name") }}" />
+                    <input type="text" class="form-control" data-menu-url list="menu-links"
+                        placeholder="{{ me.t("Page or address") }}" aria-label="{{ me.t("Page or address") }}" />
+                    <span class="menu-row-buttons">
+                        <button type="button" class="btn btn-ghost btn-sm" data-menu-move="-1" aria-label="{{ me.t("Move up") }}" title="{{ me.t("Move up") }}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-menu-move="1" aria-label="{{ me.t("Move down") }}" title="{{ me.t("Move down") }}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-menu-remove aria-label="{{ me.t("Remove") }}" title="{{ me.t("Remove") }}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                    </span>
+                </li>
+            </template>
         </div>
 
         <div class="form-row">
@@ -120,14 +157,6 @@
             <span class="form-hint">{{ me.t("Comments with many links always wait for approval.") }}</span>
         </div>
 
-        <label class="check-row" style="margin-bottom: 0.75rem">
-            <input type="checkbox" name="send_webmentions" value="1" {% if send_webmentions %}checked{% endif %} />
-            <span>
-                {{ me.t("Let sites know when you link to them") }}
-                <small>{{ me.t("Sends a webmention to linked blogs that support it. Mentions of your posts from other blogs show up under Comments.") }}</small>
-            </span>
-        </label>
-
         <label class="check-row" style="margin-bottom: 1.25rem">
             <input type="checkbox" name="show_views" value="1" {% if show_views %}checked{% endif %} />
             <span>
@@ -147,35 +176,58 @@
     <section class="card">
         <h2 class="section-title">{{ me.t("Email") }}</h2>
         <p class="form-hint" style="margin-bottom: 1.25rem">
-            {{ me.t("Needed for comment notifications and the newsletter. Use the SMTP details from your email provider (for example Fastmail, Postmark, Amazon SES or your host).") }}
+            {{ me.t("Lets your site send emails: comment notifications and “forgot password” links. It sends them from an email account you already have.") }}
         </p>
 
-        <div class="form-row">
-            <div class="form-group" style="flex-grow: 3">
-                <label for="smtp_host">{{ me.t("Mail server") }}</label>
-                <input type="text" id="smtp_host" name="smtp_host" class="form-control" value="{{ email.host }}"
-                    placeholder="smtp.example.com" autocomplete="off" />
-            </div>
-            <div class="form-group">
-                <label for="smtp_port">{{ me.t("Port") }}</label>
-                <input type="number" id="smtp_port" name="smtp_port" class="form-control" value="{{ email.port }}"
-                    min="1" max="65535" />
-            </div>
-            <div class="form-group">
-                <label for="smtp_security">{{ me.t("Security") }}</label>
-                <select id="smtp_security" name="smtp_security" class="form-control">
-                    <option value="starttls" {% if email.security == "starttls" %}selected{% endif %}>{{ me.t("STARTTLS (587)") }}</option>
-                    <option value="tls" {% if email.security == "tls" %}selected{% endif %}>{{ me.t("TLS (465)") }}</option>
-                    <option value="none" {% if email.security == "none" %}selected{% endif %}>{{ me.t("None (local only)") }}</option>
-                </select>
-            </div>
+        <!-- Choosing a provider fills in the mail server details (settings.js). -->
+        <div class="form-group" id="provider-group" hidden>
+            <label for="smtp_provider">{{ me.t("Your email provider") }}</label>
+            <select id="smtp_provider" class="form-control" style="max-width: 360px">
+                <option value="">{{ me.t("Choose…") }}</option>
+                <option value="gmail" data-host="smtp.gmail.com" data-port="587" data-security="starttls" data-hint="app-password">Gmail / Google Workspace</option>
+                <option value="icloud" data-host="smtp.mail.me.com" data-port="587" data-security="starttls" data-hint="app-password">iCloud Mail</option>
+                <option value="yahoo" data-host="smtp.mail.yahoo.com" data-port="465" data-security="tls" data-hint="app-password">Yahoo Mail</option>
+                <option value="yandex" data-host="smtp.yandex.com" data-port="465" data-security="tls" data-hint="app-password">Yandex Mail</option>
+                <option value="zoho" data-host="smtp.zoho.com" data-port="465" data-security="tls" data-hint="app-password">Zoho Mail</option>
+                <option value="fastmail" data-host="smtp.fastmail.com" data-port="465" data-security="tls" data-hint="app-password">Fastmail</option>
+                <option value="brevo" data-host="smtp-relay.brevo.com" data-port="587" data-security="starttls" data-hint="smtp-key">Brevo</option>
+                <option value="other">{{ me.t("Other (I have the server details)") }}</option>
+            </select>
+            <span class="form-hint" data-provider-hint="app-password" hidden>{{ me.t("Use an app password, not your normal password. You make one in your email account's security settings (it usually needs two-step verification turned on).") }}</span>
+            <span class="form-hint" data-provider-hint="smtp-key" hidden>{{ me.t("Use the SMTP key from your Brevo account (SMTP & API), and your Brevo login email as the username.") }}</span>
         </div>
+
+        <div class="form-group" data-server-field>
+            <label for="smtp_host">{{ me.t("Mail server") }}</label>
+            <input type="text" id="smtp_host" name="smtp_host" class="form-control" value="{{ email.host }}"
+                placeholder="smtp.example.com" autocomplete="off" style="max-width: 360px" />
+        </div>
+
+        <details class="advanced-fields" data-server-field>
+            <summary>{{ me.t("Advanced") }}</summary>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="smtp_port">{{ me.t("Port") }}</label>
+                    <input type="number" id="smtp_port" name="smtp_port" class="form-control" value="{{ email.port }}"
+                        min="1" max="65535" />
+                </div>
+                <div class="form-group">
+                    <label for="smtp_security">{{ me.t("Security") }}</label>
+                    <select id="smtp_security" name="smtp_security" class="form-control">
+                        <option value="starttls" {% if email.security == "starttls" %}selected{% endif %}>{{ me.t("STARTTLS (587)") }}</option>
+                        <option value="tls" {% if email.security == "tls" %}selected{% endif %}>{{ me.t("TLS (465)") }}</option>
+                        <option value="none" {% if email.security == "none" %}selected{% endif %}>{{ me.t("None (local only)") }}</option>
+                    </select>
+                </div>
+            </div>
+        </details>
 
         <div class="form-row">
             <div class="form-group">
                 <label for="smtp_username">{{ me.t("Username") }}</label>
                 <input type="text" id="smtp_username" name="smtp_username" class="form-control"
                     value="{{ email.username }}" autocomplete="off" />
+                <span class="form-hint">{{ me.t("Usually your full email address.") }}</span>
             </div>
             <div class="form-group">
                 <label for="smtp_password">{{ me.t("Password") }}</label>
@@ -191,16 +243,9 @@
                 placeholder="hello@example.com" style="max-width: 360px" />
         </div>
 
-        <label class="check-row" style="margin-bottom: 0.75rem">
+        <label class="check-row" style="margin-bottom: 1.25rem">
             <input type="checkbox" name="notify_comments" value="1" {% if email.notify_comments %}checked{% endif %} />
             <span>{{ me.t("Email admins and editors when a comment is waiting") }}</span>
-        </label>
-        <label class="check-row" style="margin-bottom: 1.25rem">
-            <input type="checkbox" name="newsletter" value="1" {% if email.newsletter %}checked{% endif %} />
-            <span>
-                {{ me.t("Newsletter") }}
-                <small>{{ me.t("Shows a sign-up form on your site. You choose which posts to email when publishing.") }}</small>
-            </span>
         </label>
 
         <div class="form-status"></div>
@@ -211,6 +256,52 @@
         </div>
     </section>
 </form>
+</div>
+
+<div data-tab-panel="backup">
+<section class="card">
+    <h2 class="section-title">{{ me.t("Backup") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Download everything on your site (posts, pages, settings, people and images) as one .zip file, and keep it somewhere safe. Bloogla also saves a copy of the database on the server every day.") }}
+    </p>
+    <a href="/admin/backup.zip" class="btn btn-primary" download>{{ me.t("Download backup") }}</a>
+    <p class="form-hint" style="margin-top: 1rem">
+        {{ me.t("To restore it, stop Bloogla, unpack the .zip into the folder Bloogla runs in, and start it again. On another server, enter the mail server password again and turn two-factor login back on: both are locked with a key that never leaves this server.") }}
+    </p>
+</section>
+</div>
+
+<div data-tab-panel="updates">
+<section class="card">
+    <h2 class="section-title">{{ me.t("Updates") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("New versions of Bloogla bring fixes and improvements. They're published on GitHub.") }}
+    </p>
+    {% include "update_status.html" %}
+    <button type="button" class="btn btn-secondary" hx-post="/admin/updates/check" hx-target="#update-status"
+        hx-swap="outerHTML">{{ me.t("Check for updates") }}</button>
+
+    <form hx-post="/admin/settings/updates" hx-target="find .form-status" hx-swap="innerHTML" style="margin-top: 1.5rem">
+        <label class="check-row" style="margin-bottom: 0.75rem">
+            <input type="checkbox" name="check_daily" value="1" data-check-daily {% if update.check_daily %}checked{% endif %} />
+            <span>
+                {{ me.t("Check for new versions every day") }}
+                <small>{{ me.t("New versions show on the Dashboard. Only GitHub is asked; it sees your server's address and Bloogla's version.") }}</small>
+            </span>
+        </label>
+        {% if update.can_update_itself() %}
+        <label class="check-row" style="margin-bottom: 1.25rem">
+            <input type="checkbox" name="install_auto" value="1" data-install-auto {% if update.install_auto %}checked{% endif %} />
+            <span>
+                {{ me.t("Install new versions automatically") }}
+                <small>{{ me.t("Only versions signed by Bloogla are installed. The site restarts for a few seconds each time.") }}</small>
+            </span>
+        </label>
+        {% endif %}
+        <div class="form-status"></div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
+    </form>
+</section>
 </div>
 
 {% endblock %}

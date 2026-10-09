@@ -12,7 +12,7 @@
 <div class="alert alert-info">{{ me.tv("Comments are turned off, so readers can't add new ones. Change this in {settings}.", me.link("/admin/settings", "Settings"))|safe }}</div>
 {% endif %}
 
-<nav class="filter-tabs" aria-label="{{ me.t("Filter by status") }}">
+<nav class="filter-tabs" id="filter-tabs" data-live aria-label="{{ me.t("Filter by status") }}">
     {% for filter in filters %}
     <a href="/admin/comments?status={{ filter.value }}"
         class="{% if filter.value == active_filter.as_str() %}active{% endif %}">
@@ -27,10 +27,6 @@
         <div class="row-main">
             <div>
                 <strong>{{ comment.author }}</strong>
-                {% if let Some(source) = comment.source_url %}
-                <span class="badge badge-scheduled">{{ me.t("Webmention") }}</span>
-                <a href="{{ source }}" target="_blank" rel="noopener" class="form-hint">{{ source }}</a>
-                {% endif %}
                 {% if !comment.email.is_empty() %}<span class="form-hint">{{ comment.email }}</span>{% endif %}
             </div>
             <div class="prose" style="font-size: 0.9rem; margin: 0.35rem 0">{{ comment.html|safe }}</div>
@@ -42,14 +38,14 @@
         <div class="row-actions">
             {% if active_filter != "approved" %}
             <button type="button" class="btn btn-secondary btn-sm" hx-post="/admin/comments/{{ comment.id }}/approve"
-                hx-target="#comment-{{ comment.id }}" hx-swap="delete">{{ me.t("Approve") }}</button>
+                hx-target="#comment-{{ comment.id }}" hx-swap="delete swap:200ms">{{ me.t("Approve") }}</button>
             {% endif %}
             {% if active_filter != "spam" %}
             <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/comments/{{ comment.id }}/spam"
-                hx-target="#comment-{{ comment.id }}" hx-swap="delete">{{ me.t("Spam") }}</button>
+                hx-target="#comment-{{ comment.id }}" hx-swap="delete swap:200ms">{{ me.t("Spam") }}</button>
             {% else %}
             <button type="button" class="btn btn-ghost btn-sm" hx-post="/admin/comments/{{ comment.id }}/pending"
-                hx-target="#comment-{{ comment.id }}" hx-swap="delete">{{ me.t("Not spam") }}</button>
+                hx-target="#comment-{{ comment.id }}" hx-swap="delete swap:200ms">{{ me.t("Not spam") }}</button>
             {% endif %}
             <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/comments/{{ comment.id }}"
                 data-delete-target="#comment-{{ comment.id }}" data-confirm-title="{{ me.t("Delete this comment?") }}"

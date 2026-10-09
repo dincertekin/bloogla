@@ -1,12 +1,10 @@
 //! The public website: pages drawn by the active theme, feeds, and the forms
-//! visitors can send (comments, newsletter sign-ups, webmentions).
+//! visitors can send (comments).
 
-mod analytics;
+pub mod analytics;
 pub mod comments;
 pub mod feeds;
-pub mod newsletter;
 pub mod pages;
-pub mod webmention;
 
 use crate::app::state::AppState;
 use crate::content::seo::{render_head, SeoKind, SeoMeta, SiteInfo};
@@ -19,34 +17,15 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// Form submissions (comments, sign-ups, webmentions) a visitor may send per
+/// Form submissions (comments) a visitor may send per
 /// [`RATE_WINDOW`].
 const RATE_LIMIT: usize = 5;
 const RATE_WINDOW: Duration = Duration::from_secs(10 * 60);
 
-/// A published page for theme menus and sidebars (`pages` in templates).
-#[derive(serde::Serialize)]
-struct PageLink {
-    title: String,
-    url: String,
-    slug: String,
-    fields: crate::db::fields::Fields,
-}
-
-/// Context every theme template receives: site info, menu, tags, pages and
-/// default SEO tags.
+/// Context every theme template receives: site info, menu, tags and default
+/// SEO tags.
 async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
     let tags = crate::db::tags::all(&state.pool).await;
-    let pages: Vec<PageLink> = crate::db::posts::public_pages(&state.pool)
-        .await
-        .into_iter()
-        .map(|page| PageLink {
-            url: crate::server::routes::post_path(&page.slug, true),
-            title: page.title,
-            slug: page.slug,
-            fields: page.fields,
-        })
-        .collect();
     let seo_head = seo_head(
         state,
         site,
@@ -66,10 +45,8 @@ async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
     context.insert("base_url", &state.config.base_url);
     context.insert("menu", &site.menu());
     context.insert("tags", &tags);
-    context.insert("pages", &pages);
     context.insert("search_query", "");
     context.insert("show_views", &site.show_views);
-    context.insert("newsletter_enabled", &site.newsletter);
     context.insert("lang", site.language.code());
     context.insert("t", &site.language.theme_strings());
     context.insert("seo_head", &seo_head);
@@ -118,29 +95,6 @@ pub async fn not_found(state: &AppState) -> Response {
         StatusCode::NOT_FOUND,
     )
     .await
-}
-
-/// A short themed page with a title, a sentence, and optionally a one-button
-/// form `(action, token, label)`. Uses the theme's `message.html`.
-pub async fn render_message(
-    state: &AppState,
-    status: StatusCode,
-    title: &str,
-    text: &str,
-    button: Option<(&str, &str, &str)>,
-) -> Response {
-    let site = settings::load(&state.pool).await;
-    let lang = site.language;
-    let mut context = base_context(state, &site).await;
-    context.insert("seo_head", &noindex_head(state, &site));
-    context.insert("message_title", &lang.t_owned(title));
-    context.insert("message_text", &lang.t_owned(text));
-    if let Some((action, token, label)) = button {
-        context.insert("message_action", action);
-        context.insert("message_token", token);
-        context.insert("message_button", &lang.t_owned(label));
-    }
-    crate::services::themes::render(state, &["templates/message.html"], context, status).await
 }
 
 /// Recent form submissions per visitor address.

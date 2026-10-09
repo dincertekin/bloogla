@@ -14,9 +14,13 @@
 <div class="layout-grid">
     <section class="posts-list">
         {% if search_query %}
-        <h2 class="section-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h2>
+        <h1 class="section-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
         {% elif tag_name %}
-        <h2 class="section-title">{{ t.posts_tagged_with_hashtag | replace(from="{tag}", to=tag_name) }}</h2>
+        <h1 class="section-title">{{ t.posts_tagged_with_hashtag | replace(from="{tag}", to=tag_name) }}</h1>
+        {% else %}
+        {# The page's main heading, for search engines and screen readers;
+           the site name is already shown in the header. #}
+        <h1 class="visually-hidden">{{ blog_name }}</h1>
         {% endif %}
 
         {% for post in posts %}
@@ -29,11 +33,6 @@
     </section>
 
     <aside class="sidebar">
-        {% if newsletter_enabled %}
-        <div class="widget">
-            {% include "templates/subscribe.html" %}
-        </div>
-        {% endif %}
         {% if tags %}
         <div class="widget">
             <h3 class="widget-title">{{ t.tags }}</h3>

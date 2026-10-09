@@ -1,0 +1,30 @@
+{# One post in the feed (home, tags, search): text on the left, a small
+   picture on the right. #}
+<article class="feed-item">
+    <div class="feed-text">
+        {% if post.author_name %}
+        <p class="feed-author"><span class="avatar avatar-small" aria-hidden="true">{{ post.author_name | truncate(length=1, end="") | upper }}</span>{{ post.author_name }}</p>
+        {% endif %}
+        <h2 class="feed-title"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <p class="feed-excerpt">{{ post.content | safe }}</p>
+        <div class="feed-meta">
+            <time>{{ post.created_at }}</time>
+            <span aria-hidden="true">·</span>
+            <span>{{ t.n_min_read | replace(from="{n}", to=post.reading_time ~ "") }}</span>
+            {% if show_views and post.views > 0 %}
+            <span aria-hidden="true">·</span>
+            <span>{% if post.views == 1 %}{{ t.n1_view }}{% else %}{{ t.n_views | replace(from="{n}", to=post.views ~ "") }}{% endif %}</span>
+            {% endif %}
+            {% if post.tags %}
+            <a href="/tag/{{ post.tags.0.slug }}" class="topic topic-small">{{ post.tags.0.name }}</a>
+            {% endif %}
+        </div>
+    </div>
+    {% if post.cover_image %}
+    {# The title links to the post too, so keyboards and screen readers skip this link. #}
+    <a href="{{ post.url }}" class="feed-thumb" tabindex="-1" aria-hidden="true">
+        <img src="{% if post.cover_small %}{{ post.cover_small }}{% else %}{{ post.cover_image }}{% endif %}" alt=""
+            decoding="async" {% if loop.index > 3 %}loading="lazy"{% endif %} />
+    </a>
+    {% endif %}
+</article>

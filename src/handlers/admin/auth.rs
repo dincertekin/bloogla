@@ -7,7 +7,7 @@ use crate::db::settings;
 use crate::i18n::Lang;
 
 use askama::Template;
-use axum::extract::{ConnectInfo, Form, State};
+use axum::extract::{ConnectInfo, Form, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use serde::Deserialize;
@@ -22,6 +22,14 @@ use tower_sessions::Session;
 pub struct LoginTemplate {
     pub lang: Lang,
     pub error: Option<String>,
+    /// Good news to show above the form (e.g. after a password reset).
+    pub notice: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct LoginQuery {
+    /// Set after choosing a new password from an emailed link.
+    reset: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -85,10 +93,18 @@ fn failed_logins<T>(f: impl FnOnce(&mut FailedLogins) -> T) -> T {
 }
 
 /// GET /admin/login -> Sign-in form.
-pub async fn login_page(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn login_page(
+    State(state): State<AppState>,
+    Query(query): Query<LoginQuery>,
+) -> impl IntoResponse {
+    let lang = settings::load(&state.pool).await.language;
     LoginTemplate {
-        lang: settings::load(&state.pool).await.language,
+        lang,
         error: None,
+        notice: query.reset.map(|_| {
+            lang.t("Your new password is saved. Sign in with it.")
+                .to_string()
+        }),
     }
 }
 
@@ -116,6 +132,7 @@ pub async fn login(
                     )
                     .into(),
                 ),
+                notice: None,
             },
         )
             .into_response();
@@ -167,6 +184,7 @@ pub async fn login(
     LoginTemplate {
         lang,
         error: Some(lang.t("Invalid email or password.").into()),
+        notice: None,
     }
     .into_response()
 }

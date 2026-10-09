@@ -18,28 +18,6 @@ pub async fn all(pool: &SqlitePool) -> Vec<Tag> {
         .unwrap_or_default()
 }
 
-/// The id of the tag with this name (compared by slug, so "Rust" and "rust"
-/// are the same tag).
-pub async fn find_id(pool: &SqlitePool, name: &str) -> Option<i64> {
-    crate::db::or_log(
-        sqlx::query_scalar("SELECT id FROM tags WHERE slug = ?")
-            .bind(slugify(name))
-            .fetch_optional(pool)
-            .await,
-        "find tag",
-    )
-}
-
-/// Create a tag and return its id.
-pub async fn create(pool: &SqlitePool, name: &str) -> Result<i64, sqlx::Error> {
-    let result = sqlx::query("INSERT INTO tags (name, slug) VALUES (?, ?)")
-        .bind(name.trim())
-        .bind(slugify(name))
-        .execute(pool)
-        .await?;
-    Ok(result.last_insert_rowid())
-}
-
 pub async fn find_by_slug(pool: &SqlitePool, slug: &str) -> Option<Tag> {
     crate::db::or_log(
         sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags WHERE slug = ?")
@@ -73,6 +51,45 @@ pub async fn for_posts(pool: &SqlitePool, post_ids: &[i64]) -> HashMap<i64, Vec<
         map.entry(post_id).or_default().push(Tag { id, name, slug });
     }
     map
+}
+
+/// Longest tag name accepted, and the most new tags one save may create.
+const MAX_NAME_CHARS: usize = 50;
+const MAX_NEW_TAGS: usize = 20;
+
+/// `tag_ids` plus the tags named in `new_names` (typed in the editor; each
+/// entry may hold several names separated by commas). Tags that don't exist
+/// yet are created; a name that matches an existing tag ("rust" and "Rust")
+/// reuses it.
+pub async fn with_new(pool: &SqlitePool, tag_ids: &[i64], new_names: &[String]) -> Vec<i64> {
+    let mut ids = tag_ids.to_vec();
+    let names = new_names
+        .iter()
+        .flat_map(|entry| entry.split(','))
+        .map(|name| name.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|name| !name.is_empty())
+        .map(|name| name.chars().take(MAX_NAME_CHARS).collect::<String>())
+        .take(MAX_NEW_TAGS);
+    for name in names {
+        let slug = slugify(&name);
+        let _ = sqlx::query("INSERT OR IGNORE INTO tags (name, slug) VALUES (?, ?)")
+            .bind(&name)
+            .bind(&slug)
+            .execute(pool)
+            .await;
+        let id: Option<i64> = crate::db::or_log(
+            sqlx::query_scalar("SELECT id FROM tags WHERE slug = ? OR name = ?")
+                .bind(&slug)
+                .bind(&name)
+                .fetch_optional(pool)
+                .await,
+            "find new tag",
+        );
+        if let Some(id) = id.filter(|id| !ids.contains(id)) {
+            ids.push(id);
+        }
+    }
+    ids
 }
 
 /// Replace the tags of a post.

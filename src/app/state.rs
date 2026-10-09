@@ -19,4 +19,6 @@ pub struct AppState {
     /// The code browser setup needs, printed in the log as a setup link.
     /// Empty when setup isn't pending.
     pub setup_code: Arc<str>,
+    /// A newer Bloogla on GitHub, once the daily check found one.
+    pub newer_release: crate::services::updates::NewerRelease,
 }

@@ -13,7 +13,6 @@
     <a href="#about" role="tab" data-tab="about">{{ me.t("Profile") }}</a>
     <a href="#password" role="tab" data-tab="password">{{ me.t("Password") }}</a>
     <a href="#two-factor" role="tab" data-tab="two-factor">{{ me.t("Two-factor login") }}</a>
-    <a href="#tokens" role="tab" data-tab="tokens">{{ me.t("API tokens") }}</a>
 </nav>
 
 <div data-tab-panel="about">
@@ -113,27 +112,5 @@
 </section>
 </div>
 
-<div data-tab-panel="tokens">
-<section class="card">
-    <h2 class="section-title">{{ me.t("API tokens") }}</h2>
-    <p class="form-hint" style="margin-bottom: 1rem">
-        {{ me.tv("Let apps and scripts publish as you through the JSON API at {url}. A token can do what you can do, so keep it private.", format!("<code>{}/api</code>", self.base_url))|safe }}
-    </p>
-    <form class="upload-inline" hx-post="/admin/profile/tokens" hx-target="find .form-status" hx-swap="innerHTML"
-        data-reset-on-success>
-        <input type="text" name="name" class="form-control" placeholder="{{ me.t("What it's for, e.g. Phone app") }}"
-            maxlength="60" aria-label="{{ me.t("Token name") }}" />
-        <button type="submit" class="btn btn-secondary">{{ me.t("Create Token") }}</button>
-        <div class="form-status" style="flex-basis: 100%"></div>
-    </form>
-</section>
-
-<div id="token-list" class="item-list" data-empty-text="{{ me.t("No tokens yet.") }}" {% if tokens.is_empty() %}hidden{% endif %}>
-    {% for token in tokens %}
-    {% include "token_item.html" %}
-    {% endfor %}
-</div>
-<p class="empty-state" data-empty-for="token-list" {% if !tokens.is_empty() %}hidden{% endif %}>{{ me.t("No tokens yet.") }}</p>
-</div>
 <script src="/static/js/password.js"></script>
 {% endblock %}

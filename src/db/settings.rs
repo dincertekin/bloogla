@@ -47,7 +47,6 @@ pub struct Settings {
     // Site
     pub blog_name: String,
     pub blog_description: String,
-    pub blog_keywords: String,
     /// Who publishes the site, for search engines.
     pub publisher_name: String,
     /// `Person` or `Organization`.
@@ -56,8 +55,13 @@ pub struct Settings {
     pub site_icon: String,
     /// Language of the public site and emails.
     pub language: Lang,
+    /// The site's time zone: dates are shown and entered in it. They're
+    /// always stored in UTC.
+    pub timezone: chrono_tz::Tz,
     /// Folder name of the theme in use, e.g. `default`.
     pub active_theme: String,
+    /// The Dashboard's "Get your site ready" list was dismissed.
+    pub checklist_hidden: bool,
 
     // Reading
     pub posts_per_page: i64,
@@ -65,7 +69,6 @@ pub struct Settings {
     pub nav_menu: String,
     pub show_views: bool,
     pub comments: CommentMode,
-    pub send_webmentions: bool,
 
     // Email
     pub smtp_host: String,
@@ -76,8 +79,15 @@ pub struct Settings {
     pub smtp_password: String,
     /// Sender address.
     pub smtp_from: String,
-    pub newsletter: bool,
     pub notify_comments: bool,
+
+    // Updates (Settings → Updates)
+    /// Check GitHub for a new version once a day.
+    pub update_check_daily: bool,
+    /// Install what the daily check finds.
+    pub update_install_auto: bool,
+    /// When updates were last checked (`YYYY-MM-DD HH:MM:SS`, UTC), or empty.
+    pub update_last_checked: String,
 
     /// Theme options (`theme.<theme>.<name>` → value), see
     /// `services/themes/options.rs`.
@@ -98,12 +108,13 @@ impl Settings {
         Self {
             blog_name: text("blog_name", "Bloogla"),
             blog_description: text("blog_description", ""),
-            blog_keywords: text("blog_keywords", ""),
             publisher_name: text("publisher_name", ""),
             publisher_type: text("publisher_type", "Person"),
             site_icon: text("site_icon", ""),
             language: Lang::parse(&text("language", "en")).unwrap_or_default(),
+            timezone: text("timezone", "UTC").parse().unwrap_or(chrono_tz::UTC),
             active_theme: text("active_theme", "default"),
+            checklist_hidden: flag("checklist_hidden", false),
 
             posts_per_page: text("posts_per_page", "10")
                 .parse()
@@ -112,7 +123,6 @@ impl Settings {
             nav_menu: text("nav_menu", ""),
             show_views: flag("show_views", false),
             comments: CommentMode::parse(&text("comments", "moderated")),
-            send_webmentions: flag("send_webmentions", true),
 
             smtp_host: text("smtp_host", ""),
             smtp_port: text("smtp_port", "587").parse().unwrap_or(587),
@@ -125,8 +135,11 @@ impl Settings {
                 .and_then(|stored| crate::app::secrets::decrypt(stored))
                 .unwrap_or_default(),
             smtp_from: text("smtp_from", ""),
-            newsletter: flag("newsletter", false),
             notify_comments: flag("notify_comments", true),
+
+            update_check_daily: flag("update_check_daily", false),
+            update_install_auto: flag("update_install_auto", false),
+            update_last_checked: text("update_last_checked", ""),
 
             theme_options: rows
                 .iter()
@@ -255,6 +268,5 @@ mod tests {
         assert_eq!(settings.posts_per_page, 100);
         assert_eq!(settings.comments, CommentMode::Moderated);
         assert_eq!(settings.smtp_port, 587);
-        assert!(settings.send_webmentions);
     }
 }

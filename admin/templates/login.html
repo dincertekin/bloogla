@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
     <link rel="icon" href="data:,">
-    <title>{{ lang.t("Admin Login") }}</title>
+    <title>{{ lang.t("Sign in") }}</title>
     <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 
@@ -20,14 +21,11 @@
         </a>
 
         <div class="card">
-            <h2 style="
-                        margin-bottom: 1.5rem;
-                        text-align: center;
-                        font-size: 1.5rem;
-                        font-weight: 700;
-                    ">
-                {{ lang.t("Sign In") }}
-            </h2>
+            <h1 class="auth-title">{{ lang.t("Sign in") }}</h1>
+
+            {% if let Some(notice) = notice %}
+            <p class="alert alert-success" role="status">{{ notice }}</p>
+            {% endif %}
 
             {% if let Some(err) = error %}
             <p class="error-message" role="alert" style="text-align: center; font-weight: 500">
@@ -44,17 +42,21 @@
                 </div>
 
                 <div class="form-group" style="margin-bottom: 1.5rem">
-                    <label for="password">{{ lang.t("Password") }}</label>
+                    <div class="label-row">
+                        <label for="password">{{ lang.t("Password") }}</label>
+                        <a href="/admin/forgot-password" class="form-hint">{{ lang.t("Forgot password?") }}</a>
+                    </div>
                     <input type="password" id="password" name="password" class="form-control" placeholder="••••••••"
                         autocomplete="current-password" required />
                 </div>
 
                 <button type="submit" class="btn btn-primary" style="width: 100%">
-                    {{ lang.t("Login") }}
+                    {{ lang.t("Sign in") }}
                 </button>
             </form>
         </div>
     </main>
+    <script src="/static/js/admin.js"></script>
 </body>
 
 </html>

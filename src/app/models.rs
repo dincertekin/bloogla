@@ -1,6 +1,5 @@
 //! Data types shared across Bloogla: posts, tags, media, people.
 
-use crate::db::fields::{self, Fields};
 use crate::i18n::Lang;
 
 use serde::{Deserialize, Serialize};
@@ -29,9 +28,6 @@ pub struct Post {
     pub reading_time: u32,
     #[sqlx(skip)]
     pub tags: Vec<Tag>,
-    /// Custom fields, e.g. `post.fields.location` in themes.
-    #[sqlx(skip)]
-    pub fields: Fields,
     /// Public address (`/post/slug`, or `/slug` for a page), filled in for themes.
     #[sqlx(skip)]
     pub url: String,
@@ -110,6 +106,47 @@ pub struct CurrentUser {
     pub lang: Lang,
     /// See [`SESSION_VERSION`].
     pub session_version: i64,
+    /// Numbers next to menu items. Filled in for page loads only.
+    pub badges: Badges,
+}
+
+/// Small numbers next to menu items, like WordPress's bubbles, telling
+/// someone there's something new to look at.
+#[derive(Debug, Clone, Default)]
+pub struct Badges {
+    /// Comments waiting for approval (shown to admins and editors).
+    pub pending_comments: i64,
+    /// A newer Bloogla version is out (shown to admins).
+    pub update_available: bool,
+}
+
+impl Badges {
+    /// What `user` should see right now.
+    pub async fn load(state: &crate::app::state::AppState, user: &CurrentUser) -> Self {
+        let pending_comments = if user.can_edit_all() {
+            crate::db::or_log(
+                sqlx::query_scalar("SELECT COUNT(*) FROM comments WHERE status = 'pending'")
+                    .fetch_one(&state.pool)
+                    .await,
+                "count waiting comments",
+            )
+        } else {
+            0
+        };
+        Self {
+            pending_comments,
+            update_available: user.is_admin()
+                && crate::services::updates::available(&state.newer_release).is_some(),
+        }
+    }
+
+    /// The number as shown: big numbers stop at "99+".
+    pub fn comments_label(&self) -> String {
+        match self.pending_comments {
+            n if n > 99 => "99+".to_string(),
+            n => n.to_string(),
+        }
+    }
 }
 
 impl CurrentUser {
@@ -181,7 +218,7 @@ impl CurrentUser {
     }
 }
 
-/// Submitted by the post and page editor (and built by the JSON API).
+/// Submitted by the post and page editor.
 #[derive(Deserialize)]
 pub struct PostForm {
     pub title: String,
@@ -196,28 +233,22 @@ pub struct PostForm {
     pub published_at: Option<String>,
     #[serde(default)]
     pub tag_ids: Vec<i64>,
-    /// Custom field names and values, in matching order.
+    /// Names of tags typed in the editor; created when they don't exist yet.
     #[serde(default)]
-    pub field_keys: Vec<String>,
-    #[serde(default)]
-    pub field_values: Vec<String>,
-    /// Checkbox: email this post to newsletter subscribers after saving.
-    pub send_newsletter: Option<String>,
+    pub new_tags: Vec<String>,
 }
 
 impl PostForm {
-    /// Submitted custom fields, cleaned.
-    pub fn fields(&self) -> Fields {
-        fields::clean(
-            self.field_keys
-                .iter()
-                .cloned()
-                .zip(self.field_values.iter().cloned()),
-        )
-    }
-
     /// The submitted values as a `Post`, with status and date normalized.
-    pub fn to_post(&self, id: i64, is_page: bool, author_id: Option<i64>, slug: String) -> Post {
+    /// The publish date was typed in the site's time zone `tz`.
+    pub fn to_post(
+        &self,
+        id: i64,
+        is_page: bool,
+        author_id: Option<i64>,
+        slug: String,
+        tz: chrono_tz::Tz,
+    ) -> Post {
         // Only known statuses are stored; anything else publishes.
         let status = match self.status.as_deref().map(str::trim) {
             Some("draft") => "draft",
@@ -236,13 +267,15 @@ impl PostForm {
             views: 0,
             created_at: String::new(),
             status: status.to_string(),
-            published_at: crate::content::text::normalize_datetime(self.published_at.as_deref()),
+            published_at: crate::content::text::normalize_datetime(
+                self.published_at.as_deref(),
+                tz,
+            ),
             is_page,
             author_id,
             author_name: None,
             reading_time: 0,
             tags: Vec::new(),
-            fields: self.fields(),
             url: String::new(),
         }
     }
@@ -269,7 +302,11 @@ pub struct Pagination {
 pub struct Media {
     pub id: i64,
     pub filename: String,
+    /// The 800px-wide copy, for wide photos.
+    pub small_filename: Option<String>,
     pub original_name: String,
+    /// What the picture shows, for people who can't see it.
+    pub alt_text: String,
     pub size_bytes: i64,
     pub width: Option<i64>,
     pub height: Option<i64>,

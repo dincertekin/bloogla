@@ -1,0 +1,24 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<header class="topic-header">
+    <p class="topic-label">{{ t.tags }}</p>
+    <h1 class="topic-title">{{ tag_name }}</h1>
+</header>
+
+<div class="feed-layout">
+    <section class="feed">
+        {% for post in posts %}
+        {% include "templates/post_card.html" %}
+        {% else %}
+        <p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
+        {% endfor %}
+
+        {% include "templates/pagination.html" %}
+    </section>
+
+    {% include "templates/sidebar.html" %}
+</div>
+{% endblock %}

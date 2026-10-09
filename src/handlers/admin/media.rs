@@ -33,6 +33,8 @@ const JPEG_QUALITY: u8 = 85;
 pub struct MediaTemplate {
     pub blog_name: String,
     pub me: CurrentUser,
+    /// The site's address, for "Copy link".
+    pub base_url: String,
     pub media: Vec<MediaView>,
     pub error: Option<String>,
 }
@@ -41,10 +43,14 @@ pub struct MediaTemplate {
 pub struct MediaView {
     pub id: i64,
     pub url: String,
+    /// A smaller copy when there is one, for thumbnails.
+    pub thumb_url: String,
     pub original_name: String,
-    /// Alt text guessed from the file name.
+    /// The description typed in the library (may be empty).
+    pub alt_text: String,
+    /// Alt text for the picture: the description, or one guessed from the
+    /// file name.
     pub alt: String,
-    pub markdown: String,
     pub size_label: String,
     pub dimensions: String,
 }
@@ -52,11 +58,16 @@ pub struct MediaView {
 impl From<Media> for MediaView {
     fn from(m: Media) -> Self {
         let url = format!("/uploads/{}", m.filename);
-        let alt = m
-            .original_name
-            .rsplit_once('.')
-            .map_or(m.original_name.as_str(), |(stem, _)| stem)
-            .replace(['[', ']'], "");
+        let thumb_url = m
+            .small_filename
+            .as_ref()
+            .map_or_else(|| url.clone(), |small| format!("/uploads/{small}"));
+        let alt = if m.alt_text.trim().is_empty() {
+            alt_from_file_name(&m.original_name)
+        } else {
+            m.alt_text.trim().to_string()
+        }
+        .replace(['[', ']'], "");
         let size_label = if m.size_bytes >= 1024 * 1024 {
             format!("{:.1} MB", m.size_bytes as f64 / (1024.0 * 1024.0))
         } else {
@@ -68,14 +79,21 @@ impl From<Media> for MediaView {
         };
         Self {
             id: m.id,
-            markdown: format!("![{alt}]({url})"),
             alt,
             url,
+            thumb_url,
             original_name: m.original_name,
+            alt_text: m.alt_text,
             size_label,
             dimensions,
         }
     }
+}
+
+/// `summer-in-izmir.jpg` → `summer in izmir`.
+fn alt_from_file_name(name: &str) -> String {
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    stem.replace(['-', '_'], " ").trim().to_string()
 }
 
 /// Media chooser shown inside the post editor.
@@ -127,7 +145,7 @@ fn encode(img: &DynamicImage, format: ImageFormat) -> Result<Vec<u8>, String> {
 async fn all_media(state: &AppState) -> Vec<MediaView> {
     or_log(
         sqlx::query_as::<_, Media>(
-            "SELECT id, filename, original_name, size_bytes, width, height
+            "SELECT id, filename, small_filename, original_name, alt_text, size_bytes, width, height
              FROM media ORDER BY id DESC",
         )
         .fetch_all(&state.pool)
@@ -147,6 +165,7 @@ pub async fn page(
     MediaTemplate {
         blog_name: settings::load(&state.pool).await.blog_name.clone(),
         me,
+        base_url: state.config.base_url.clone(),
         media: all_media(&state).await,
         error: None,
     }
@@ -168,6 +187,7 @@ pub async fn upload(
         MediaTemplate {
             blog_name: settings::load(&state.pool).await.blog_name.clone(),
             me,
+            base_url: state.config.base_url.clone(),
             media: all_media(&state).await,
             error: Some(errors.join(" · ")),
         },
@@ -251,6 +271,46 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
     }
 
     errors
+}
+
+#[derive(serde::Deserialize)]
+pub struct AltForm {
+    #[serde(default)]
+    alt_text: String,
+}
+
+/// Longest image description kept.
+const MAX_ALT_CHARS: usize = 250;
+
+/// POST /admin/media/:id/alt -> Save what a picture shows.
+pub async fn update_alt(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<i64>,
+    axum::Form(form): axum::Form<AltForm>,
+) -> Response {
+    let alt: String = form
+        .alt_text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(MAX_ALT_CHARS)
+        .collect();
+    let saved = sqlx::query("UPDATE media SET alt_text = ? WHERE id = ?")
+        .bind(&alt)
+        .bind(id)
+        .execute(&state.pool)
+        .await;
+    match saved {
+        Ok(r) if r.rows_affected() > 0 => me.t("Saved").into_response(),
+        Ok(_) => (StatusCode::NOT_FOUND, me.t("Image not found")).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to save image description: {e}");
+            let message = me.t("Couldn't save. Please try again.");
+            (StatusCode::INTERNAL_SERVER_ERROR, message).into_response()
+        }
+    }
 }
 
 /// DELETE /admin/media/:id -> Remove a file from the library and disk.

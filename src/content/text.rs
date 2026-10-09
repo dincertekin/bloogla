@@ -2,6 +2,7 @@
 
 use crate::i18n::Lang;
 use chrono::NaiveDateTime;
+use chrono_tz::Tz;
 
 /// Convert a string into a URL-friendly slug.
 ///
@@ -85,29 +86,6 @@ pub fn url_encode(input: &str) -> String {
         .collect()
 }
 
-/// Decode `%XX` sequences (WordPress stores non-ASCII slugs percent-encoded).
-pub fn percent_decode(input: &str) -> String {
-    fn hex(b: u8) -> Option<u8> {
-        (b as char).to_digit(16).map(|d| d as u8)
-    }
-
-    let bytes = input.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let (Some(hi), Some(lo)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
-                out.push(hi << 4 | lo);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
 /// Escape text for HTML and XML (attributes included).
 pub fn escape_html(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -145,18 +123,40 @@ pub fn parse_datetime(input: &str) -> Option<NaiveDateTime> {
 
 /// Normalize a submitted date (e.g. a `datetime-local` input) to the stored
 /// `YYYY-MM-DD HH:MM:SS` form, falling back to the current UTC time.
-pub fn normalize_datetime(input: Option<&str>) -> String {
-    input
-        .and_then(parse_datetime)
-        .unwrap_or_else(|| chrono::Utc::now().naive_utc())
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string()
+///
+/// `input` is a date and time typed in the site's time zone `tz` (from the
+/// editor); the result is in UTC, as stored.
+pub fn normalize_datetime(input: Option<&str>, tz: Tz) -> String {
+    let utc = match input.and_then(parse_datetime) {
+        Some(local) => local_to_utc(local, tz),
+        None => chrono::Utc::now().naive_utc(),
+    };
+    utc.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-/// Format a stored date for display: `Oct 2, 2026` / `2 Eki 2026`.
-pub fn display_date(lang: Lang, raw_date: &str) -> String {
+/// A local time in `tz` as UTC. When clocks change, a time that happens twice
+/// takes the first, and one that's skipped (it doesn't exist) the hour after.
+fn local_to_utc(local: NaiveDateTime, tz: Tz) -> NaiveDateTime {
+    use chrono::TimeZone;
+    tz.from_local_datetime(&local)
+        .earliest()
+        .or_else(|| {
+            tz.from_local_datetime(&(local + chrono::Duration::hours(1)))
+                .earliest()
+        })
+        .map_or(local, |dt| dt.naive_utc())
+}
+
+/// A stored UTC time in the site's time zone.
+fn to_local(utc: NaiveDateTime, tz: Tz) -> NaiveDateTime {
+    utc.and_utc().with_timezone(&tz).naive_local()
+}
+
+/// Format a stored date for display, in the site's time zone:
+/// `Oct 2, 2026` / `2 Eki 2026`.
+pub fn display_date(lang: Lang, tz: Tz, raw_date: &str) -> String {
     match parse_datetime(raw_date) {
-        Some(dt) => lang.date(dt.date()),
+        Some(dt) => lang.date(to_local(dt, tz).date()),
         None => raw_date
             .split([' ', 'T'])
             .next()
@@ -165,16 +165,28 @@ pub fn display_date(lang: Lang, raw_date: &str) -> String {
     }
 }
 
-/// Format a stored UTC timestamp: `Oct 2, 14:30 UTC` / `2 Eki, 14:30 UTC`.
-pub fn display_datetime(lang: Lang, raw_date: &str) -> String {
+/// Format a stored timestamp with its time, in the site's time zone:
+/// `Oct 2, 14:30` / `2 Eki, 14:30`.
+pub fn display_datetime(lang: Lang, tz: Tz, raw_date: &str) -> String {
     parse_datetime(raw_date)
-        .map(|dt| format!("{}, {} UTC", lang.day_month(dt.date()), dt.format("%H:%M")))
+        .map(|dt| {
+            let local = to_local(dt, tz);
+            format!(
+                "{}, {}",
+                lang.day_month(local.date()),
+                local.format("%H:%M")
+            )
+        })
         .unwrap_or_else(|| raw_date.to_string())
 }
 
-/// Stored date → `datetime-local` input value (`2026-10-02T14:30`).
-pub fn to_datetime_local(raw_date: &str) -> String {
-    raw_date.replace(' ', "T").chars().take(16).collect()
+/// Stored date → `datetime-local` input value in the site's time zone
+/// (`2026-10-02T14:30`).
+pub fn to_datetime_local(tz: Tz, raw_date: &str) -> String {
+    match parse_datetime(raw_date) {
+        Some(dt) => to_local(dt, tz).format("%Y-%m-%dT%H:%M").to_string(),
+        None => String::new(),
+    }
 }
 
 /// Stored UTC date → RFC 2822, for RSS.
@@ -184,7 +196,7 @@ pub fn to_rfc2822(raw_date: &str) -> String {
         .unwrap_or_else(|| raw_date.to_string())
 }
 
-/// Stored UTC date → ISO 8601 (`2026-10-02T14:30:00Z`), for SEO and the API.
+/// Stored UTC date → ISO 8601 (`2026-10-02T14:30:00Z`), for SEO and feeds.
 pub fn to_iso8601(raw_date: &str) -> String {
     format!("{}Z", raw_date.replacen(' ', "T", 1))
 }
@@ -203,18 +215,34 @@ mod tests {
     }
 
     #[test]
-    fn decodes_percent_encoded_slugs() {
-        assert_eq!(percent_decode("merhaba-d%c3%bcnya"), "merhaba-dünya");
-        assert_eq!(percent_decode("100%"), "100%");
-        assert_eq!(percent_decode("a%zzb"), "a%zzb");
-        assert_eq!(percent_decode("%ç1"), "%ç1");
-    }
-
-    #[test]
     fn escapes_html() {
         assert_eq!(
             escape_html(r#"<a href="x">Tom & Jerry's</a>"#),
             "&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&apos;s&lt;/a&gt;"
+        );
+    }
+
+    #[test]
+    fn dates_are_shown_and_typed_in_the_site_time_zone() {
+        let istanbul: Tz = "Europe/Istanbul".parse().unwrap();
+        // 09:00 in Istanbul (UTC+3) is stored as 06:00 UTC, and shown as 09:00.
+        let stored = normalize_datetime(Some("2026-10-02T09:00"), istanbul);
+        assert_eq!(stored, "2026-10-02 06:00:00");
+        assert_eq!(to_datetime_local(istanbul, &stored), "2026-10-02T09:00");
+        assert_eq!(
+            display_datetime(Lang::default(), istanbul, &stored),
+            "Oct 2, 09:00"
+        );
+        // Late at night in UTC is already the next day in Istanbul.
+        assert_eq!(
+            display_date(Lang::default(), istanbul, "2026-10-02 22:30:00"),
+            "Oct 3, 2026"
+        );
+        // Daylight saving: 02:30 doesn't exist in Berlin on March 29, 2026.
+        let berlin: Tz = "Europe/Berlin".parse().unwrap();
+        assert_eq!(
+            normalize_datetime(Some("2026-03-29T02:30"), berlin),
+            "2026-03-29 01:30:00"
         );
     }
 

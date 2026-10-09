@@ -14,6 +14,139 @@
 //   data-empty-text="..."              list that shows this text when empty
 //   data-menu-toggle                   button that opens the menu on phones
 //   data-tabs / data-tab-panel="x"     tabs that show one panel at a time
+//   data-live (with an id)             part of the page fetched again after a
+//                                      change, so it never shows old values
+
+// ---- A message kept across a reload ----
+// Some changes affect the whole page, like its language. The server then
+// answers with HX-Trigger: reload-page and the message to show; the page
+// reloads (smoothly, see @view-transition in style.css) and the message
+// appears again in the same form (found by its hx-post address; Settings has
+// two forms with the same one, so also by which of them it was).
+
+const FLASH_KEY = "bloogla:flash";
+const formsPostingTo = (url) => [...document.querySelectorAll("form[hx-post]")].filter((f) => f.getAttribute("hx-post") === url);
+
+function reloadWithMessage(form, html) {
+    const url = form ? form.getAttribute("hx-post") : "";
+    const flash = {
+        path: location.pathname,
+        url,
+        index: formsPostingTo(url).indexOf(form),
+        html,
+        hash: location.hash,
+    };
+    try {
+        sessionStorage.setItem(FLASH_KEY, JSON.stringify(flash));
+    } catch { }
+    // Without the #tab this is a real page load, which browsers can cross-fade;
+    // the tab is opened again from the flash below.
+    location.replace(location.pathname + location.search);
+}
+
+let flash = null;
+try {
+    flash = JSON.parse(sessionStorage.getItem(FLASH_KEY));
+    sessionStorage.removeItem(FLASH_KEY);
+} catch { }
+if (flash && flash.path === location.pathname) {
+    if (flash.hash && !location.hash) history.replaceState(null, "", flash.hash);
+    const status = formsPostingTo(flash.url)[flash.index]?.querySelector(".form-status");
+    if (status) status.innerHTML = flash.html;
+}
+
+// ---- After installing an update ----
+// Bloogla stops and starts again as the new version. Wait until it answers
+// again (it's down for a few seconds), then reload the page.
+
+function reloadAfterRestart() {
+    const started = Date.now();
+    const poll = async () => {
+        try {
+            const response = await fetch("/admin", { cache: "no-store" });
+            if (response.ok && Date.now() - started > 4000) {
+                location.reload();
+                return;
+            }
+        } catch {
+            // Still restarting.
+        }
+        setTimeout(poll, 1500);
+    };
+    setTimeout(poll, 2500);
+}
+
+// ---- Live parts: refreshed after every change, so nothing needs a reload ----
+// Elements with data-live and an id (the site name in the sidebar, the counts
+// above lists...) are replaced by their new version from the server.
+
+function replaceLiveParts(doc) {
+    document.title = doc.title;
+    document.querySelectorAll("[data-live][id]").forEach((part) => {
+        const fresh = doc.getElementById(part.id);
+        if (!fresh || fresh.outerHTML === part.outerHTML) return;
+        part.replaceWith(fresh);
+        htmx.process(fresh);
+    });
+}
+
+async function refreshLiveParts() {
+    if (!document.querySelector("[data-live][id]")) return;
+    try {
+        const response = await fetch(location.href);
+        if (!response.ok) return;
+        replaceLiveParts(new DOMParser().parseFromString(await response.text(), "text/html"));
+    } catch {
+        // Offline for a moment: the parts keep their old text until the next change.
+    }
+}
+
+document.addEventListener("htmx:afterRequest", (event) => {
+    const { elt, xhr, successful, requestConfig } = event.detail;
+    if (!successful || !xhr || requestConfig.verb === "get") return;
+    if (xhr.getResponseHeader("HX-Trigger") === "reload-page") {
+        reloadWithMessage(elt.closest("form"), xhr.responseText);
+        return;
+    }
+    if (xhr.getResponseHeader("HX-Trigger") === "restarting") {
+        reloadAfterRestart();
+        return;
+    }
+    // Errors change nothing; the media chooser only adds images.
+    if (xhr.responseText.includes("alert-error") || elt.closest("#media-modal")) return;
+    refreshLiveParts();
+});
+
+// Forms the server rejects (422) come back with their messages: show them.
+document.addEventListener("htmx:beforeSwap", (event) => {
+    if (event.detail.xhr.status === 422) {
+        event.detail.shouldSwap = true;
+        event.detail.isError = false;
+    }
+});
+
+// ---- Feedback while waiting ----
+// htmx marks a form or button with .htmx-request while it saves; ordinary
+// forms that load a new page get .is-busy on their button (see style.css).
+
+document.addEventListener("submit", (event) => {
+    if (event.defaultPrevented || !event.submitter) return;
+    event.submitter.classList.add("is-busy");
+});
+// Coming back with the Back button shows the page as it was left.
+window.addEventListener("pageshow", () => {
+    document.querySelectorAll(".is-busy").forEach((button) => button.classList.remove("is-busy"));
+});
+
+// "Saved." fades away after a while; errors stay until the next try.
+document.addEventListener("htmx:afterSettle", (event) => {
+    event.detail.target.querySelectorAll?.(".form-status > .alert-success").forEach((alert) => {
+        setTimeout(() => {
+            alert.classList.add("fading");
+            setTimeout(() => alert.remove(), 300);
+        }, 5000);
+    });
+});
 
 // ---- Modals ----
 
@@ -80,8 +213,9 @@ document.addEventListener("click", (event) => {
 
     confirmButton.setAttribute("hx-delete", trigger.dataset.deleteUrl);
     if (trigger.dataset.deleteTarget) {
+        // The item fades out (see .htmx-swapping in style.css) before it goes.
         confirmButton.setAttribute("hx-target", trigger.dataset.deleteTarget);
-        confirmButton.setAttribute("hx-swap", "delete");
+        confirmButton.setAttribute("hx-swap", "delete swap:200ms");
     } else {
         confirmButton.removeAttribute("hx-target");
         confirmButton.setAttribute("hx-swap", "none");
@@ -173,11 +307,11 @@ function syncEmptyList(list) {
     if (message) message.hidden = hasItems;
 }
 
-// Each list watches its own items, so it updates however an item was added
-// or removed (deleted, approved, created...).
-document.querySelectorAll("[data-empty-text]").forEach((list) => {
-    new MutationObserver(() => syncEmptyList(list)).observe(list, { childList: true, subtree: true });
-});
+// Lists update however an item was added or removed (deleted, approved,
+// created, or the whole list replaced after an upload).
+new MutationObserver(() => {
+    document.querySelectorAll("[data-empty-text][id]").forEach(syncEmptyList);
+}).observe(document.body, { childList: true, subtree: true });
 
 // ---- The menu on phones: opens and closes with the Menu button ----
 

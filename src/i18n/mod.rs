@@ -8,29 +8,21 @@
 //! its name, how dates look, its plural rule and its translations.
 //!
 //! To add a language:
-//! 1. Copy `de.rs` to `<code>.rs` (e.g. `nl.rs`) and translate the right-hand side.
+//! 1. Copy `tr.rs` to `<code>.rs` (e.g. `nl.rs`) and translate the right-hand side.
 //! 2. Add `mod <code>;` and `&<code>::LANGUAGE` to [`LANGUAGES`] below.
 //!
 //! `cargo test` checks that every language translates every piece of text and
 //! keeps its `{placeholders}`.
 
-mod de;
 mod en;
-mod es;
-mod fr;
-mod it;
-mod ja;
-mod pt;
-mod ru;
 mod tr;
-mod zh;
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// Everything Bloogla needs to know about one language.
 pub struct Language {
-    /// Code as used in URLs, settings and `<html lang>`, e.g. `de`.
+    /// Code as used in URLs, settings and `<html lang>`, e.g. `tr`.
     pub code: &'static str,
     /// The language's own name, for language pickers, e.g. `Deutsch`.
     pub name: &'static str,
@@ -48,27 +40,11 @@ pub struct Language {
 
 /// Every language Bloogla speaks, in the order language pickers show them.
 /// The first one is the default.
-pub const LANGUAGES: &[&Language] = &[
-    &en::LANGUAGE,
-    &de::LANGUAGE,
-    &es::LANGUAGE,
-    &fr::LANGUAGE,
-    &it::LANGUAGE,
-    &pt::LANGUAGE,
-    &tr::LANGUAGE,
-    &ru::LANGUAGE,
-    &ja::LANGUAGE,
-    &zh::LANGUAGE,
-];
+pub const LANGUAGES: &[&Language] = &[&en::LANGUAGE, &tr::LANGUAGE];
 
 /// Plural rule for languages where only exactly one is singular (English, German...).
 pub fn singular_if_one(n: i64) -> bool {
     n == 1
-}
-
-/// Plural rule for languages where zero is singular too (French, Brazilian Portuguese).
-pub fn singular_if_zero_or_one(n: i64) -> bool {
-    n == 0 || n == 1
 }
 
 /// A language, as stored on people and in settings. Cheap to copy.
@@ -81,7 +57,7 @@ impl Lang {
         (0..LANGUAGES.len()).map(Lang).collect()
     }
 
-    /// The language with this code (`de`), if Bloogla has it.
+    /// The language with this code (`tr`), if Bloogla has it.
     pub fn parse(code: &str) -> Option<Self> {
         LANGUAGES.iter().position(|l| l.code == code).map(Lang)
     }
@@ -228,25 +204,18 @@ fn placeholder_names(text: &str) -> Vec<&str> {
 /// Strings the bundled themes use as `{{ t.<id> }}`: (id, English text).
 /// Ids avoid Tera's dot-path lookup, which breaks on keys containing periods.
 pub const THEME_STRINGS: &[(&str, &str)] = &[
-    ("all", "All"),
-    ("all_projects", "All projects"),
     ("all_tags", "All Tags"),
-    ("all_videos", "All videos"),
     ("back_to_all_posts", "Back to all posts"),
     ("by_name", "by {name}"),
     ("comment", "Comment"),
     ("comments", "Comments"),
-    ("contents", "Contents"),
     ("copied", "Copied"),
     ("copy", "Copy"),
     ("copy_failed", "Copy failed"),
     ("email", "Email"),
-    ("get_new_posts_by_email", "Get new posts by email"),
-    ("latest_updates", "Latest updates"),
-    ("latest_videos", "Latest videos"),
+    ("latest", "Latest"),
     ("leave_a_comment", "Leave a comment"),
-    ("mentioned_this", "mentioned this"),
-    ("more_videos", "More videos"),
+    ("more_stories", "More stories"),
     ("n1_comment", "1 comment"),
     ("n1_view", "1 view"),
     ("n_comments", "{n} comments"),
@@ -255,15 +224,10 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("name", "Name"),
     ("never_shown", "Never shown"),
     ("newer", "Newer"),
-    ("next", "Next"),
     ("no_posts_found", "No posts found."),
     (
         "no_posts_found_with_tag_tag",
         "No posts found with tag “#{tag}”.",
-    ),
-    (
-        "no_spam_unsubscribe_any_time",
-        "No spam. Unsubscribe any time.",
     ),
     ("older", "Older"),
     ("optional", "(optional)"),
@@ -274,14 +238,10 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("posts_tagged_with_hashtag", "Posts tagged with “#{tag}”"),
     ("posts_tagged_with_tag", "Posts tagged with {tag}"),
     ("powered_by_name", "Powered by {name}"),
-    ("previous", "Previous"),
-    ("search_docs", "Search the docs..."),
     ("search_posts", "Search posts..."),
     ("search_query", "Search: {query}"),
     ("search_results_for_query", "Search results for “{query}”"),
-    ("search_videos", "Search videos..."),
     ("skip_to_content", "Skip to content"),
-    ("subscribe", "Subscribe"),
     ("tag_tag", "Tag: {tag}"),
     ("tags", "Tags"),
     (
@@ -289,7 +249,6 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
         "The page you are looking for doesn't exist or has moved.",
     ),
     ("website", "Website"),
-    ("your_email", "Your email"),
 ];
 
 #[cfg(test)]
@@ -340,7 +299,15 @@ mod tests {
                 }
             }
         }
-        keys.retain(|k| k.chars().any(char::is_alphabetic));
+        // plain_page(lang, "Title", "Text", Some(("/address", "Link")))
+        for (at, _) in source.match_indices("plain_page(") {
+            if source[..at].ends_with("fn ") {
+                continue; // The function itself, not a call.
+            }
+            let call = source[at..].split(';').next().unwrap_or_default();
+            keys.extend(call.split('"').skip(1).step_by(2).map(str::to_string));
+        }
+        keys.retain(|k| k.chars().any(char::is_alphabetic) && !k.starts_with('/'));
         keys
     }
 
@@ -453,22 +420,41 @@ mod tests {
         for entry in templates {
             let path = entry.unwrap().path();
             let source = std::fs::read_to_string(&path).unwrap();
-            for part in source.split("t.").skip(1) {
+            // Every lookup like {{ t.x }} or {{ t.x | filter }}.
+            for part in source.split("{{ t.").skip(1) {
                 let id: String = part
                     .chars()
                     .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
                     .collect();
-                // Only `t.` that starts a lookup ({{ t.x }}), not words ending in "t".
-                if source.contains(&format!("{{{{ t.{id}"))
-                    || source.contains(&format!("{{{{ t.{id} |"))
-                {
-                    assert!(
-                        ids.contains(id.as_str()),
-                        "{}: unknown theme string t.{id}",
-                        path.display()
-                    );
+                assert!(
+                    ids.contains(id.as_str()),
+                    "{}: unknown theme string t.{id}",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_theme_string_is_used_by_a_bundled_theme() {
+        let themes = concat!(env!("CARGO_MANIFEST_DIR"), "/themes");
+        let mut sources = String::new();
+        for theme in std::fs::read_dir(themes).unwrap().flatten() {
+            for folder in ["templates", "shortcodes"] {
+                let Ok(files) = std::fs::read_dir(theme.path().join(folder)) else {
+                    continue;
+                };
+                for file in files.flatten() {
+                    sources += &std::fs::read_to_string(file.path()).unwrap_or_default();
                 }
             }
+        }
+        for (id, _) in THEME_STRINGS {
+            let used = sources
+                .split(&format!("t.{id}"))
+                .skip(1)
+                .any(|rest| !rest.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_'));
+            assert!(used, "THEME_STRINGS has {id:?}, but no theme uses it");
         }
     }
 
@@ -479,14 +465,11 @@ mod tests {
     #[test]
     fn placeholders_and_plurals_follow_the_language() {
         assert_eq!(
-            lang("tr").tv2("Emailed to {n} subscribers on {date}.", 3, "Oct 2"),
-            "Oct 2 tarihinde 3 aboneye gönderildi."
+            lang("tr").tv2("{author} commented on “{title}”:", "Ada", "Hello"),
+            "Ada, “Hello” yazısına yorum yaptı:"
         );
         assert_eq!(lang("en").count(1, "{n} post", "{n} posts"), "1 post");
         assert_eq!(lang("en").count(0, "{n} post", "{n} posts"), "0 posts");
-        assert_eq!(lang("de").count(2, "{n} post", "{n} posts"), "2 Beiträge");
-        // French treats zero as singular.
-        assert_eq!(lang("fr").count(0, "{n} post", "{n} posts"), "0 article");
         assert_eq!(lang("tr").t("Something new"), "Something new");
     }
 
@@ -497,8 +480,6 @@ mod tests {
         assert_eq!(lang("en").day_month(date), "Oct 2");
         assert_eq!(lang("tr").date(date), "2 Eki 2026");
         assert_eq!(lang("tr").day_month(date), "2 Eki");
-        assert_eq!(lang("de").date(date), "2. Okt. 2026");
-        assert_eq!(lang("ja").date(date), "2026年10月2日");
     }
 
     #[test]
@@ -507,9 +488,8 @@ mod tests {
             Lang::from_accept_language("tr-TR,tr;q=0.9,en;q=0.8"),
             lang("tr")
         );
-        assert_eq!(Lang::from_accept_language("pt-BR,pt;q=0.9"), lang("pt"));
-        assert_eq!(Lang::from_accept_language("nl-NL,de;q=0.5"), lang("de"));
-        assert_eq!(Lang::from_accept_language("ZH-CN"), lang("zh"));
+        assert_eq!(Lang::from_accept_language("nl-NL,tr;q=0.5"), lang("tr"));
+        assert_eq!(Lang::from_accept_language("TR"), lang("tr"));
         assert_eq!(Lang::from_accept_language("xx"), Lang::default());
         assert_eq!(Lang::from_accept_language(""), Lang::default());
     }

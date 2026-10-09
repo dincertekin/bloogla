@@ -7,12 +7,12 @@
 use super::{assets, middleware};
 use crate::app::state::AppState;
 use crate::content::text::url_encode;
-use crate::handlers::{admin, api, site};
+use crate::handlers::{admin, site};
 
 use axum::extract::DefaultBodyLimit;
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::middleware::{from_fn, from_fn_with_state};
-use axum::routing::{any, delete, get, post, put, MethodRouter};
+use axum::routing::{delete, get, post, MethodRouter};
 use axum::Router;
 use std::sync::Arc;
 use tower_governor::governor::GovernorConfigBuilder;
@@ -54,7 +54,6 @@ pub fn build<S: SessionStore + Clone>(
     let app = Router::new()
         .merge(public_routes())
         .merge(admin_routes(&state)?)
-        .merge(api_routes(&state))
         .fallback(site::pages::fallback);
 
     // Layers wrap everything added before them, so the last one listed runs
@@ -94,19 +93,6 @@ fn public_routes() -> Router<AppState> {
             post(site::comments::submit).layer(DefaultBodyLimit::max(64 * 1024)),
         )
         .route("/tag/:slug", get(site::pages::tag))
-        .route(
-            "/subscribe",
-            post(site::newsletter::subscribe).layer(DefaultBodyLimit::max(8 * 1024)),
-        )
-        .route("/subscribe/confirm", get(site::newsletter::confirm))
-        .route(
-            "/unsubscribe",
-            get(site::newsletter::unsubscribe_page).post(site::newsletter::unsubscribe),
-        )
-        .route(
-            "/webmention",
-            post(site::webmention::receive).layer(DefaultBodyLimit::max(16 * 1024)),
-        )
         .route("/rss.xml", get(site::feeds::rss))
         .route("/sitemap.xml", get(site::feeds::sitemap))
         .route("/robots.txt", get(site::feeds::robots_txt))
@@ -118,7 +104,6 @@ fn public_routes() -> Router<AppState> {
         // Standalone pages (About, Contact...). Listed last among public
         // routes; the fixed paths above take priority.
         .route("/:slug", get(site::pages::show_page))
-        .route_layer(from_fn(middleware::theme_preview))
 }
 
 /// The admin panel. Everything except login and setup needs a signed-in person.
@@ -135,30 +120,23 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             "/admin/settings/email/test",
             post(admin::settings::send_test_email),
         )
+        .route("/admin/backup.zip", get(admin::backup::download))
+        .route(
+            "/admin/settings/updates",
+            post(admin::updates::save_settings),
+        )
+        .route("/admin/updates/check", post(admin::updates::check))
+        .route("/admin/updates/install", post(admin::updates::install))
+        .route(
+            "/admin/checklist/hide",
+            post(admin::dashboard::hide_checklist),
+        )
         .route("/admin/themes", get(admin::themes::page))
         .route("/admin/themes/activate", post(admin::themes::activate))
-        .route(
-            "/admin/themes/upload",
-            post(admin::themes::upload).layer(DefaultBodyLimit::max(
-                crate::services::themes::MAX_ZIP_BYTES,
-            )),
-        )
-        .route("/admin/themes/:id", delete(admin::themes::delete))
-        .route("/admin/themes/:id/preview", post(admin::themes::preview))
-        .route(
-            "/admin/themes/preview/stop",
-            post(admin::themes::stop_preview),
-        )
         .route(
             "/admin/themes/:id/options",
             get(admin::themes::options_page).post(admin::themes::save_options),
         )
-        .route("/admin/subscribers", get(admin::subscribers::page))
-        .route(
-            "/admin/subscribers.csv",
-            get(admin::subscribers::export_csv),
-        )
-        .route("/admin/subscribers/:id", delete(admin::subscribers::delete))
         .route(
             "/admin/users",
             get(admin::users::page).post(admin::users::create),
@@ -224,11 +202,6 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             "/admin/profile/two-factor/off",
             post(admin::profile::disable_two_factor),
         )
-        .route("/admin/profile/tokens", post(admin::profile::create_token))
-        .route(
-            "/admin/profile/tokens/:id",
-            delete(admin::profile::revoke_token),
-        )
         .route(
             "/admin/posts",
             get(admin::posts::list_posts).post(admin::posts::create_post),
@@ -255,7 +228,8 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             get(admin::media::picker)
                 .post(admin::media::picker_upload)
                 .layer(upload_limit),
-        );
+        )
+        .route("/admin/media/:id/alt", post(admin::media::update_alt));
 
     let signed_in = Router::new()
         .merge(admins)
@@ -271,6 +245,14 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             get(admin::auth::code_page).post(admin::auth::check_code),
         )
         .route("/admin/logout", get(admin::auth::logout))
+        .route(
+            "/admin/forgot-password",
+            get(admin::password_reset::forgot_page).post(admin::password_reset::send_link),
+        )
+        .route(
+            "/admin/reset-password",
+            get(admin::password_reset::reset_page).post(admin::password_reset::reset),
+        )
         .route("/setup", get(admin::setup::page).post(admin::setup::submit))
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
@@ -309,30 +291,6 @@ fn login_route(state: &AppState) -> Result<MethodRouter<AppState>, String> {
     };
     // Added after the layer, so showing the form isn't rate-limited.
     Ok(login.get(admin::auth::login_page))
-}
-
-/// The JSON API. Reading is public (and open to other sites); writing needs a token.
-fn api_routes(state: &AppState) -> Router<AppState> {
-    let read = Router::new()
-        .route("/api/posts", get(api::list_posts))
-        // Same pattern as the write route below: a slug when reading, an id when writing.
-        .route("/api/posts/:key", get(api::get_post))
-        .route("/api/pages/:slug", get(api::get_page))
-        .route("/api/tags", get(api::list_tags))
-        .route("/api/*rest", any(api::not_found))
-        .route_layer(SetResponseHeaderLayer::overriding(
-            header::ACCESS_CONTROL_ALLOW_ORIGIN,
-            HeaderValue::from_static("*"),
-        ));
-    let write = Router::new()
-        .route("/api/me", get(api::me))
-        .route("/api/posts", post(api::create_post))
-        .route("/api/posts/:key", put(api::update).delete(api::delete))
-        .route_layer(from_fn_with_state(
-            state.clone(),
-            middleware::require_api_token,
-        ));
-    read.merge(write)
 }
 
 /// Headers that tell browsers to lock the site down: no framing by other

@@ -1,0 +1,83 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}
+{% if search_query %}
+{{ t.search_query | replace(from="{query}", to=search_query) }} - {{ blog_name }}
+{% else %}
+{{ blog_name }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if search_query %}
+<header class="section-header">
+    <h1 class="section-name">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
+</header>
+{% for post in posts %}
+{% include "templates/river_item.html" %}
+{% else %}
+<p class="empty-state">{{ t.no_posts_found }}</p>
+{% endfor %}
+
+{% elif pagination.current == 1 and posts %}
+{# The front page: the newest post as the lead, the next three beside it,
+   and a grid of the rest. #}
+<h1 class="visually-hidden">{{ blog_name }}</h1>
+<section class="front">
+    {% for post in posts | slice(end=1) %}
+    {% set eager = true %}
+    <article class="lead">
+        {% include "templates/cover.html" %}
+        {% include "templates/kicker.html" %}
+        <h2 class="headline headline-xl"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <p class="summary summary-lg">{{ post.content | safe }}</p>
+        {% include "templates/byline.html" %}
+    </article>
+    {% endfor %}
+
+    {% if posts | length > 1 %}
+    <div class="front-side">
+        {% for post in posts | slice(start=1, end=4) %}
+        <article class="side-story">
+            {% if loop.first %}{% include "templates/cover.html" %}{% endif %}
+            {% include "templates/kicker.html" %}
+            <h2 class="headline headline-md"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+            <p class="summary">{{ post.content | safe }}</p>
+            {% include "templates/byline.html" %}
+        </article>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
+{% if posts | length > 4 %}
+<section class="more">
+    <h2 class="rule-heading"><span>{{ t.more_stories }}</span></h2>
+    <div class="grid">
+        {% for post in posts | slice(start=4) %}
+        <article class="grid-story">
+            {% include "templates/cover.html" %}
+            {% include "templates/kicker.html" %}
+            <h3 class="headline headline-sm"><a href="{{ post.url }}">{{ post.title }}</a></h3>
+            <p class="summary">{{ post.content | safe }}</p>
+            {% include "templates/byline.html" %}
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% else %}
+{# Older pages: the newest first, one under the other. #}
+<header class="section-header">
+    <h1 class="section-name">{{ t.latest }}</h1>
+</header>
+{% for post in posts %}
+{% include "templates/river_item.html" %}
+{% else %}
+<p class="empty-state">{{ t.no_posts_found }}</p>
+{% endfor %}
+{% endif %}
+
+{% include "templates/pagination.html" %}
+{% endblock %}

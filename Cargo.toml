@@ -1,9 +1,11 @@
 [package]
 name = "bloogla"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
-description = "A fast, single-binary blog engine: a modern WordPress alternative."
+description = "A fast, single-binary blog engine and CMS: a modern WordPress alternative."
 repository = "https://github.com/dincertekin/bloogla"
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
 # Web server
@@ -28,14 +30,16 @@ askama = "0.12"
 askama_axum = "0.4"
 tera = "1.19"
 
-# Content: Markdown, HTML sanitizing, images, WordPress import, theme uploads (.zip)
+# Content: Markdown, HTML sanitizing, images
 comrak = { version = "0.18", default-features = false }
 ammonia = "4.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
-quick-xml = "0.41"
-zip = { version = "8.6", default-features = false, features = ["deflate"] }
+# Backups you can download: one .zip, stored without compression (photos
+# are already compressed), streamed from disk
+zip = { version = "8.6", default-features = false }
+tokio-util = { version = "0.7", features = ["io"] }
 
-# Security: password hashing, random tokens, API token hashing, encrypting
+# Security: password hashing, random tokens, encrypting
 # stored secrets, two-factor codes
 argon2 = { version = "0.5", features = ["password-hash"] }
 chacha20poly1305 = "0.10"
@@ -45,9 +49,14 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.8"
 sha2 = "0.10"
 
-# Email and outgoing requests (webmentions)
+# Email
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+# Updates: asking GitHub for the latest release and downloading it (reuses
+# the rustls/ring/webpki-roots that HTTPS and email already use), and
+# checking the download's signature with ring
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+ring = "0.17"
 
 # Data formats, files embedded in the binary, dates
 serde = { version = "1.0", features = ["derive"] }
@@ -55,11 +64,24 @@ serde_json = "1.0"
 toml = "0.8"
 rust-embed = { version = "8", features = ["include-exclude", "mime-guess"] }
 chrono = { version = "0.4", features = ["serde"] }
+# Time zones, so dates show (and are entered) in the site's local time
+chrono-tz = "0.10"
 
 # Command line and logging
 dialoguer = { version = "0.11", default-features = false, features = ["password"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+
+[dev-dependencies]
+# Sending requests to the app in tests without starting a server.
+tower = { version = "0.5", features = ["util"] }
+
+# Password hashing is slow on purpose; unoptimized (debug) builds make it
+# painfully slow, so it's optimized even in `cargo run` and `cargo test`.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
 
 [profile.release]
 opt-level = 3

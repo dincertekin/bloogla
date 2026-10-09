@@ -9,6 +9,8 @@
     {% if post.is_page %}{{ me.t("All pages") }}{% else %}{{ me.t("All posts") }}{% endif %}
 </a>
 
+<!-- Parts marked data-live are refreshed after saving without a reload (editor.js). -->
+<div id="save-status" data-live>
 {% if let Some(err) = error %}
 <div class="alert alert-error" role="alert">{{ err }}</div>
 {% endif %}
@@ -17,10 +19,7 @@
     {{ me.t("Saved.") }}{% if let Some(path) = public_path %} <a href="{{ path }}" target="_blank" style="color: inherit">{{ me.t("View it on your site") }}</a>.{% endif %}
 </div>
 {% endif %}
-
-{% if let Some((ok, message)) = email_notice %}
-<div class="alert {% if ok %}alert-success{% else %}alert-error{% endif %}" role="status">{{ message }}</div>
-{% endif %}
+</div>
 
 <div id="draft-banner" class="alert alert-info" role="status" hidden>
     <span id="draft-text">{{ me.t("You have unsaved changes from earlier.") }}</span>
@@ -39,6 +38,8 @@
     data-text-link-prompt="{{ me.t("Link address") }}"
     data-text-visual-placeholder="{{ me.t("Start writing…") }}"
     data-text-video-prompt="{{ me.t("Paste a YouTube or Vimeo link") }}"
+    data-text-saved="{{ me.t("Saved.") }}"
+    data-text-save-failed="{{ me.t("Couldn't save your changes. Please try again.") }}"
     action="{% if post.id == 0 %}{{ admin_path }}{% else %}{{ admin_path }}/{{ post.id }}/edit{% endif %}">
     <div class="editor-layout">
         <div class="editor-main">
@@ -46,11 +47,21 @@
                 placeholder="{% if post.is_page %}{{ me.t("Page title") }}{% else %}{{ me.t("Post title") }}{% endif %}" aria-label="{{ me.t("Title") }}"
                 autocomplete="off" {% if post.id == 0 %}autofocus{% endif %} />
 
-            <label class="slug-field">
-                <span>{{ base_url }}/{% if !post.is_page %}post/{% endif %}</span>
-                <input type="text" name="slug" value="{{ post.slug }}" placeholder="{% if post.is_page %}{{ me.t("your-page-title") }}{% else %}{{ me.t("your-post-title") }}{% endif %}"
-                    aria-label="{{ me.t("URL slug") }}" autocomplete="off" spellcheck="false" />
-            </label>
+            <!-- The page's web address. Shown as text with an Edit button (see
+                 editor.js); without JavaScript the field is always shown. -->
+            <div class="address-row">
+                <span class="address-view" data-address-view hidden>
+                    {{ me.t("Address:") }}
+                    <span class="address-url">{{ base_url }}/{% if !post.is_page %}post/{% endif %}<strong data-address-slug>{{ post.slug }}</strong></span>
+                    <button type="button" class="link-button" data-address-edit>{{ me.t("Edit") }}</button>
+                </span>
+                <label class="slug-field" data-address-editor>
+                    <span>{{ base_url }}/{% if !post.is_page %}post/{% endif %}</span>
+                    <input type="text" name="slug" value="{{ post.slug }}" placeholder="{% if post.is_page %}{{ me.t("your-page-title") }}{% else %}{{ me.t("your-post-title") }}{% endif %}"
+                        aria-label="{{ me.t("Web address") }}" autocomplete="off" spellcheck="false" />
+                    <button type="button" class="link-button" data-address-done hidden>{{ me.t("Done") }}</button>
+                </label>
+            </div>
 
             <div class="editor-toolbar">
                 <div class="segmented" role="tablist" aria-label="{{ me.t("Editor mode") }}">
@@ -80,36 +91,6 @@
             <textarea id="content" name="content" hidden>{{ post.content }}</textarea>
             <div id="visual-editor" class="visual-editor prose"></div>
             <div id="preview" class="preview-pane prose" hidden></div>
-
-            <details class="card panel fields-panel" style="margin-top: 1.25rem" {% if !post.fields.is_empty() %}open{% endif %}>
-                <summary class="panel-title" style="margin-bottom: 0; cursor: pointer">{{ me.t("Custom fields") }}</summary>
-                <p class="form-hint" style="margin: 0.75rem 0">
-                    {{ me.tv("Extra details your theme can show, like a location or a rating. Themes use them as {example}.", "<code>post.fields.name</code>")|safe }}
-                </p>
-                <div id="field-rows">
-                    {% for (key, value) in post.fields %}
-                    <div class="field-row">
-                        <input type="text" name="field_keys" class="form-control" value="{{ key }}"
-                            placeholder="{{ me.t("name") }}" aria-label="{{ me.t("Field name") }}" maxlength="40" />
-                        <input type="text" name="field_values" class="form-control" value="{{ value }}"
-                            placeholder="{{ me.t("value") }}" aria-label="{{ me.t("Field value") }}" maxlength="2000" />
-                        <button type="button" class="btn btn-ghost btn-sm" data-remove-field
-                            aria-label="{{ me.t("Remove field") }}">✕</button>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-secondary btn-sm" id="add-field">{{ me.t("Add field") }}</button>
-                <template id="field-row-template">
-                    <div class="field-row">
-                        <input type="text" name="field_keys" class="form-control" placeholder="{{ me.t("name") }}"
-                            aria-label="{{ me.t("Field name") }}" maxlength="40" />
-                        <input type="text" name="field_values" class="form-control" placeholder="{{ me.t("value") }}"
-                            aria-label="{{ me.t("Field value") }}" maxlength="2000" />
-                        <button type="button" class="btn btn-ghost btn-sm" data-remove-field
-                            aria-label="{{ me.t("Remove field") }}">✕</button>
-                    </div>
-                </template>
-            </details>
         </div>
 
         <aside>
@@ -127,23 +108,10 @@
                     <label for="published_at">{{ me.t("Publish date") }}</label>
                     <input type="datetime-local" id="published_at" name="published_at" class="form-control"
                         value="{{ published_at_input }}" />
-                    <span class="form-hint">{{ me.t("In UTC. Leave empty to use the current time.") }}</span>
+                    <span class="form-hint">{{ me.tv("In your site's time zone ({zone}). Leave empty to use the current time.", timezone) }}</span>
                 </div>
-                {% if let Some(newsletter) = newsletter %}
-                {% if let Some((date, count)) = newsletter.sent %}
-                <p class="form-hint" style="margin-bottom: 1rem">{% if count.clone() == 1 %}{{ me.tv2("Emailed to {n} subscriber on {date}.", count, date) }}{% else %}{{ me.tv2("Emailed to {n} subscribers on {date}.", count, date) }}{% endif %}</p>
-                {% else if newsletter.subscribers > 0 %}
-                <label class="check-row" style="margin-bottom: 1rem" id="newsletter-option">
-                    <input type="checkbox" name="send_newsletter" value="1" />
-                    <span>
-                        {{ me.count(newsletter.subscribers, "Email it to {n} subscriber", "Email it to {n} subscribers") }}
-                        <small>{{ me.t("Once it's published. Each post is sent only once.") }}</small>
-                    </span>
-                </label>
-                {% endif %}
-                {% endif %}
                 <button type="submit" class="btn btn-primary" style="width: 100%">{{ me.t("Save") }}</button>
-                <p class="form-hint" style="margin-top: 0.5rem; text-align: center">{{ me.t("Ctrl+S or ⌘S also saves.") }}</p>
+                <p class="form-hint" style="margin-top: 0.5rem; text-align: center" data-save-note aria-live="polite">{{ me.t("Ctrl+S or ⌘S also saves.") }}</p>
             </section>
 
             <section class="card panel">
@@ -166,14 +134,7 @@
             {% if !post.is_page %}
             <section class="card panel">
                 <h2 class="panel-title">{{ me.t("Tags") }}</h2>
-                {% if tag_checkboxes.is_empty() %}
-                {% if me.can_edit_all() %}
-                <p class="form-hint">{{ me.tv("No tags yet. {create_some} to group related posts.", me.link("/admin/tags", "Create some"))|safe }}</p>
-                {% else %}
-                <p class="form-hint">{{ me.t("No tags yet. An editor or admin can create them.") }}</p>
-                {% endif %}
-                {% else %}
-                <div class="tag-list">
+                <div class="tag-list" id="tag-chips" data-live data-tag-list {% if tag_checkboxes.is_empty() %}hidden{% endif %}>
                     {% for (tag, checked) in tag_checkboxes %}
                     <label class="tag-chip">
                         <input type="checkbox" name="tag_ids" value="{{ tag.id }}" {% if checked %}checked{% endif %} />
@@ -181,10 +142,15 @@
                     </label>
                     {% endfor %}
                 </div>
-                {% endif %}
+                <!-- Typing a name and pressing Enter adds it as a chip (editor.js).
+                     Without JavaScript the text is sent as is; commas separate tags. -->
+                <input type="text" name="new_tags" class="form-control tag-input" data-new-tag maxlength="200"
+                    placeholder="{{ me.t("Add a tag…") }}" aria-label="{{ me.t("Add a tag") }}" autocomplete="off" />
+                <p class="form-hint" style="margin-top: 0.4rem">{{ me.t("Press Enter to add it. Tags group related posts, like Travel or Recipes.") }}</p>
             </section>
             {% endif %}
 
+            <div id="revisions" data-live>
             {% if !revisions.is_empty() %}
             <section class="card panel">
                 <h2 class="panel-title">{{ me.t("Earlier versions") }}</h2>
@@ -197,7 +163,9 @@
                 {% endfor %}
             </section>
             {% endif %}
+            </div>
 
+            <div id="delete-post" data-live>
             {% if post.id != 0 %}
             <button type="button" class="btn btn-ghost-danger btn-sm" style="width: 100%"
                 data-delete-url="{{ admin_path }}/{{ post.id }}" data-delete-redirect="{{ admin_path }}"
@@ -206,6 +174,7 @@
                 {% if post.is_page %}{{ me.t("Delete page") }}{% else %}{{ me.t("Delete post") }}{% endif %}
             </button>
             {% endif %}
+            </div>
         </aside>
     </div>
 </form>

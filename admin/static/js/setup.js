@@ -1,5 +1,5 @@
 // The setup page (admin/templates/setup.html), one step at a time:
-// 1. site type, 2. details, 3. account. "Next" checks the step's fields
+// 1. the site, 2. the account. "Next" checks the step's fields
 // first. Without JavaScript the page shows every step at once.
 (() => {
     const form = document.querySelector("[data-setup-steps]");
@@ -49,6 +49,10 @@
             if (stepIsValid(current)) show(current + 1);
         }
     });
+
+    // Start the site in this computer's time zone (changeable in Settings).
+    const timezone = form.querySelector("[data-timezone]");
+    if (timezone) timezone.value = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
 
     document.querySelector(".setup-progress").hidden = false;
     form.querySelectorAll(".setup-buttons, [data-back]").forEach((el) => (el.hidden = false));

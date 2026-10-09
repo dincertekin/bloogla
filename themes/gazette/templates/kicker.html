@@ -1,0 +1,2 @@
+{# The small section label above a headline: the post's first tag. #}
+{% if post.tags %}<a href="/tag/{{ post.tags.0.slug }}" class="kicker">{{ post.tags.0.name }}</a>{% endif %}

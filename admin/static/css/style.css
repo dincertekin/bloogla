@@ -316,6 +316,30 @@ select.form-control {
     transition: all 0.15s ease;
 }
 
+/* A small count next to a menu item: comments waiting, an update. Same
+   near-black as the primary buttons (red is kept for deleting). */
+.nav-badge {
+    margin-left: auto;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--accent-black);
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    animation: fade-in 0.2s ease;
+}
+
+.nav-badge[hidden] {
+    display: none;
+}
+
 .nav-item:hover,
 .nav-item.active {
     color: var(--text-primary);
@@ -410,8 +434,165 @@ select.form-control {
     margin-bottom: 1rem;
 }
 
-.mb-lg {
+/* Text only screen readers read out. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* Dashboard: "Bloogla 1.2.0 is available", with its two links. */
+.update-notice {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.update-links {
+    display: inline-flex;
+    gap: 1rem;
+    font-weight: 600;
+}
+
+/* Dashboard: "Get your site ready" */
+.checklist-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.checklist-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.checklist-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.checklist-step > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.checklist-icon {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    margin-top: 0.1rem;
+    fill: none;
+    stroke: var(--border-light);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.checklist-step.done .checklist-icon {
+    fill: var(--accent-black);
+    stroke: var(--accent-black);
+}
+
+.checklist-step.done .checklist-icon path {
+    stroke: #fff;
+}
+
+.checklist-text {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.checklist-step.done .checklist-text {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Less common fields, folded away (Settings → Email) */
+.advanced-fields {
+    margin-bottom: 1.25rem;
+}
+
+.advanced-fields summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+/* Menu editor (Settings → Reading) */
+.menu-rows {
+    list-style: none;
+    padding: 0;
+    margin: 0.25rem 0 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.menu-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.menu-row-buttons {
+    display: flex;
+}
+
+.menu-row-buttons .btn {
+    padding: 0.35rem;
+}
+
+@media (max-width: 640px) {
+    .menu-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .menu-row [data-menu-url] {
+        grid-column: 1;
+    }
+
+    .menu-row-buttons {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        flex-direction: column;
+    }
+}
+
+/* Sign-in, forgot and reset password cards */
+.auth-title {
     margin-bottom: 1.5rem;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.auth-code {
+    margin: 0.75rem 0 0;
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    background: var(--chip-bg);
+    font-size: 0.85rem;
 }
 
 .container {
@@ -419,13 +600,6 @@ select.form-control {
     width: 100%;
     margin: 0 auto;
     padding: 0 1.25rem;
-}
-
-body.auth-body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
 }
 
 .theme-grid {
@@ -449,16 +623,21 @@ body.auth-body {
     border-width: 2px;
 }
 
+/* The same shape as theme previews (640 × 400), so the whole picture shows.
+   Pictures of another shape are cut at the bottom, never the top. */
 .theme-preview-wrapper {
-    height: 140px;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
     background: var(--chip-bg);
     border-bottom: 1px solid var(--border-light);
 }
 
 .theme-preview-img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: top center;
 }
 
 .theme-preview-placeholder {
@@ -720,6 +899,10 @@ a.row-title:hover {
     gap: 0.35rem;
 }
 
+.tag-list:not([hidden]) + .tag-input {
+    margin-top: 0.75rem;
+}
+
 .tag-chip {
     display: inline-flex;
     align-items: center;
@@ -919,14 +1102,50 @@ code {
     color: var(--text-muted);
 }
 
-.slug-field {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
+.address-row {
     margin: 0.35rem 0 1.5rem;
     font-size: 0.85rem;
     color: var(--text-secondary);
 }
+
+.address-view {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.address-url {
+    overflow-wrap: anywhere;
+}
+
+.address-url strong {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.slug-field {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.slug-field .link-button {
+    margin-left: 0.5rem;
+}
+
 
 .slug-field input {
     flex: 1;
@@ -1279,6 +1498,28 @@ code {
     color: var(--text-secondary);
 }
 
+.alt-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.8rem;
+}
+
+.alt-field label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.alt-field .form-control {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+.alt-status:empty {
+    display: none;
+}
+
 .picker-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
@@ -1419,125 +1660,7 @@ code {
     flex: 1;
 }
 
-/* Setup: "What are you making?" */
-.site-types {
-    border: 0;
-    padding: 0;
-    margin-inline: 0;
-}
 
-.site-types legend {
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-/* Two columns of tiles, so the first step fits without scrolling. */
-.site-types {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-}
-
-.site-types legend,
-.site-types .form-hint {
-    grid-column: 1 / -1;
-}
-
-.site-types .site-type {
-    align-items: flex-start;
-    gap: 0.6rem;
-    margin-bottom: 0;
-    position: relative;
-}
-
-.site-types .site-type svg {
-    margin-top: 1px;
-}
-
-/* "Coming soon" in the tile's corner. */
-.site-types .site-type em {
-    position: absolute;
-    top: 0.6rem;
-    right: 0.6rem;
-}
-
-@media (max-width: 480px) {
-    .site-types {
-        grid-template-columns: 1fr;
-    }
-}
-
-.site-type {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.65rem 0.85rem;
-    margin-bottom: 0.5rem;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    background: var(--bg-card);
-    cursor: pointer;
-}
-
-.site-type:has(input:checked) {
-    border-color: var(--accent-black);
-    box-shadow: inset 0 0 0 1px var(--accent-black);
-}
-
-.site-type input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.site-type:has(input:focus-visible) {
-    outline: 2px solid var(--accent-black);
-    outline-offset: 2px;
-}
-
-.site-type svg {
-    flex-shrink: 0;
-    color: var(--text-secondary);
-}
-
-.site-type span {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-}
-
-.site-type strong {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.site-type small {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    font-weight: 400;
-}
-
-.site-type em {
-    font-style: normal;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    background: var(--chip-bg);
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    white-space: nowrap;
-}
-
-.site-type-soon {
-    cursor: default;
-}
-
-.site-type-soon svg,
-.site-type-soon strong {
-    color: var(--text-muted);
-}
 
 /* ============================================================
    11. SMALL SCREENS
@@ -1658,17 +1781,6 @@ code {
 .alert-spaced {
     margin-top: 0.5rem;
     margin-bottom: 1.75rem;
-}
-
-.field-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.fields-panel summary::marker {
-    color: var(--text-muted);
 }
 
 /* Shortcode output in the editor preview */
@@ -1871,4 +1983,126 @@ code {
     border-radius: 6px;
     font-size: 0.95rem;
     text-align: center;
+}
+
+/* ============================================================
+   MOTION: moving between pages, saving, items coming and going
+   ============================================================ */
+
+/* Moving to another admin page fades instead of flashing white, and the
+   sidebar stays where it is. Browsers without view transitions simply load
+   the page. */
+@view-transition {
+    navigation: auto;
+}
+
+.sidebar {
+    view-transition-name: sidebar;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.18s;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes drop-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Buttons press in slightly when clicked. */
+.btn:active {
+    transform: scale(0.98);
+}
+
+/* While saving: htmx marks the form or button with .htmx-request, admin.js
+   and editor.js mark buttons with .is-busy. The button dims, shows a small
+   spinner and can't be clicked twice. */
+.btn.is-busy,
+.btn.htmx-request,
+form.htmx-request [type="submit"] {
+    pointer-events: none;
+    opacity: 0.75;
+}
+
+.btn.is-busy::after,
+.btn.htmx-request::after,
+form.htmx-request [type="submit"]::after {
+    content: "";
+    width: 0.8em;
+    height: 0.8em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+form.htmx-request {
+    cursor: progress;
+}
+
+/* New things (a tag, a person, a message, a re-shown form) fade in: htmx
+   gives new content the class htmx-added for a moment. */
+.alert,
+[data-item],
+#media-page,
+#theme-options-form {
+    transition: opacity 0.2s ease;
+}
+
+.htmx-added {
+    opacity: 0;
+}
+
+/* Removed items fade out first (hx-swap="delete swap:200ms"). */
+[data-item].htmx-swapping,
+.checklist.htmx-swapping {
+    opacity: 0;
+}
+
+/* "Saved." fades away after a while (admin.js). */
+.alert.fading {
+    opacity: 0;
+}
+
+/* Switching tabs fades the new panel in. */
+.has-tabs [data-tab-panel] {
+    animation: fade-in 0.2s ease;
+}
+
+/* The phone menu slides down a little as it opens. */
+.sidebar.menu-open nav,
+.sidebar.menu-open .sidebar-bottom {
+    animation: drop-in 0.2s ease;
+}
+
+/* People who ask their system for less motion get none. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
 }

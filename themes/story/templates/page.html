@@ -1,0 +1,21 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<article class="story">
+    <header class="story-header">
+        <h1 class="story-title">{{ post.title }}</h1>
+    </header>
+
+    {% if post.cover_image %}
+    <img src="{{ post.cover_image }}" alt="" class="story-cover" decoding="async" fetchpriority="high"
+        {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
+        {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="(max-width: 728px) calc(100vw - 3rem), 680px"{% endif %} />
+    {% endif %}
+
+    <div class="post-body">
+        {{ content_html | safe }}
+    </div>
+</article>
+{% endblock %}

@@ -1,10 +1,10 @@
 //! Admin screens for posts and pages: list, editor, preview and delete.
-//! Saving itself happens in `db/posts.rs`, shared with the JSON API.
+//! Saving itself happens in `db/posts.rs`.
 
 use super::{forbidden, StatusFilter};
 use crate::app::models::{CurrentUser, Post, PostForm, Tag};
 use crate::app::state::AppState;
-use crate::content::text::{display_date, display_datetime, to_datetime_local, url_encode};
+use crate::content::text::{display_date, display_datetime, to_datetime_local};
 use crate::db::posts::{self, SaveError, POST_SELECT};
 use crate::db::{or_log, settings, tags};
 use crate::i18n::Lang;
@@ -44,6 +44,8 @@ pub struct PostsTemplate {
 #[template(path = "post_editor.html")]
 pub struct PostEditorTemplate {
     pub blog_name: String,
+    /// The site's time zone, e.g. `Europe/Istanbul` (dates are typed in it).
+    pub timezone: String,
     pub me: CurrentUser,
     pub base_url: String,
     pub admin_path: &'static str,
@@ -52,10 +54,6 @@ pub struct PostEditorTemplate {
     pub published_at_input: String,
     pub tag_checkboxes: Vec<(Tag, bool)>,
     pub revisions: Vec<RevisionRow>,
-    /// Newsletter: `None` when it can't be used for this post.
-    pub newsletter: Option<NewsletterStatus>,
-    /// Result of emailing the post: (worked, message).
-    pub email_notice: Option<(bool, String)>,
     pub error: Option<String>,
     pub saved: bool,
 }
@@ -64,13 +62,6 @@ pub struct PostEditorTemplate {
 pub struct RevisionRow {
     pub id: i64,
     pub label: String,
-}
-
-/// Whether a post can be, or has been, emailed to subscribers.
-pub struct NewsletterStatus {
-    pub subscribers: i64,
-    /// When it was emailed, and to how many people.
-    pub sent: Option<(String, i64)>,
 }
 
 /// Whether an admin screen works with blog posts or standalone pages.
@@ -110,10 +101,6 @@ pub struct ListQuery {
 #[derive(Deserialize)]
 pub struct EditQuery {
     saved: Option<String>,
-    /// Number of subscribers the post is being emailed to.
-    emailed: Option<i64>,
-    /// Why emailing the post failed.
-    email_error: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -173,13 +160,14 @@ async fn list(
 
     let ids: Vec<i64> = posts.iter().map(|p| p.id).collect();
     let mut tag_map = tags::for_posts(&state.pool, &ids).await;
+    let tz = settings::load(&state.pool).await.timezone;
 
     let rows = posts
         .into_iter()
         .map(|mut post| {
             post.tags = tag_map.remove(&post.id).unwrap_or_default();
             PostRow {
-                date: display_date(me.lang, &post.published_at),
+                date: display_date(me.lang, tz, &post.published_at),
                 public_path: posts::is_live(&post).then(|| post_path(&post.slug, post.is_page)),
                 post,
             }
@@ -230,42 +218,9 @@ async fn new_page_for(
         author_name: Some(me.display_name().to_string()),
         reading_time: 0,
         tags: Vec::new(),
-        fields: Default::default(),
         url: String::new(),
     };
-    editor(&state, me, post, &HashSet::new(), None, false, None).await
-}
-
-/// What the editor's newsletter option should show, if anything.
-async fn newsletter_status(
-    state: &AppState,
-    me: &CurrentUser,
-    post: &Post,
-) -> Option<NewsletterStatus> {
-    if post.is_page
-        || !me.can_edit_all()
-        || !settings::load(&state.pool).await.newsletter
-        || crate::services::email::smtp_settings(state).await.is_none()
-    {
-        return None;
-    }
-    let subscribers: i64 = or_log(
-        sqlx::query_scalar("SELECT COUNT(*) FROM subscribers WHERE status = 'active'")
-            .fetch_one(&state.pool)
-            .await,
-        "count subscribers",
-    );
-    let sent: Option<(String, i64)> = or_log(
-        sqlx::query_as("SELECT started_at, recipients FROM newsletter_sends WHERE post_id = ?")
-            .bind(post.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "newsletter sent",
-    );
-    Some(NewsletterStatus {
-        subscribers,
-        sent: sent.map(|(at, n)| (display_date(me.lang, &at), n)),
-    })
+    editor(&state, me, post, &HashSet::new(), None, false).await
 }
 
 /// Render the editor for `post` with `selected_tags` checked.
@@ -276,8 +231,8 @@ async fn editor(
     selected_tags: &HashSet<i64>,
     error: Option<String>,
     saved: bool,
-    email_notice: Option<(bool, String)>,
 ) -> Response {
+    let site = settings::load(&state.pool).await;
     let tag_checkboxes = tags::all(&state.pool)
         .await
         .into_iter()
@@ -306,10 +261,9 @@ async fn editor(
         .into_iter()
         .map(|(id, saved_at)| RevisionRow {
             id,
-            label: display_datetime(me.lang, &saved_at),
+            label: display_datetime(me.lang, site.timezone, &saved_at),
         })
         .collect();
-    let newsletter = newsletter_status(state, &me, &post).await;
     let status = if error.is_some() {
         StatusCode::UNPROCESSABLE_ENTITY
     } else {
@@ -319,18 +273,17 @@ async fn editor(
     (
         status,
         PostEditorTemplate {
-            blog_name: settings::load(&state.pool).await.blog_name.clone(),
+            blog_name: site.blog_name.clone(),
+            timezone: site.timezone.name().to_string(),
             me,
             base_url: state.config.base_url.clone(),
             admin_path: kind.admin_path(),
             public_path: (post.id != 0 && posts::is_live(&post))
                 .then(|| post_path(&post.slug, post.is_page)),
-            published_at_input: to_datetime_local(&post.published_at),
+            published_at_input: to_datetime_local(site.timezone, &post.published_at),
             post,
             tag_checkboxes,
             revisions,
-            newsletter,
-            email_notice,
             error,
             saved,
         },
@@ -351,33 +304,9 @@ pub async fn edit(
     if !me.can_edit(post.author_id, post.is_page) {
         return forbidden(me.lang);
     }
-    posts::load_tags_and_fields(&state.pool, std::slice::from_mut(&mut post)).await;
+    posts::load_tags(&state.pool, std::slice::from_mut(&mut post)).await;
     let selected: HashSet<i64> = post.tags.iter().map(|t| t.id).collect();
-    let email_notice = match (query.emailed, query.email_error) {
-        (Some(count), _) => Some((
-            true,
-            me.count(
-                &count,
-                "Emailing it to {n} subscriber.",
-                "Emailing it to {n} subscribers.",
-            ),
-        )),
-        (None, Some(error)) => Some((
-            false,
-            me.tv("Saved, but not emailed: {error}", me.lang.t_owned(&error)),
-        )),
-        _ => None,
-    };
-    editor(
-        &state,
-        me,
-        post,
-        &selected,
-        None,
-        query.saved.is_some(),
-        email_notice,
-    )
-    .await
+    editor(&state, me, post, &selected, None, query.saved.is_some()).await
 }
 
 pub async fn create_post(
@@ -405,32 +334,17 @@ async fn editor_with_error(
     author_id: Option<i64>,
     form: &PostForm,
 ) -> Response {
+    let tz = settings::load(&state.pool).await.timezone;
     let post = form.to_post(
         id,
         is_page,
         author_id,
         form.slug.clone().unwrap_or_default(),
+        tz,
     );
     let tags = form.tag_ids.iter().copied().collect();
     let message = me.t("Add a title first.").to_string();
-    editor(state, me, post, &tags, Some(message), false, None).await
-}
-
-/// After saving, email the post to subscribers if the editor asked to.
-/// Returns what to add to the editor URL so the result is shown.
-async fn email_if_requested(
-    state: &AppState,
-    me: &CurrentUser,
-    id: i64,
-    form: &PostForm,
-) -> String {
-    if form.send_newsletter.is_none() || !me.can_edit_all() {
-        return String::new();
-    }
-    match crate::services::email::send_post_to_subscribers(state, id).await {
-        Ok(count) => format!("&emailed={count}"),
-        Err(e) => format!("&email_error={}", url_encode(&e)),
-    }
+    editor(state, me, post, &tags, Some(message), false).await
 }
 
 /// POST /admin/posts, /admin/pages -> Create, then continue in the editor.
@@ -441,12 +355,7 @@ async fn create(
     kind: Kind,
 ) -> Response {
     match posts::create(&state.pool, &me, kind.is_page(), &form).await {
-        Ok(id) => {
-            crate::services::webmention::send_for_post(&state, id);
-            let emailed = email_if_requested(&state, &me, id, &form).await;
-            Redirect::to(&format!("{}/{id}/edit?saved=1{emailed}", kind.admin_path()))
-                .into_response()
-        }
+        Ok(id) => Redirect::to(&format!("{}/{id}/edit?saved=1", kind.admin_path())).into_response(),
         Err(SaveError::MissingTitle) => {
             let author = Some(me.id);
             editor_with_error(&state, me, 0, kind.is_page(), author, &form).await
@@ -465,12 +374,9 @@ pub async fn update(
 ) -> Response {
     match posts::update(&state.pool, &me, id, &form).await {
         Ok(()) => {
-            crate::services::webmention::send_for_post(&state, id);
             let is_page = posts::owner(&state.pool, id).await.is_some_and(|(_, p)| p);
             let kind = if is_page { Kind::Page } else { Kind::Post };
-            let emailed = email_if_requested(&state, &me, id, &form).await;
-            Redirect::to(&format!("{}/{id}/edit?saved=1{emailed}", kind.admin_path()))
-                .into_response()
+            Redirect::to(&format!("{}/{id}/edit?saved=1", kind.admin_path())).into_response()
         }
         Err(SaveError::MissingTitle) => {
             let (author_id, is_page) = posts::owner(&state.pool, id).await.unwrap_or((None, false));

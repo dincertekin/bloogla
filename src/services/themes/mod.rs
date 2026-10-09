@@ -1,17 +1,16 @@
 //! Themes: the folders in `themes/` that decide how the public site looks.
 //!
 //! A theme is a folder with a `theme.toml` and Tera templates (see the README).
-//! The bundled `default` theme is compiled into the binary and written to
-//! `themes/default` on first start. Admins can add more by uploading a .zip
-//! (see [`install_zip`]).
+//! The bundled themes are compiled into the binary and written to `themes/`
+//! on first start. A developer can add another theme by putting its folder
+//! there and restarting.
 //!
 //! Every theme's templates are loaded separately, so a broken theme is only
 //! marked as broken (with the reason, shown in Admin → Themes) and the site
 //! keeps working with the default theme.
 //!
-//! - `install`: bundled themes, .zip uploads and deleting
+//! - `install`: writing and upgrading the bundled themes
 //! - `options`: the settings a theme offers (colors, texts...)
-//! - `starter`: the sample content a new site begins with
 
 use crate::app::state::AppState;
 
@@ -26,8 +25,7 @@ use tera::Tera;
 
 mod install;
 pub mod options;
-pub mod starter;
-pub use install::{delete, install_bundled, install_zip, MAX_ZIP_BYTES};
+pub use install::install_bundled;
 use options::ThemeOption;
 
 /// Where installed themes live, one folder each.
@@ -113,7 +111,6 @@ const REQUIRED_TEMPLATES: &[&str] = &[
     "templates/index.html",
     "templates/post.html",
     "templates/tag.html",
-    "templates/message.html",
 ];
 
 #[derive(Debug, Clone)]
@@ -177,7 +174,7 @@ impl Themes {
                 let Some(id) = entry.file_name().to_str().map(str::to_string) else {
                     continue;
                 };
-                // Hidden folders (unfinished uploads) aren't themes.
+                // Hidden folders (like .git) aren't themes.
                 if !id.starts_with('.') {
                     themes.reload(&id);
                 }
@@ -191,7 +188,7 @@ impl Themes {
         themes
     }
 
-    /// Read one theme again (after it was uploaded, changed or deleted).
+    /// Read one theme again (after its files changed).
     pub fn reload(&mut self, id: &str) {
         let dir = Path::new(THEMES_DIR).join(id);
         if dir.is_dir() {
@@ -313,33 +310,6 @@ fn describe_error(error: &tera::Error) -> String {
 
 // ---- Previewing a theme ----
 //
-// An admin can look at the site in another theme before switching (Admin →
-// Themes → Preview). The theme name is kept in their session, and the
-// `theme_preview` middleware makes it available while their requests run.
-
-/// Session key holding the theme an admin is previewing.
-pub const PREVIEW_SESSION_KEY: &str = "preview_theme";
-
-tokio::task_local! {
-    static PREVIEW: Option<String>;
-}
-
-/// Run `request` with `theme` as the theme being previewed.
-pub async fn with_preview<F: std::future::Future>(theme: Option<String>, request: F) -> F::Output {
-    PREVIEW.scope(theme, request).await
-}
-
-/// The theme previewed during this request, if any.
-fn previewing() -> Option<String> {
-    PREVIEW.try_with(Clone::clone).ok().flatten()
-}
-
-/// The theme to use for this request: the one being previewed, or the
-/// site's active theme.
-pub fn chosen_theme(active: &str) -> String {
-    previewing().unwrap_or_else(|| active.to_string())
-}
-
 /// Render the first template of the active theme that exists among `candidates`
 /// (paths inside the theme folder, e.g. `templates/page.html`).
 ///
@@ -357,7 +327,7 @@ pub async fn render(
     status: StatusCode,
 ) -> Response {
     let site = crate::db::settings::load(&state.pool).await;
-    let chosen = chosen_theme(&site.active_theme);
+    let chosen = site.active_theme.clone();
 
     if cfg!(debug_assertions) {
         if let Ok(mut themes) = state.themes.write() {
@@ -366,17 +336,24 @@ pub async fn render(
     }
 
     let Ok(themes) = state.themes.read() else {
-        return theme_error("themes unavailable");
+        return theme_error(site.language, "themes unavailable");
     };
     let Some(theme) = themes.pick(&chosen) else {
-        return theme_error("no working theme is installed");
+        return theme_error(site.language, "no working theme is installed");
     };
     let has_template = |name: &str| theme.tera.get_template_names().any(|t| t == name);
     let Some(template) = candidates.iter().find(|name| has_template(name)) else {
         return if status == StatusCode::NOT_FOUND {
-            (status, Html("<h1>404 Not Found</h1>")).into_response()
+            let page = crate::handlers::plain_page(
+                site.language,
+                "Page not found",
+                "The page you are looking for doesn't exist or has moved.",
+                Some(("/", "Go to the home page")),
+            );
+            (status, page).into_response()
         } else {
-            theme_error(&format!("theme '{}' is missing {candidates:?}", theme.id))
+            let detail = format!("theme '{}' is missing {candidates:?}", theme.id);
+            theme_error(site.language, &detail)
         };
     };
 
@@ -389,74 +366,29 @@ pub async fn render(
     let html = match theme.tera.render(template, &context) {
         Ok(html) => html,
         Err(err) => {
-            return theme_error(&format!(
-                "{}/{template}: {}",
-                theme.id,
-                describe_error(&err)
-            ))
+            let detail = format!("{}/{template}: {}", theme.id, describe_error(&err));
+            return theme_error(site.language, &detail);
         }
     };
 
-    // The preview bar, only for an admin previewing a theme that isn't active.
-    let preview = previewing().as_deref() == Some(theme.id) && theme.id != site.active_theme;
-    let html = if preview {
-        with_preview_bar(html, &theme, site.language)
-    } else {
-        html
-    };
     let mut response = (status, Html(html)).into_response();
     let headers = response.headers_mut();
     if let Ok(policy) = HeaderValue::from_str(&content_security_policy(Some(theme.meta))) {
         headers.insert(header::CONTENT_SECURITY_POLICY, policy);
     }
-    if preview {
-        // Only for this admin, and never kept by the browser.
-        headers.insert(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("private, no-store"),
-        );
-    }
     response
 }
 
-/// Put a bar at the top of a previewed page: what's shown, with buttons to
-/// switch to the theme or stop the preview.
-fn with_preview_bar(html: String, theme: &UsableTheme<'_>, lang: crate::i18n::Lang) -> String {
-    use crate::content::text::escape_html;
-
-    let button = "margin:0;padding:.35rem .8rem;border:1px solid #4b5563;border-radius:6px;\
-                  background:#1f2937;color:inherit;font:inherit;cursor:pointer";
-    let bar = format!(
-        r#"<div style="position:sticky;top:0;z-index:2147483647;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;justify-content:center;padding:.6rem 1rem;background:#111827;color:#f9fafb;font:14px/1.4 system-ui,sans-serif">
-<span>{text}</span>
-<form method="post" action="/admin/themes/activate" style="margin:0"><input type="hidden" name="theme" value="{id}"><button style="{button};background:#f9fafb;color:#111827">{use_it}</button></form>
-<form method="post" action="/admin/themes/preview/stop" style="margin:0"><button style="{button}">{stop}</button></form>
-</div>"#,
-        text = lang.tv(
-            "Previewing {name}. Only you can see this.",
-            format!("<strong>{}</strong>", escape_html(&theme.meta.name))
-        ),
-        id = escape_html(theme.id),
-        use_it = lang.t("Use this theme"),
-        stop = lang.t("Stop preview"),
-    );
-    // Right after the opening <body> tag, or at the very top.
-    let at = html
-        .find("<body")
-        .and_then(|start| html[start..].find('>').map(|end| start + end + 1))
-        .unwrap_or(0);
-    let mut out = html;
-    out.insert_str(at, &bar);
-    out
-}
-
-fn theme_error(detail: &str) -> Response {
+/// The theme couldn't draw the page: log why, and tell the visitor plainly.
+fn theme_error(lang: crate::i18n::Lang, detail: &str) -> Response {
     tracing::error!("Theme rendering error: {detail}");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Html("<h1>500 - Theme Error</h1><p>Failed to render theme template.</p>"),
-    )
-        .into_response()
+    let page = crate::handlers::plain_page(
+        lang,
+        "This page can't be shown right now",
+        "The site's theme has a problem. If this is your site, open Themes in the admin panel to see what's wrong, or switch to another theme.",
+        Some(("/admin/themes", "Open Themes")),
+    );
+    (StatusCode::INTERNAL_SERVER_ERROR, page).into_response()
 }
 
 #[cfg(test)]

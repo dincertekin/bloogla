@@ -1,5 +1,5 @@
 // The post and page editor (admin/templates/post_editor.html): the visual
-// editor and preview, formatting buttons, unsaved-text backup, custom fields,
+// editor and preview, formatting buttons, unsaved-text backup,
 // earlier versions, images and keyboard saving.
 //
 // Posts are saved as Markdown from a hidden text area (#content). The visual
@@ -17,6 +17,8 @@
         linkPrompt: form.dataset.textLinkPrompt,
         videoPrompt: form.dataset.textVideoPrompt,
         visualPlaceholder: form.dataset.textVisualPlaceholder,
+        saved: form.dataset.textSaved,
+        saveFailed: form.dataset.textSaveFailed,
     };
     const content = document.getElementById("content");
     const preview = document.getElementById("preview");
@@ -26,13 +28,14 @@
     const titleField = form.querySelector("[name=title]");
 
     // Keep a copy of unsaved text in this browser, in case the tab closes.
-    const draftKey = "bloogla:draft:" + form.getAttribute("action");
+    // A new post gets its own address once saved, so the key is read each time.
+    const draftKey = () => "bloogla:draft:" + form.getAttribute("action");
     let draftTimer = null;
     const saveDraft = () => {
         clearTimeout(draftTimer);
         draftTimer = setTimeout(() => {
             try {
-                localStorage.setItem(draftKey, JSON.stringify({
+                localStorage.setItem(draftKey(), JSON.stringify({
                     title: titleField.value, content: content.value, at: Date.now(),
                 }));
             } catch { /* storage full or disabled */ }
@@ -40,12 +43,12 @@
     };
     const clearDraft = () => {
         clearTimeout(draftTimer);
-        try { localStorage.removeItem(draftKey); } catch { }
+        try { localStorage.removeItem(draftKey()); } catch { }
     };
 
     const banner = document.getElementById("draft-banner");
     let stored = null;
-    try { stored = JSON.parse(localStorage.getItem(draftKey)); } catch { }
+    try { stored = JSON.parse(localStorage.getItem(draftKey())); } catch { }
     if (new URLSearchParams(location.search).has("saved")) {
         clearDraft();
     } else if (stored && (stored.title !== titleField.value || stored.content !== content.value)) {
@@ -69,46 +72,87 @@
         dirty = true;
         saveDraft();
     });
-    form.addEventListener("submit", () => {
-        dirty = false;
-        clearDraft();
-    });
 
-    // Custom fields
-    const fieldRows = document.getElementById("field-rows");
-    document.getElementById("add-field").addEventListener("click", () => {
-        const row = document.getElementById("field-row-template").content.cloneNode(true);
-        fieldRows.appendChild(row);
-        fieldRows.lastElementChild.querySelector("input").focus();
+    // Earlier versions: load into the editor; saving keeps it. (One listener
+    // for all buttons, because saving replaces the list.)
+    document.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-revision]");
+        if (!button) return;
+        const response = await fetch(`/admin/posts/${form.dataset.postId}/revisions/${button.dataset.revision}`);
+        if (!response.ok) return;
+        const revision = await response.json();
+        titleField.value = revision.title;
+        setMarkdown(revision.content);
         dirty = true;
-    });
-    fieldRows.addEventListener("click", (event) => {
-        const remove = event.target.closest("[data-remove-field]");
-        if (!remove) return;
-        remove.closest(".field-row").remove();
-        dirty = true;
-    });
-
-    // Earlier versions: load into the editor; saving keeps it.
-    document.querySelectorAll("[data-revision]").forEach((button) => {
-        button.addEventListener("click", async () => {
-            const response = await fetch(`/admin/posts/${form.dataset.postId}/revisions/${button.dataset.revision}`);
-            if (!response.ok) return;
-            const revision = await response.json();
-            titleField.value = revision.title;
-            setMarkdown(revision.content);
-            dirty = true;
-            showPreview(false);
-            banner.hidden = false;
-            document.getElementById("draft-text").textContent =
-                text.loadedVersion.replace("{date}", button.dataset.revisionLabel);
-            document.getElementById("draft-restore").hidden = true;
-            document.getElementById("draft-discard").textContent = text.dismiss;
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        });
+        showPreview(false);
+        banner.hidden = false;
+        document.getElementById("draft-text").textContent =
+            text.loadedVersion.replace("{date}", button.dataset.revisionLabel);
+        document.getElementById("draft-restore").hidden = true;
+        document.getElementById("draft-discard").textContent = text.dismiss;
+        window.scrollTo({ top: 0, behavior: "smooth" });
     });
     window.addEventListener("beforeunload", (event) => {
         if (dirty && !window.skipUnloadWarning) event.preventDefault();
+    });
+
+    // Saving happens in the background: the page stays where it is, and the
+    // parts that changed (message, tags, earlier versions) are refreshed from
+    // the editor page the server answers with. Without JavaScript the form
+    // is sent the ordinary way.
+    const saveButton = form.querySelector("[type=submit]");
+    const saveNote = form.querySelector("[data-save-note]");
+    const noteText = saveNote.textContent;
+    let saving = false;
+    const showNote = (message) => {
+        saveNote.textContent = message;
+        clearTimeout(showNote.timer);
+        showNote.timer = setTimeout(() => (saveNote.textContent = noteText), 4000);
+    };
+    const showError = (html) => {
+        document.getElementById("save-status").innerHTML = html;
+        showNote(document.getElementById("save-status").textContent.trim() || text.saveFailed);
+    };
+    form.addEventListener("submit", async (event) => {
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        if (saving) return;
+        saving = true;
+        saveButton.classList.add("is-busy");
+        try {
+            const response = await fetch(form.action, {
+                method: "POST",
+                body: new URLSearchParams(new FormData(form)),
+            });
+            const page = new DOMParser().parseFromString(await response.text(), "text/html");
+            const address = new URL(response.url);
+            if (!response.ok || !address.searchParams.has("saved")) {
+                // The editor came back with a message, like "Add a title first."
+                const message = page.getElementById("save-status");
+                showError(message && message.textContent.trim()
+                    ? message.innerHTML
+                    : `<div class="alert alert-error" role="alert">${text.saveFailed}</div>`);
+                return;
+            }
+            clearDraft();
+            dirty = false;
+            // A new post now has its own address; the server may also have
+            // filled in or tidied the web address.
+            const saved = page.getElementById("editor-form");
+            form.setAttribute("action", saved.getAttribute("action"));
+            form.dataset.postId = saved.dataset.postId;
+            slugInput.value = saved.querySelector("[name=slug]").value;
+            showAddress();
+            address.searchParams.delete("saved");
+            history.replaceState(null, "", address.pathname + address.search);
+            replaceLiveParts(page);
+            showNote(text.saved);
+        } catch {
+            showError(`<div class="alert alert-error" role="alert">${text.saveFailed}</div>`);
+        } finally {
+            saving = false;
+            saveButton.classList.remove("is-busy");
+        }
     });
 
     // Ctrl+S / Cmd+S saves
@@ -135,7 +179,75 @@
     if (!slugInput.value) {
         titleInput.addEventListener("input", () => {
             slugInput.placeholder = toSlug(titleInput.value) || slugInput.dataset.fallback;
+            showAddress();
         });
+    }
+
+    // The address is shown as text ("Address: example.com/post/my-title Edit");
+    // Edit turns it into the field, Done (or Enter) turns it back.
+    const addressView = form.querySelector("[data-address-view]");
+    const addressEditor = form.querySelector("[data-address-editor]");
+    const addressSlug = form.querySelector("[data-address-slug]");
+    const doneButton = form.querySelector("[data-address-done]");
+    function showAddress() {
+        const slug = toSlug(slugInput.value) || slugInput.placeholder;
+        addressSlug.textContent = slug;
+    }
+    function editAddress(editing) {
+        addressView.hidden = editing;
+        addressEditor.hidden = !editing;
+        doneButton.hidden = !editing;
+        if (editing) slugInput.focus();
+        else showAddress();
+    }
+    form.querySelector("[data-address-edit]").addEventListener("click", () => editAddress(true));
+    doneButton.addEventListener("click", () => editAddress(false));
+    slugInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            editAddress(false);
+        }
+    });
+    editAddress(false);
+
+    // Tags: typing a name and pressing Enter (or a comma) ticks the tag with
+    // that name, or adds a new one that's created when the post is saved.
+    // (The list is looked up each time, because saving replaces it.)
+    const tagInput = form.querySelector("[data-new-tag]");
+    if (tagInput) {
+        const addTag = () => {
+            const tagList = form.querySelector("[data-tag-list]");
+            const name = tagInput.value.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+            tagInput.value = "";
+            if (!name) return;
+            const same = [...tagList.querySelectorAll(".tag-chip")].find(
+                (chip) => chip.textContent.trim().toLocaleLowerCase() === name.toLocaleLowerCase()
+            );
+            if (same) {
+                same.querySelector("input").checked = true;
+            } else {
+                const chip = document.createElement("label");
+                chip.className = "tag-chip";
+                const box = document.createElement("input");
+                box.type = "checkbox";
+                box.name = "new_tags";
+                box.value = name;
+                box.checked = true;
+                chip.append(box, " ", name);
+                tagList.appendChild(chip);
+            }
+            tagList.hidden = false;
+            dirty = true;
+            saveDraft();
+        };
+        tagInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === ",") {
+                event.preventDefault();
+                addTag();
+            }
+        });
+        // A name typed but not added yet still counts when saving.
+        form.addEventListener("submit", addTag, true);
     }
 
     // The publish date only matters when scheduling or backdating

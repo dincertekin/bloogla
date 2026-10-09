@@ -1,31 +1,36 @@
 // The theme options page (admin/templates/theme_options.html): colors with a
 // reset button, and images chosen from the media library.
+//
+// Saving swaps in a fresh copy of the form, so these listen on the whole
+// page and find the field from the element that was used.
 (() => {
     // Colors: show the code next to the swatch; "Reset" goes back to the default.
-    document.querySelectorAll("input[type=color]").forEach((input) => {
-        const code = input.parentElement.querySelector("code");
-        input.addEventListener("input", () => (code.textContent = input.value));
-    });
-    document.querySelectorAll("[data-reset-color]").forEach((button) => {
-        button.addEventListener("click", () => {
-            const input = document.getElementById(button.dataset.resetColor);
-            input.value = button.dataset.default;
-            input.dispatchEvent(new Event("input"));
-        });
+    document.addEventListener("input", (event) => {
+        if (event.target.type !== "color") return;
+        const code = event.target.parentElement.querySelector("code");
+        if (code) code.textContent = event.target.value;
     });
 
     // Images: "Choose" opens the media library, "Remove" clears it.
-    document.querySelectorAll("[data-image-option]").forEach((field) => {
-        const input = field.querySelector("input[type=hidden]");
+    const setImage = (field, url) => {
+        field.querySelector("input[type=hidden]").value = url;
         const preview = field.querySelector("[data-image-preview]");
-        const remove = field.querySelector("[data-image-remove]");
-        const setImage = (url) => {
-            input.value = url;
-            preview.src = url;
-            preview.hidden = !url;
-            remove.hidden = !url;
-        };
-        field.querySelector("[data-image-choose]").addEventListener("click", () => openMediaPicker(setImage));
-        remove.addEventListener("click", () => setImage(""));
+        preview.src = url;
+        preview.hidden = !url;
+        field.querySelector("[data-image-remove]").hidden = !url;
+    };
+
+    document.addEventListener("click", (event) => {
+        const reset = event.target.closest("[data-reset-color]");
+        if (reset) {
+            const input = document.getElementById(reset.dataset.resetColor);
+            input.value = reset.dataset.default;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        const field = event.target.closest("[data-image-option]");
+        if (!field) return;
+        if (event.target.closest("[data-image-choose]")) openMediaPicker((url) => setImage(field, url));
+        if (event.target.closest("[data-image-remove]")) setImage(field, "");
     });
 })();

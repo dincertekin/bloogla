@@ -64,7 +64,10 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
         themes: Arc::new(RwLock::new(crate::services::themes::Themes::load())),
         setup_pending: Arc::new(AtomicBool::new(setup_code.is_some())),
         setup_code: setup_code.unwrap_or_default().into(),
+        newer_release: Default::default(),
     };
+    // Does nothing unless "Check for new versions every day" is on (Settings → Updates).
+    crate::services::updates::spawn_daily_check(state.clone());
 
     // Sign-in sessions are stored in the database. Cookies are HTTP-only and
     // same-site; in production they're only sent over HTTPS.
@@ -73,6 +76,8 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
     let sessions = SessionManagerLayer::new(session_store.clone()).with_secure(config.production);
 
     spawn_maintenance(pool.clone(), session_store);
+    // Post views are counted in memory and saved every few seconds.
+    crate::handlers::site::analytics::spawn_view_saver(pool.clone());
 
     let app = routes::build(state, sessions)?;
     let addr = SocketAddr::new(config.host, config.port);
@@ -92,8 +97,11 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
         }
     }
 
+    crate::handlers::site::analytics::save_views(&pool).await;
     pool.close().await;
     tracing::info!("Stopped");
+    // After installing an update: start the new version in this process's place.
+    crate::services::updates::restart_if_updated()?;
     Ok(())
 }
 
@@ -115,7 +123,8 @@ fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
     });
 }
 
-/// Resolve on Ctrl+C or SIGTERM (sent by systemd and Docker on stop).
+/// Resolve on Ctrl+C or SIGTERM (sent by systemd and Docker on stop), or
+/// when an installed update needs a restart.
 async fn shutdown_signal() {
     let ctrl_c = async {
         let _ = tokio::signal::ctrl_c().await;
@@ -136,6 +145,7 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
+        _ = crate::services::updates::restart_requested() => {},
     }
     tracing::info!("Shutting down");
 }

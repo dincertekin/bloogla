@@ -16,16 +16,55 @@
     </a>
 </div>
 
+{% if let Some(release) = update %}
+<div class="alert alert-info alert-spaced update-notice" role="status">
+    <span>{{ me.tv2("Bloogla {version} is available. You have {current}.", release.version, current_version) }}</span>
+    <span class="update-links">
+        <a href="{{ release.url }}" target="_blank" rel="noopener" style="color: inherit">{{ me.t("What's new") }}</a>
+        <a href="https://github.com/dincertekin/bloogla#updating" target="_blank" rel="noopener" style="color: inherit">{{ me.t("How to update") }}</a>
+    </span>
+</div>
+{% endif %}
+
 {% if welcome %}
 <div class="alert alert-success alert-spaced" role="status">
     {{ me.tv3("Your site is ready. Write your {first_post}, add an {about_page}, or check the {settings}.", me.link("/admin/posts/new", "first post"), me.link("/admin/pages/new", "About page"), me.link("/admin/settings", "settings"))|safe }}
 </div>
 {% endif %}
 
-{% if pending_comments > 0 %}
-<div class="alert alert-info alert-spaced">
-    {{ me.count(pending_comments, "A comment is waiting for approval.", "{n} comments are waiting for approval.") }} <a href="/admin/comments" style="color: inherit">{{ me.t("Review") }}</a>
-</div>
+
+{% if !checklist.is_empty() %}
+<section class="card checklist">
+    <div class="checklist-header">
+        <div>
+            <h2 class="section-title" style="margin-bottom: 0.15rem">{{ me.t("Get your site ready") }}</h2>
+            <p class="form-hint">{{ me.tv2("{done} of {total} done", steps_done, checklist.len()) }}</p>
+        </div>
+        <form method="POST" action="/admin/checklist/hide" hx-post="/admin/checklist/hide"
+            hx-target="closest .checklist" hx-swap="delete swap:200ms">
+            <button type="submit" class="btn btn-ghost btn-sm">{{ me.t("Hide this list") }}</button>
+        </form>
+    </div>
+    <ul class="checklist-steps">
+        {% for step in checklist %}
+        <li class="checklist-step{% if step.done %} done{% endif %}">
+            <svg class="checklist-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                {% if step.done %}<path d="m8 12.5 2.8 2.8L16.5 9.5" />{% endif %}
+            </svg>
+            <div>
+                {% if step.done %}
+                <span class="checklist-text">{{ step.text }}</span>
+                <span class="visually-hidden">({{ me.t("done") }})</span>
+                {% else %}
+                <a href="{{ step.url }}" class="checklist-text">{{ step.text }}</a>
+                <span class="form-hint">{{ step.hint }}</span>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
 {% endif %}
 
 <div class="stats-grid">

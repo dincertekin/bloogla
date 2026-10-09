@@ -8,7 +8,7 @@ pub struct Config {
     pub port: u16,
     pub production: bool,
     pub base_url: String,
-    /// Built-in HTTPS; `None` when serving plain HTTP (e.g. behind Caddy).
+    /// Built-in HTTPS; `None` when serving plain HTTP (e.g. behind a reverse proxy).
     pub tls: Option<TlsConfig>,
 }
 

@@ -23,11 +23,10 @@ pub async fn render(state: &AppState, markdown: &str) -> String {
         .await
         .active_theme
         .clone();
-    let chosen = crate::services::themes::chosen_theme(&active);
     let Ok(themes) = state.themes.read() else {
         return html;
     };
-    let tera = themes.pick(&chosen).map(|theme| theme.tera);
+    let tera = themes.pick(&active).map(|theme| theme.tera);
     shortcodes::expand(&html, &|name, args| {
         let tera = tera?;
         let template = format!("shortcodes/{name}.html");

@@ -3,3 +3,6 @@ data
 uploads
 .git
 .DS_Store
+admin/visual-editor/node_modules
+.github
+docs

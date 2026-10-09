@@ -1,22 +1,19 @@
-//! The themes page: choose how the site looks, preview a theme before
-//! switching, change a theme's options (Customize), upload themes as .zip
-//! files and delete uploaded ones. Admins only.
+//! The themes page: choose how the site looks and change a theme's options
+//! (Customize). Admins only.
 
 use crate::app::models::CurrentUser;
-use crate::app::security::log_event;
 use crate::app::state::AppState;
 use crate::db::settings;
 use crate::services::themes::options::{self, ThemeOption};
-use crate::services::themes::{self, ThemeInfo, PREVIEW_SESSION_KEY};
+use crate::services::themes::ThemeInfo;
 
 use askama::Template;
-use axum::extract::{Extension, Multipart, Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::Form;
 use serde::Deserialize;
 use std::collections::HashMap;
-use tower_sessions::Session;
 
 #[derive(Template)]
 #[template(path = "themes.html")]
@@ -25,15 +22,14 @@ pub struct ThemesTemplate {
     pub me: CurrentUser,
     pub active_theme: String,
     pub themes: Vec<ThemeInfo>,
-    /// A message after an upload or a change: `(kind, text)`, where kind is
+    /// A message after a change: `(kind, text)`, where kind is
     /// `success` or `error`.
     pub message: Option<(&'static str, String)>,
 }
 
-/// What happened, from the address after a redirect (`?uploaded=my-theme`).
+/// What happened, from the address after a redirect (`?activated=docs`).
 #[derive(Deserialize)]
 pub struct Done {
-    uploaded: Option<String>,
     activated: Option<String>,
 }
 
@@ -72,36 +68,38 @@ fn theme_name(state: &AppState, id: &str) -> String {
         .map_or_else(|| id.to_string(), |t| t.meta.name)
 }
 
-/// GET /admin/themes -> Installed themes.
+/// How many themes are installed. With just one there's nothing to choose,
+/// so "Appearance" goes straight to its options.
+fn theme_count(state: &AppState) -> usize {
+    state.themes.read().map_or(0, |themes| themes.list().len())
+}
+
+/// GET /admin/themes -> "Appearance": the active theme's options, or the
+/// installed themes to choose from when there's more than one.
 pub async fn page(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
     Query(done): Query<Done>,
-) -> impl IntoResponse {
-    let message = if let Some(id) = done.uploaded {
-        Some((
+) -> Response {
+    if theme_count(&state) <= 1 && done.activated.is_none() {
+        let active = settings::load(&state.pool).await.active_theme.clone();
+        return Redirect::to(&format!("/admin/themes/{active}/options")).into_response();
+    }
+    let message = done.activated.map(|id| {
+        (
             "success",
-            me.tv("Theme uploaded: {name}.", theme_name(&state, &id)),
-        ))
-    } else {
-        done.activated.map(|id| {
-            (
-                "success",
-                me.tv("Your site now uses {name}.", theme_name(&state, &id)),
-            )
-        })
-    };
-    page_with(&state, me, message).await
+            me.tv("Your site now uses {name}.", theme_name(&state, &id)),
+        )
+    });
+    page_with(&state, me, message).await.into_response()
 }
 
 /// POST /admin/themes/activate -> Use another theme for the site.
 pub async fn activate(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
-    session: Session,
     Form(form): Form<ActivateForm>,
 ) -> Response {
-    let _ = session.remove::<String>(PREVIEW_SESSION_KEY).await;
     let usable = state
         .themes
         .read()
@@ -120,107 +118,6 @@ pub async fn activate(
     Redirect::to(&format!("/admin/themes?activated={}", form.theme)).into_response()
 }
 
-/// POST /admin/themes/upload -> Install a theme from a .zip file.
-pub async fn upload(
-    State(state): State<AppState>,
-    Extension(me): Extension<CurrentUser>,
-    mut multipart: Multipart,
-) -> Response {
-    let mut upload = None;
-    while let Ok(Some(field)) = multipart.next_field().await {
-        if field.name() != Some("theme") {
-            continue;
-        }
-        let file_name = field.file_name().unwrap_or("theme.zip").to_string();
-        if let Ok(data) = field.bytes().await {
-            upload = Some((file_name, data));
-        }
-    }
-
-    let result = match upload {
-        Some((file_name, data)) if !data.is_empty() => {
-            let name = file_name.clone();
-            tokio::task::spawn_blocking(move || themes::install_zip(&data, &name))
-                .await
-                .unwrap_or_else(|_| Err("Couldn't save the theme. Please try again.".into()))
-                .map(|id| (file_name, id))
-        }
-        _ => Err("Choose a .zip file to upload.".into()),
-    };
-
-    match result {
-        Ok((file_name, id)) => {
-            if let Ok(mut themes) = state.themes.write() {
-                themes.reload(&id);
-            }
-            log_event(
-                "theme_uploaded",
-                &[("user", &me.email), ("theme", &id), ("file", &file_name)],
-            );
-            Redirect::to(&format!("/admin/themes?uploaded={id}")).into_response()
-        }
-        Err(error) => {
-            let message = me.lang.t_owned(&error);
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                page_with(&state, me, Some(("error", message))).await,
-            )
-                .into_response()
-        }
-    }
-}
-
-/// DELETE /admin/themes/:id -> Delete an uploaded theme that isn't in use.
-pub async fn delete(
-    State(state): State<AppState>,
-    Extension(me): Extension<CurrentUser>,
-    Path(id): Path<String>,
-) -> Response {
-    if settings::load(&state.pool).await.active_theme == id {
-        return (
-            StatusCode::CONFLICT,
-            me.t("Switch to another theme before deleting this one."),
-        )
-            .into_response();
-    }
-    match themes::delete(&id) {
-        Ok(()) => {
-            if let Ok(mut themes) = state.themes.write() {
-                themes.reload(&id);
-            }
-            log_event("theme_deleted", &[("user", &me.email), ("theme", &id)]);
-            Html("").into_response()
-        }
-        Err(error) => (StatusCode::UNPROCESSABLE_ENTITY, me.t(error)).into_response(),
-    }
-}
-
-/// POST /admin/themes/:id/preview -> Show the site in this theme, only to
-/// this admin, until they stop the preview or switch.
-pub async fn preview(
-    State(state): State<AppState>,
-    session: Session,
-    Path(id): Path<String>,
-) -> Response {
-    let usable = state
-        .themes
-        .read()
-        .is_ok_and(|themes| themes.usable(&id).is_some());
-    if !usable {
-        return Redirect::to("/admin/themes").into_response();
-    }
-    if let Err(e) = session.insert(PREVIEW_SESSION_KEY, id).await {
-        tracing::error!("Failed to start theme preview: {e}");
-    }
-    Redirect::to("/").into_response()
-}
-
-/// POST /admin/themes/preview/stop -> Back to the active theme.
-pub async fn stop_preview(session: Session) -> Response {
-    let _ = session.remove::<String>(PREVIEW_SESSION_KEY).await;
-    Redirect::to("/admin/themes").into_response()
-}
-
 #[derive(Template)]
 #[template(path = "theme_options.html")]
 pub struct OptionsTemplate {
@@ -230,6 +127,8 @@ pub struct OptionsTemplate {
     /// Each option with its current value.
     pub fields: Vec<OptionField>,
     pub message: Option<(&'static str, String)>,
+    /// True when other themes are installed (then there's a link to them).
+    pub other_themes: bool,
 }
 
 pub struct OptionField {
@@ -277,6 +176,7 @@ pub async fn options_page(
         theme,
         fields,
         message,
+        other_themes: theme_count(&state) > 1,
     }
     .into_response()
 }
@@ -325,6 +225,7 @@ pub async fn save_options(
                 theme,
                 fields,
                 message: Some(("error", message)),
+                other_themes: theme_count(&state) > 1,
             },
         )
             .into_response();

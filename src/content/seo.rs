@@ -80,10 +80,6 @@ pub fn render_head(meta: &SeoMeta, site: &SiteInfo) -> String {
         escape_html(meta.canonical_url)
     ));
     tag(format!(
-        r#"<link rel="webmention" href="{}/webmention">"#,
-        escape_html(site.base_url)
-    ));
-    tag(format!(
         r#"<link rel="alternate" type="application/rss+xml" title="{}" href="{}/rss.xml">"#,
         escape_html(site.name),
         escape_html(site.base_url)

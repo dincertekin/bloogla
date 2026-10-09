@@ -1,4 +1,4 @@
-//! Passwords, random tokens and API token hashing.
+//! Passwords, random tokens and code hashing.
 
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
@@ -81,8 +81,8 @@ pub fn missing_password_rules(password: &str) -> Vec<&'static PasswordRule> {
 }
 
 /// Write a security event to the log: sign-ins, failed sign-ins, password
-/// and role changes, API tokens. Every line starts with `security event=`, so
-/// `journalctl -u bloogla | grep "security event"` lists them all.
+/// and role changes. Every line starts with `security event=`, so
+/// `grep "security event"` on the log (or `docker logs`) lists them all.
 ///
 /// Failures (`*_failed`, `*_rejected`, `*_throttled`) are warnings. Values are quoted, so
 /// text people typed (like an email address) can't fake extra log lines.
@@ -187,12 +187,7 @@ pub fn hash_recovery_code(code: &str) -> String {
     hash_token(&normalized)
 }
 
-/// A new API token. Only its [`hash_token`] is stored.
-pub fn new_api_token() -> String {
-    format!("bl_{}", random_hex(24))
-}
-
-/// SHA-256 of an API token, as stored in the database. Tokens are long and
+/// SHA-256 of a long random code, as stored in the database. The codes are
 /// random, so a fast hash is enough (unlike passwords).
 pub fn hash_token(token: &str) -> String {
     to_hex(&Sha256::digest(token.as_bytes()))
@@ -265,12 +260,5 @@ mod tests {
             hash_recovery_code("K7M2P 9XQ4T"),
             hash_recovery_code("k7m2p-9xq4t")
         );
-    }
-
-    #[test]
-    fn tokens_are_random_and_prefixed() {
-        let (a, b) = (new_api_token(), new_api_token());
-        assert!(a.starts_with("bl_") && a.len() == 51);
-        assert_ne!(a, b);
     }
 }

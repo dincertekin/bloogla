@@ -6,15 +6,6 @@
         <h1>{{ me.t("Themes") }}</h1>
         <p>{{ me.t("Choose how your site looks to visitors.") }}</p>
     </div>
-    <button type="button" class="btn btn-secondary" data-open-modal="upload-modal">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" x2="12" y1="3" y2="15" />
-        </svg>
-        {{ me.t("Upload a theme") }}
-    </button>
 </div>
 
 {% if let Some((kind, text)) = message %}
@@ -59,32 +50,10 @@
                     <button type="submit" class="btn btn-primary btn-sm">{{ me.t("Activate") }}</button>
                 </form>
                 {% endif %}
-                {% if theme.error.is_none() %}
+                {% if theme.error.is_none() && !theme.meta.options.is_empty() %}
                 <div class="theme-links">
-                    {% if theme.id != active_theme %}
-                    <form method="POST" action="/admin/themes/{{ theme.id }}/preview" target="_blank">
-                        <button type="submit" class="btn btn-ghost btn-sm">{{ me.t("Preview") }}</button>
-                    </form>
-                    {% endif %}
-                    {% if !theme.meta.options.is_empty() %}
                     <a href="/admin/themes/{{ theme.id }}/options" class="btn btn-ghost btn-sm">{{ me.t("Customize") }}</a>
-                    {% endif %}
                 </div>
-                {% endif %}
-                {% if theme.id != active_theme && !theme.is_bundled() %}
-                <button type="button" class="btn btn-ghost-danger btn-sm" aria-label="{{ me.t("Delete") }}"
-                    title="{{ me.t("Delete") }}"
-                    data-delete-url="/admin/themes/{{ theme.id }}" data-delete-target="#theme-{{ theme.id }}"
-                    data-confirm-title="{{ me.t("Delete this theme?") }}"
-                    data-confirm-text="{{ me.t("A copy is kept in data/theme-backups on the server.") }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                        aria-hidden="true">
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                    </svg>
-                </button>
                 {% endif %}
             </div>
         </div>
@@ -92,27 +61,4 @@
     {% endfor %}
 </div>
 
-<!-- Uploading, in a pop-up opened from the header. -->
-<div id="upload-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
-    <div class="modal-card" style="max-width: 520px">
-        <div class="modal-header">
-            <h3 id="upload-modal-title">{{ me.t("Upload a theme") }}</h3>
-            <button type="button" class="btn btn-ghost btn-sm" data-modal-close aria-label="{{ me.t("Close") }}">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
-            </button>
-        </div>
-    <form action="/admin/themes/upload" method="POST" enctype="multipart/form-data">
-        <div class="form-group">
-            <label for="theme-file">{{ me.t("Theme file (.zip)") }}</label>
-            <input type="file" id="theme-file" name="theme" class="form-control" accept=".zip,application/zip" required />
-            <span class="form-hint">
-                {{ me.t("A .zip with a theme.toml and templates, up to 20 MB. Uploading a theme with the same name replaces it, and the old copy is kept in data/theme-backups.") }}
-            </span>
-        </div>
-        <button type="submit" class="btn btn-primary">{{ me.t("Upload") }}</button>
-    </form>
-    </div>
-</div>
 {% endblock %}

@@ -1,9 +1,19 @@
 # Rust
 /target
 
-# Bloogla
+# Bloogla's data when running locally (database, secret.key, backups, uploads)
 data/
 uploads/
 
-# macOS
+# Secrets: never commit keys or environment files (the release signing key
+# is kept outside the repository; see CONTRIBUTING.md, "Releasing")
+*.pem
+*.key
+.env
+.env.*
+
+# Editors and macOS
 .DS_Store
+.idea/
+.vscode/
+*.swp

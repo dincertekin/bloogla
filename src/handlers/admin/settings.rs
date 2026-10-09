@@ -1,10 +1,11 @@
 //! The settings page: site details, reading options and email.
 //! Each card on the page saves separately.
 
-use super::alert;
+use super::{alert, saved_and_reload};
 use crate::app::models::CurrentUser;
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
+use crate::db::or_log;
 use crate::db::settings::{self, CommentMode};
 use crate::i18n::Lang;
 
@@ -18,20 +19,32 @@ use serde::Deserialize;
 #[template(path = "settings.html")]
 pub struct SettingsTemplate {
     pub blog_name: String,
+    /// Places on the site the menu can link to: `(name, address)`.
+    pub menu_suggestions: Vec<(String, String)>,
     pub me: CurrentUser,
     pub blog_description: String,
-    pub blog_keywords: String,
     pub posts_per_page: String,
     pub nav_menu: String,
     pub show_views: bool,
     pub email: EmailSettings,
     pub comments: String,
-    pub send_webmentions: bool,
     pub publisher_name: String,
     pub publisher_type: String,
     pub language: String,
     pub languages: Vec<Lang>,
+    /// The site's time zone, e.g. `Europe/Istanbul`, and every choice.
+    pub timezone: String,
+    pub timezones: Vec<&'static str>,
     pub site_icon: String,
+    /// Settings → Updates.
+    pub update: super::updates::UpdateStatus,
+}
+
+impl SettingsTemplate {
+    /// True for the site's current time zone (to preselect it).
+    fn is_timezone(&self, zone: &str) -> bool {
+        self.timezone == zone
+    }
 }
 
 /// Mail server and email options shown in Settings.
@@ -42,7 +55,6 @@ pub struct EmailSettings {
     pub username: String,
     pub has_password: bool,
     pub from: String,
-    pub newsletter: bool,
     pub notify_comments: bool,
 }
 
@@ -51,21 +63,48 @@ pub struct EmailSettings {
 pub struct GeneralSettingsForm {
     pub blog_name: Option<String>,
     pub blog_description: Option<String>,
-    pub blog_keywords: Option<String>,
     pub posts_per_page: Option<String>,
     pub nav_menu: Option<String>,
     /// Checkbox: show view counts on the public site.
     pub show_views: Option<String>,
     /// `off`, `moderated` or `open`.
     pub comments: Option<String>,
-    /// Checkbox: notify sites that posts link to.
-    pub send_webmentions: Option<String>,
     pub publisher_name: Option<String>,
     pub publisher_type: Option<String>,
     /// URL of the favicon, usually from the media library.
     pub site_icon: Option<String>,
     /// Site language code (`en`, `tr`).
     pub language: Option<String>,
+    /// Time zone name, e.g. `Europe/Istanbul`.
+    pub timezone: Option<String>,
+}
+
+/// Every time zone, by name (`Africa/Abidjan` … `UTC`). Old aliases like
+/// `US/Eastern` are left out, so each place is listed once.
+pub fn timezone_names() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = chrono_tz::TZ_VARIANTS
+        .iter()
+        .map(|tz| tz.name())
+        .filter(|name| name.contains('/') && !name.starts_with("Etc/"))
+        .filter(|name| {
+            let area = name.split('/').next().unwrap_or_default();
+            matches!(
+                area,
+                "Africa"
+                    | "America"
+                    | "Antarctica"
+                    | "Asia"
+                    | "Atlantic"
+                    | "Australia"
+                    | "Europe"
+                    | "Indian"
+                    | "Pacific"
+            )
+        })
+        .collect();
+    names.sort_unstable();
+    names.push("UTC");
+    names
 }
 
 /// GET /admin/settings -> Settings page.
@@ -74,11 +113,18 @@ pub async fn page(
     Extension(me): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     let site = settings::load(&state.pool).await;
+    let mut menu_suggestions = vec![(me.t("Home").to_string(), "/".to_string())];
+    for page in crate::db::posts::public_pages(&state.pool).await {
+        let url = crate::server::routes::post_path(&page.slug, true);
+        menu_suggestions.push((page.title, url));
+    }
+    for tag in crate::db::tags::all(&state.pool).await {
+        menu_suggestions.push((tag.name, format!("/tag/{}", tag.slug)));
+    }
     SettingsTemplate {
         blog_name: site.blog_name.clone(),
-        me,
+        menu_suggestions,
         blog_description: site.blog_description.clone(),
-        blog_keywords: site.blog_keywords.clone(),
         posts_per_page: site.posts_per_page.to_string(),
         nav_menu: site.nav_menu.clone(),
         show_views: site.show_views,
@@ -89,16 +135,18 @@ pub async fn page(
             username: site.smtp_username.clone(),
             has_password: !site.smtp_password.is_empty(),
             from: site.smtp_from.clone(),
-            newsletter: site.newsletter,
             notify_comments: site.notify_comments,
         },
         comments: site.comments.as_str().to_string(),
-        send_webmentions: site.send_webmentions,
         publisher_name: site.publisher_name.clone(),
         publisher_type: site.publisher_type.clone(),
         language: site.language.code().to_string(),
         languages: Lang::all(),
+        timezone: site.timezone.name().to_string(),
+        timezones: timezone_names(),
         site_icon: site.site_icon.clone(),
+        update: super::updates::UpdateStatus::load(&state, &site, &me, None),
+        me,
     }
 }
 
@@ -134,10 +182,6 @@ pub async fn update_general(
                 form.blog_description.unwrap_or_default().trim().to_string(),
             ),
             (
-                "blog_keywords",
-                form.blog_keywords.unwrap_or_default().trim().to_string(),
-            ),
-            (
                 "publisher_name",
                 form.publisher_name.unwrap_or_default().trim().to_string(),
             ),
@@ -153,6 +197,12 @@ pub async fn update_general(
             ),
             ("site_icon", site_icon),
         ]);
+        if let Some(zone) = form.timezone.as_deref() {
+            if zone.parse::<chrono_tz::Tz>().is_err() {
+                return settings_error(me.lang, "Choose a time zone from the list.");
+            }
+            values.push(("timezone", zone.to_string()));
+        }
     }
 
     // "Reading" card (always sends posts_per_page)
@@ -174,18 +224,13 @@ pub async fn update_general(
         if settings::parse_menu(&nav_menu).len() != menu_lines {
             return settings_error(
                 me.lang,
-                "Each menu line must look like <code>Label | /path</code> or \
-                 <code>Label | https://example.com</code>.",
+                "Each menu link needs a name and an address that starts with / or https://.",
             );
         }
         values.extend([
             ("posts_per_page", posts_per_page),
             ("nav_menu", nav_menu),
             ("show_views", form.show_views.is_some().to_string()),
-            (
-                "send_webmentions",
-                form.send_webmentions.is_some().to_string(),
-            ),
             (
                 "comments",
                 CommentMode::parse(form.comments.as_deref().unwrap_or_default())
@@ -195,17 +240,46 @@ pub async fn update_general(
         ]);
     }
 
-    save(&state, me.lang, &values).await
+    // People who haven't picked their own language see the admin panel in
+    // the site's, so for them a new site language reloads the page.
+    let new_language = values
+        .iter()
+        .find(|(key, _)| *key == "language")
+        .and_then(|(_, code)| Lang::parse(code));
+    let saved = match new_language {
+        Some(lang) if lang != me.lang && follows_site_language(&state, me.id).await => {
+            saved_and_reload(lang)
+        }
+        _ => alert(me.lang, "success", "Saved."),
+    };
+    save(&state, me.lang, &values, saved).await
+}
+
+/// Whether this person uses the site's language for the admin panel.
+async fn follows_site_language(state: &AppState, user_id: i64) -> bool {
+    let own: Option<String> = or_log(
+        sqlx::query_scalar("SELECT language FROM users WHERE id = ?")
+            .bind(user_id)
+            .fetch_optional(&state.pool)
+            .await,
+        "load language",
+    );
+    own.is_some_and(|code| code.is_empty())
 }
 
 fn settings_error(lang: Lang, message: &str) -> Response {
     alert(lang, "error", message)
 }
 
-/// Save a settings card's values together and report the result.
-async fn save(state: &AppState, lang: Lang, values: &[(&str, String)]) -> Response {
+/// Save a settings card's values together; answer with `saved` if that worked.
+async fn save(
+    state: &AppState,
+    lang: Lang,
+    values: &[(&str, String)],
+    saved: Response,
+) -> Response {
     match settings::save(&state.pool, values).await {
-        Ok(()) => alert(lang, "success", "Saved."),
+        Ok(()) => saved,
         Err(e) => {
             tracing::error!("Failed to save settings: {e}");
             settings_error(lang, "Couldn't save your changes. Please try again.")
@@ -224,7 +298,6 @@ pub struct EmailSettingsForm {
     #[serde(default)]
     smtp_password: String,
     smtp_from: String,
-    newsletter: Option<String>,
     notify_comments: Option<String>,
 }
 
@@ -242,12 +315,6 @@ pub async fn update_email(
     if !host.is_empty() && !from.contains('@') {
         return settings_error(me.lang, "Add the address emails should come from.");
     }
-    if form.newsletter.is_some() && host.is_empty() {
-        return settings_error(
-            me.lang,
-            "Set up the mail server before turning on the newsletter.",
-        );
-    }
     let security = match form.smtp_security.as_str() {
         "tls" => "tls",
         "none" => "none",
@@ -260,7 +327,6 @@ pub async fn update_email(
         ("smtp_security", security.to_string()),
         ("smtp_username", form.smtp_username.trim().to_string()),
         ("smtp_from", from.to_string()),
-        ("newsletter", form.newsletter.is_some().to_string()),
         (
             "notify_comments",
             form.notify_comments.is_some().to_string(),
@@ -269,7 +335,13 @@ pub async fn update_email(
     if !form.smtp_password.is_empty() {
         values.push(("smtp_password", form.smtp_password));
     }
-    save(&state, me.lang, &values).await
+    save(
+        &state,
+        me.lang,
+        &values,
+        alert(me.lang, "success", "Saved."),
+    )
+    .await
 }
 
 /// POST /admin/settings/email/test -> Send a test email to yourself.
@@ -290,7 +362,6 @@ pub async fn send_test_email(
             ),
             "",
         ),
-        unsubscribe: None,
     };
     match crate::services::email::send(&state, &email).await {
         Ok(()) => alert(

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+  <!-- Preview for Admin → Appearance: masthead, ruled sections, front page. -->
+  <rect width="640" height="400" fill="#ffffff"/>
+  <text x="320" y="58" text-anchor="middle" font-family="Didot, 'Bodoni 72', Georgia, serif" font-weight="700" font-size="38" fill="#121212">The Gazette</text>
+  <line x1="24" y1="76" x2="616" y2="76" stroke="#dfdfdf" stroke-width="1"/>
+  <g fill="#5a5a5a">
+    <rect x="200" y="84" width="40" height="6" rx="1"/>
+    <rect x="252" y="84" width="40" height="6" rx="1"/>
+    <rect x="304" y="84" width="40" height="6" rx="1"/>
+    <rect x="356" y="84" width="40" height="6" rx="1"/>
+    <rect x="408" y="84" width="40" height="6" rx="1"/>
+  </g>
+  <line x1="24" y1="98" x2="616" y2="98" stroke="#121212" stroke-width="1"/>
+  <line x1="24" y1="101" x2="616" y2="101" stroke="#121212" stroke-width="1"/>
+  <rect x="24" y="116" width="380" height="170" fill="#dfe6ec"/>
+  <rect x="24" y="298" width="60" height="6" fill="#326891"/>
+  <rect x="24" y="312" width="360" height="16" rx="2" fill="#121212"/>
+  <rect x="24" y="334" width="300" height="16" rx="2" fill="#121212"/>
+  <rect x="24" y="358" width="370" height="7" rx="2" fill="#a3a3a3"/>
+  <rect x="24" y="371" width="330" height="7" rx="2" fill="#a3a3a3"/>
+  <line x1="420" y1="116" x2="420" y2="390" stroke="#dfdfdf" stroke-width="1"/>
+  <rect x="436" y="116" width="180" height="96" fill="#ece6dc"/>
+  <rect x="436" y="222" width="40" height="5" fill="#326891"/>
+  <rect x="436" y="234" width="170" height="11" rx="2" fill="#121212"/>
+  <rect x="436" y="251" width="150" height="11" rx="2" fill="#121212"/>
+  <rect x="436" y="268" width="175" height="6" rx="2" fill="#a3a3a3"/>
+  <line x1="436" y1="290" x2="616" y2="290" stroke="#dfdfdf" stroke-width="1"/>
+  <rect x="436" y="304" width="40" height="5" fill="#326891"/>
+  <rect x="436" y="316" width="165" height="11" rx="2" fill="#121212"/>
+  <rect x="436" y="333" width="120" height="11" rx="2" fill="#121212"/>
+  <rect x="436" y="350" width="170" height="6" rx="2" fill="#a3a3a3"/>
+  <rect x="436" y="362" width="140" height="6" rx="2" fill="#a3a3a3"/>
+</svg>

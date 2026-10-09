@@ -1,0 +1,8 @@
+{# A post's picture in a list; the headline links to the post too, so
+   keyboards and screen readers skip this link. `eager` loads it at once. #}
+{% if post.cover_image %}
+<a href="{{ post.url }}" class="cover" tabindex="-1" aria-hidden="true">
+    <img src="{% if post.cover_small %}{{ post.cover_small }}{% else %}{{ post.cover_image }}{% endif %}" alt=""
+        decoding="async" {% if eager is defined %}fetchpriority="high"{% else %}loading="lazy"{% endif %} />
+</a>
+{% endif %}

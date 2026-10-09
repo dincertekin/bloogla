@@ -4,16 +4,18 @@
 //! Who may open which screen is decided in `server/routes.rs`.
 
 pub mod auth;
+pub mod backup;
 pub mod comments;
 pub mod dashboard;
 pub mod media;
+pub mod password_reset;
 pub mod posts;
 pub mod profile;
 pub mod settings;
 pub mod setup;
-pub mod subscribers;
 pub mod tags;
 pub mod themes;
+pub mod updates;
 pub mod users;
 
 use crate::i18n::Lang;
@@ -46,6 +48,17 @@ pub fn alert(lang: Lang, kind: &str, message: &str) -> Response {
         lang.t_owned(message)
     ))
     .into_response()
+}
+
+/// "Saved." for a change that affects the whole page, like its language:
+/// admin.js reloads the page and shows the message again. `lang` is the
+/// language the page will be in after reloading.
+pub fn saved_and_reload(lang: Lang) -> Response {
+    (
+        [("HX-Trigger", "reload-page")],
+        alert(lang, "success", "Saved."),
+    )
+        .into_response()
 }
 
 /// Plain 403 page for actions this person's role doesn't allow.

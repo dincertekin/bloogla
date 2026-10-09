@@ -1,0 +1,35 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}
+{% if search_query %}
+{{ t.search_query | replace(from="{query}", to=search_query) }} - {{ blog_name }}
+{% else %}
+{{ blog_name }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="feed-layout">
+    <section class="feed">
+        {% if search_query %}
+        <header class="feed-header">
+            <h1 class="feed-heading">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
+        </header>
+        {% else %}
+        {# The page's main heading, for search engines and screen readers;
+           the site name is already shown in the header. #}
+        <h1 class="visually-hidden">{{ blog_name }}</h1>
+        {% endif %}
+
+        {% for post in posts %}
+        {% include "templates/post_card.html" %}
+        {% else %}
+        <p class="empty-state">{{ t.no_posts_found }}</p>
+        {% endfor %}
+
+        {% include "templates/pagination.html" %}
+    </section>
+
+    {% include "templates/sidebar.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{# "By Name · Oct 9 · 4 min read" under a headline. #}
+<p class="byline">
+    {% if post.author_name %}
+    {% set author_escaped = post.author_name | escape %}
+    {% set author_html = '<span class="byline-name">' ~ author_escaped ~ '</span>' %}
+    <span class="byline-by">{{ t.by_name | replace(from="{name}", to=author_html) | safe }}</span>
+    {% endif %}
+    <time>{{ post.created_at }}</time>
+    <span>{{ t.n_min_read | replace(from="{n}", to=post.reading_time ~ "") }}</span>
+    {% if show_views and post.views > 0 %}
+    <span>{% if post.views == 1 %}{{ t.n1_view }}{% else %}{{ t.n_views | replace(from="{n}", to=post.views ~ "") }}{% endif %}</span>
+    {% endif %}
+</p>

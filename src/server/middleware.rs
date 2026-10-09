@@ -7,11 +7,10 @@ use crate::app::state::AppState;
 use crate::handlers::admin::forbidden;
 
 use axum::body::Body;
-use axum::extract::{ConnectInfo, Request, State};
+use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
-use std::net::SocketAddr;
 use std::sync::atomic::Ordering;
 use tower_sessions::Session;
 
@@ -113,7 +112,11 @@ pub async fn require_login(
     };
 
     match user {
-        Some(user) => {
+        Some(mut user) => {
+            // Saving (POST, DELETE) only answers with a message, without the menu.
+            if req.method() == Method::GET {
+                user.badges = crate::app::models::Badges::load(&state, &user).await;
+            }
             req.extensions_mut().insert(user);
             next.run(req).await
         }
@@ -123,7 +126,7 @@ pub async fn require_login(
     }
 }
 
-/// Only admins may continue (settings, people, subscribers).
+/// Only admins may continue (settings, themes, people).
 /// Runs after [`require_login`].
 pub async fn require_admin(req: Request, next: Next) -> Response {
     match req.extensions().get::<CurrentUser>() {
@@ -139,43 +142,6 @@ pub async fn require_editor(req: Request, next: Next) -> Response {
         Some(user) if user.can_edit_all() => next.run(req).await,
         user => forbidden(user.map(|u| u.lang).unwrap_or_default()),
     }
-}
-
-/// JSON API writes: require `Authorization: Bearer bl_...` and act as the
-/// token's owner.
-pub async fn require_api_token(
-    State(state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Response {
-    let token = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .map(str::trim)
-        .filter(|t| t.starts_with("bl_"));
-    let Some(token) = token else {
-        return crate::handlers::api::error(
-            StatusCode::UNAUTHORIZED,
-            "Send an API token as 'Authorization: Bearer bl_...'. Create one on your Profile page.",
-        );
-    };
-
-    let token_hash = crate::app::security::hash_token(token);
-    let Some(user) = crate::db::users::find_by_token_hash(&state.pool, &token_hash).await else {
-        let ip = req
-            .extensions()
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|ConnectInfo(peer)| {
-                crate::handlers::client_ip(&state, *peer, req.headers()).to_string()
-            })
-            .unwrap_or_default();
-        crate::app::security::log_event("api_token_rejected", &[("ip", &ip)]);
-        return crate::handlers::api::error(StatusCode::UNAUTHORIZED, "This API token isn't valid");
-    };
-    req.extensions_mut().insert(user);
-    next.run(req).await
 }
 
 /// Theme folders also hold templates; only their `static/` files are public.
@@ -210,16 +176,6 @@ pub async fn theme_static_only(req: Request, next: Next) -> Response {
     response
 }
 
-/// Public pages for an admin previewing a theme (Admin → Themes → Preview)
-/// use that theme. The choice is kept in their session.
-pub async fn theme_preview(session: Session, req: Request, next: Next) -> Response {
-    let theme: Option<String> = session
-        .get(crate::services::themes::PREVIEW_SESSION_KEY)
-        .await
-        .unwrap_or(None);
-    crate::services::themes::with_preview(theme, next.run(req)).await
-}
-
 /// Add an `ETag` to public HTML and XML responses and answer `304 Not Modified`
 /// when the browser or feed reader already has the same version.
 pub async fn etag(req: Request, next: Next) -> Response {
@@ -236,7 +192,7 @@ pub async fn etag(req: Request, next: Next) -> Response {
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|ct| ct.starts_with("text/html") || ct.contains("xml"));
-    // Pages that must not be kept (a theme preview) get no ETag.
+    // Pages that must not be kept get no ETag.
     let no_store = response
         .headers()
         .get(header::CACHE_CONTROL)
@@ -279,14 +235,13 @@ pub fn crash_response(details: Box<dyn std::any::Any + Send + 'static>) -> Respo
         .or_else(|| details.downcast_ref::<&str>().copied())
         .unwrap_or("unknown error");
     tracing::error!("Request crashed: {message}");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        axum::response::Html(
-            "<h1>Something went wrong</h1><p>Please try again. If it keeps happening, \
-             the site's owner can find details in the server log.</p>",
-        ),
-    )
-        .into_response()
+    let page = crate::handlers::plain_page(
+        crate::i18n::Lang::default(),
+        "Something went wrong",
+        "Please try again. If it keeps happening, the site's owner can find details in the server log.",
+        Some(("/", "Go to the home page")),
+    );
+    (StatusCode::INTERNAL_SERVER_ERROR, page).into_response()
 }
 
 #[cfg(test)]

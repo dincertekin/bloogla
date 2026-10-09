@@ -1,9 +1,10 @@
 name = "Default Theme"
 author = "Bloogla Team"
-version = "2.3.0"
+version = "2.6.1"
 description = "Clean, fast default theme for Bloogla, with dark mode."
+preview_image = "static/preview.svg"
 
-# Shown in Admin → Themes → Customize; templates read them as theme_options.<name>.
+# Shown in Admin → Appearance; templates read them as theme_options.<name>.
 [[options]]
 name = "accent_color"
 label = "Accent color"

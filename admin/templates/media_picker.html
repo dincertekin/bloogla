@@ -15,7 +15,7 @@
     {% for item in media %}
     <button type="button" class="picker-item" data-url="{{ item.url }}" data-alt="{{ item.alt }}"
         title="{{ item.original_name }}">
-        <img src="{{ item.url }}" alt="{{ item.original_name }}" loading="lazy" />
+        <img src="{{ item.thumb_url }}" alt="{{ item.alt }}" loading="lazy" decoding="async" />
     </button>
     {% endfor %}
 </div>

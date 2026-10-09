@@ -1,0 +1,51 @@
+name: Bug report
+description: Something doesn't work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time! Security problems: please report them [privately](https://github.com/dincertekin/bloogla/security) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: "I clicked Save in the editor and…"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+  - type: input
+    id: version
+    attributes:
+      label: Bloogla version
+      description: Shown in Settings → Updates.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run Bloogla?
+      options:
+        - Docker
+        - The program on a Linux server
+        - Built from source
+        - Other
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: "Safari 19 on iPhone"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines or screenshots
+      description: Anything from the server log (`docker logs bloogla`) or the browser that looks related. Remove passwords and private details first.

@@ -1,0 +1,12 @@
+{# One post in a section, search or older-posts list: date, headline and
+   summary, picture. #}
+<article class="river-item">
+    <time class="river-date">{{ post.created_at }}</time>
+    <div class="river-text">
+        {% include "templates/kicker.html" %}
+        <h2 class="headline headline-md"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <p class="summary">{{ post.content | safe }}</p>
+        {% include "templates/byline.html" %}
+    </div>
+    {% include "templates/cover.html" %}
+</article>

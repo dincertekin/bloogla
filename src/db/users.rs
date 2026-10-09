@@ -1,5 +1,5 @@
 //! People who can sign in: loading the person making a request (from their
-//! session or an API token) and changing passwords.
+//! session) and changing passwords.
 
 use crate::app::models::{CurrentUser, Role};
 use crate::db::{or_log, settings};
@@ -20,6 +20,7 @@ async fn from_row(
         role: Role::parse(&role).unwrap_or(Role::Author),
         lang: language_or_site(pool, &language).await,
         session_version,
+        badges: Default::default(),
     }
 }
 
@@ -43,27 +44,6 @@ pub async fn find(pool: &SqlitePool, id: i64) -> Option<CurrentUser> {
         "load user",
     );
     Some(from_row(pool, row?).await)
-}
-
-/// The owner of an API token, given the token's hash. Records that it was used.
-pub async fn find_by_token_hash(pool: &SqlitePool, token_hash: &str) -> Option<CurrentUser> {
-    let row: Option<(i64, i64, String, String, String, String, i64)> = or_log(
-        sqlx::query_as(
-            "SELECT t.id, u.id, u.name, u.email, u.role, u.language, u.session_version
-             FROM api_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?",
-        )
-        .bind(token_hash)
-        .fetch_optional(pool)
-        .await,
-        "check api token",
-    );
-    let (token_id, id, name, email, role, language, version) = row?;
-
-    let _ = sqlx::query("UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .bind(token_id)
-        .execute(pool)
-        .await;
-    Some(from_row(pool, (id, name, email, role, language, version)).await)
 }
 
 /// Set a new password and sign the account out on every device.
