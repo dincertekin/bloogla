@@ -337,6 +337,15 @@ pub async fn submit(
 
     state.setup_pending.store(false, Ordering::Release);
     crate::app::security::log_event("setup_completed", &[("user", form.email.trim())]);
+    let welcome = match form.name.trim() {
+        "" => form.email.trim(),
+        name => name,
+    };
+    crate::app::console::activity_tv(
+        crate::app::console::Kind::Done,
+        "Setup finished. Welcome, {name}!",
+        welcome,
+    );
     // A brand-new account starts at session version 0.
     super::auth::sign_in(&session, user_id, 0).await;
     // The Dashboard says "Your site is ready" once (see dashboard.rs).

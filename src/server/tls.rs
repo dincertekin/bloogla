@@ -19,13 +19,16 @@ use std::time::Duration;
 
 pub const CERT_CACHE_DIR: &str = "data/acme";
 
-/// Serve `app` over HTTPS until `shutdown` resolves.
+/// Serve `app` over HTTPS on `listener` until `shutdown` resolves. `ready`
+/// runs once the HTTP redirect is listening too (it shows the start screen).
 pub async fn serve(
     app: Router,
-    addr: SocketAddr,
+    listener: std::net::TcpListener,
     tls: &TlsConfig,
     shutdown: impl Future<Output = ()> + Send + 'static,
+    ready: impl FnOnce(),
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let addr = listener.local_addr()?;
     if addr.port() != 443 {
         tracing::warn!(
             "HTTPS is on port {}; Let's Encrypt validates on port 443, so forward 443 to it",
@@ -66,7 +69,8 @@ pub async fn serve(
         "Serving HTTPS on {addr} for {} (certificates in {CERT_CACHE_DIR}/)",
         tls.domains.join(", ")
     );
-    axum_server::bind(addr)
+    ready();
+    axum_server::from_tcp(listener)?
         .handle(handle)
         .acceptor(acceptor)
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())
@@ -79,9 +83,7 @@ async fn spawn_http_redirect(
     addr: SocketAddr,
     domains: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| format!("Could not listen on {addr} for HTTP redirects: {e}"))?;
+    let listener = tokio::net::TcpListener::from_std(super::listen(addr)?)?;
 
     let redirect = Router::new().fallback(move |req: Request| {
         let domains = domains.clone();

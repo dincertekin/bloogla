@@ -1,0 +1,31 @@
+name: Translation
+description: Help Bloogla speak your language, or fix a translation.
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! The [translation guide](https://github.com/dincertekin/bloogla/blob/main/docs/translating.md) explains how a language is added; no programming needed.
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: "Nederlands (Dutch)"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What would you like to do?
+      options:
+        - Add this language (I'll translate)
+        - Review or help with this language
+        - Fix a translation
+        - Ask for this language
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: For a fix, the current text, what it should say, and where you saw it (a screenshot helps).

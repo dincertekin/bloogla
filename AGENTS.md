@@ -79,6 +79,10 @@ with `npm install && npm run build`; don't edit the built file by hand.
   tabs, modals) and CSS variables. Monochrome, no gradients or emoji, short
   human copy. Propose visible design changes before making them.
 - **Motion:** keep animations subtle and respect `prefers-reduced-motion`.
+- **The terminal window:** what the person running Bloogla sees goes through
+  `app::console` (start screen, `activity_t` news lines, `failed`), translated
+  like the admin. In Docker/systemd it falls back to log lines by itself;
+  don't print with `println!` from the server.
 
 ## Don't
 

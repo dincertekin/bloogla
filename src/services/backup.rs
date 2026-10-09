@@ -2,6 +2,7 @@
 //! (daily, and with `bloogla backup`), and a downloadable .zip with the
 //! database and uploaded images (Admin → Settings → Backup).
 
+use crate::app::console::{self, Kind};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -53,7 +54,7 @@ pub async fn run_daily_backup(pool: &SqlitePool) {
     }
     match backup_to(pool, &timestamped_path(AUTOMATIC_PREFIX)).await {
         Ok(()) => {
-            tracing::info!("Automatic backup saved");
+            console::activity_t(Kind::Done, "Daily backup saved.");
             prune_automatic_backups();
         }
         Err(e) => tracing::error!("Automatic backup failed: {e}"),

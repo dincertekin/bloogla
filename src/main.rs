@@ -28,7 +28,7 @@ async fn main() {
 
     server::init_logging();
     if let Err(e) = command.run().await {
-        eprintln!("Error: {e}");
+        app::console::failed(&e.to_string());
         std::process::exit(1);
     }
 }

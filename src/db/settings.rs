@@ -167,6 +167,16 @@ impl Settings {
 
 static CACHE: RwLock<Option<Arc<Settings>>> = RwLock::new(None);
 
+/// The site's language, if settings are in memory (for the terminal window,
+/// which can't wait for the database).
+pub fn cached_language() -> Option<Lang> {
+    CACHE
+        .read()
+        .ok()?
+        .as_ref()
+        .map(|settings| settings.language)
+}
+
 /// Current settings (from memory after the first call).
 pub async fn load(pool: &SqlitePool) -> Arc<Settings> {
     if let Some(settings) = CACHE.read().ok().and_then(|cache| cache.clone()) {

@@ -40,7 +40,13 @@ const ASSET: Option<&str> = if cfg!(all(target_os = "linux", target_arch = "x86_
     Some("bloogla-x86_64-linux")
 } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
     Some("bloogla-aarch64-linux")
+} else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+    Some("bloogla-aarch64-macos")
+} else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+    Some("bloogla-x86_64-macos")
 } else {
+    // Windows: a running program can't restart itself in place, so it's
+    // updated by downloading the new .exe.
     None
 };
 
@@ -108,10 +114,10 @@ pub fn spawn_daily_check(state: AppState) {
             }
             match check(&state).await {
                 Ok(Some(release)) => {
-                    tracing::info!(
-                        "Bloogla {} is available (this is {CURRENT_VERSION}): {}",
-                        release.version,
-                        release.url
+                    crate::app::console::activity_tv(
+                        crate::app::console::Kind::Note,
+                        "Bloogla {version} is available. Install it in Settings → Updates.",
+                        &release.version,
                     );
                     if site.update_install_auto && install_method() == InstallMethod::Itself {
                         if let Err(e) = install(&release).await {
@@ -259,6 +265,7 @@ pub async fn install(release: &Release) -> Result<(), String> {
     if INSTALLING.swap(true, Ordering::AcqRel) {
         return Err("An update is already being installed.".to_string());
     }
+    let version = release.version.clone();
     let release = release.clone();
     let result = tokio::task::spawn_blocking(move || replace_program(&release))
         .await
@@ -266,7 +273,11 @@ pub async fn install(release: &Release) -> Result<(), String> {
         .and_then(|result| result);
     match result {
         Ok(program) => {
-            tracing::info!("Installed a new version; restarting");
+            crate::app::console::activity_tv(
+                crate::app::console::Kind::Done,
+                "Bloogla {version} is installed. Restarting…",
+                &version,
+            );
             restart_soon(program);
             Ok(())
         }

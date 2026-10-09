@@ -170,6 +170,11 @@ pub async fn submit(
                 .await,
             "comment post title",
         );
+        crate::app::console::activity_tv(
+            crate::app::console::Kind::Note,
+            "A comment is waiting for approval on “{title}”.",
+            &title,
+        );
         crate::services::email::notify_new_comment(
             &state,
             title,

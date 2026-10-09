@@ -8,9 +8,10 @@ Bloogla simpler, faster or safer for them?**
 
 - **Report a bug or suggest an idea:** [open an issue](https://github.com/dincertekin/bloogla/issues/new/choose).
   Security problems go [privately](SECURITY.md) instead.
-- **Translate:** the interface is in English and Turkish. A new language is
-  one file (see [Adding something new](#adding-something-new)), and fixes to
-  existing translations are very welcome.
+- **Translate:** the interface is in English and Turkish. Adding a language
+  takes no programming, only a browser: see
+  [docs/translating.md](docs/translating.md). Fixes to existing translations
+  are very welcome too.
 - **Make a theme:** themes are HTML templates and CSS, no Rust needed. See
   [docs/themes.md](docs/themes.md).
 - **Write code:** issues labelled `good first issue` are a good start. For
@@ -67,6 +68,7 @@ functions, and a comment saying *why* wherever it isn't obvious.
     ├── main.rs             # Start here: reads the command and runs it
     ├── app/                # Building blocks used everywhere
     │   ├── config.rs       #   BLOOGLA_* environment variables
+    │   ├── console.rs      #   What a person sees in the terminal window
     │   ├── state.rs        #   AppState: what every request handler can reach
     │   ├── models.rs       #   Shared data types: Post, Tag, Role, CurrentUser...
     │   ├── security.rs     #   Passwords, random codes, the security log
@@ -111,7 +113,7 @@ Created at runtime: `data/` (database, backups), `uploads/`.
 - **A database change:** add a new file to `migrations/` (never edit one that has already run).
 - **A test:** copy one from `src/tests/`. `TestSite::with_owner()` gives you a fresh site with the owner signed in; `site.get(...)` and `site.post(...)` work like a browser.
 - **New interface text:** wrap it in `me.t("...")` and add its Turkish translation to `src/i18n/tr.rs`; `cargo test` lists anything missing.
-- **A new language:** copy `src/i18n/tr.rs` to `<code>.rs`, translate it, and add one line to `LANGUAGES` in `src/i18n/mod.rs`.
+- **A new language:** see [docs/translating.md](docs/translating.md).
 
 ## House rules
 

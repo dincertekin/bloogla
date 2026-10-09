@@ -286,6 +286,9 @@ mod tests {
             "\"success\",",
             "\"info\",",
             "settings_error(me.lang,",
+            "Kind::Done,",
+            "Kind::Note,",
+            "Kind::Problem,",
             "tag_form_error(me.lang,",
             "render_error(",
         ];

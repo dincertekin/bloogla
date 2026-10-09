@@ -3,11 +3,40 @@
 Everything about putting Bloogla on a server and keeping it running. New
 here? The [README](../README.md#quick-start) has the short version.
 
+- [On your computer](#on-your-computer)
 - [On a server](#on-a-server)
 - [Configuration](#configuration)
 - [Commands](#commands)
 - [Updating](#updating)
 - [Backups](#backups)
+
+## On your computer
+
+Download the file for your computer from the
+[latest release](https://github.com/dincertekin/bloogla/releases/latest):
+`bloogla-x86_64-windows.exe` for Windows, `bloogla-aarch64-macos.zip` for
+Macs with Apple Silicon (M1 and newer), or `bloogla-x86_64-macos.zip` for
+Macs with Intel. Open it: a window shows your site's address and opens the
+setup page in your browser. Keep that window open while you use your site;
+close it (or press Ctrl+C) to stop.
+
+Bloogla isn't signed by Microsoft or Apple yet, so the first time they ask
+whether to trust it:
+
+- **Windows:** "Windows protected your PC" → click **More info**, then
+  **Run anyway**. If Windows asks whether Bloogla may use the network, choose
+  **Private networks** and **Allow**.
+- **Mac:** double-click the `.zip` (Safari may have done it already), then
+  double-click `bloogla`. macOS says it can't check it for malicious
+  software: click **Done**, open **System Settings → Privacy & Security**,
+  scroll down and click **Open Anyway** next to "bloogla", and confirm.
+  This is needed once.
+
+Bloogla keeps your site in the folder it starts from: `data/` (the database
+and backups), `uploads/` (pictures) and `themes/`. Double-clicked on a Mac,
+that's your home folder. To keep things tidy, make a folder for it (for
+example `Bloogla` in Documents), put the program there and start it from
+Terminal in that folder: `cd ~/Documents/Bloogla && ./bloogla`.
 
 ## On a server
 
@@ -73,7 +102,8 @@ How a new version gets installed depends on how Bloogla runs (download a backup 
 
 - **The binary on Linux:** click **Install Bloogla 1.2.0** (or let the automatic install do it). Bloogla downloads the new program, checks that it's signed with Bloogla's release key (anything else is refused), swaps it in and restarts in place; the site is down for a few seconds. The previous program stays next to it as `bloogla.old`: to go back, stop Bloogla and rename it to `bloogla`. Bloogla must be allowed to write to the folder its program is in.
 - **Docker:** a container can't replace itself, so: `docker pull ghcr.io/dincertekin/bloogla`, remove the container (`docker rm -f bloogla`) and run the same `docker run` command again. Your site lives in the `bloogla` volume, so nothing is lost.
-- **Anything else** (macOS, a folder Bloogla can't write to): stop Bloogla, replace the program with the new one and start it again in the same folder.
+- **Macs:** like the Linux binary, **Install** in Settings → Updates downloads, checks and restarts Bloogla.
+- **Windows** (or a folder Bloogla can't write to): stop Bloogla, download the new `.exe` from the [latest release](https://github.com/dincertekin/bloogla/releases/latest), put it in place of the old one and start it again from the same folder.
 
 The database is upgraded automatically on start.
 

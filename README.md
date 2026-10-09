@@ -20,6 +20,7 @@
   <a href="#features">Features</a> ·
   <a href="#themes">Themes</a> ·
   <a href="docs/running.md">Docs</a> ·
+  <a href="docs/translating.md">Translate</a> ·
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
@@ -37,7 +38,20 @@ certificate.
 
 ## Quick start
 
-**With Docker** (point your domain at the server first):
+**On your computer**, to try it or write locally: download Bloogla from the
+[latest release](https://github.com/dincertekin/bloogla/releases/latest) and
+open it. It opens the setup page in your browser.
+
+| Your computer | Download |
+| --- | --- |
+| Windows | `bloogla-x86_64-windows.exe` |
+| Mac with Apple Silicon (M1 and newer) | `bloogla-aarch64-macos.zip` |
+| Mac with Intel | `bloogla-x86_64-macos.zip` |
+
+The first time, Windows and macOS ask whether to trust it;
+[here's what to click](docs/running.md#on-your-computer).
+
+**On a server with Docker** (point your domain at the server first):
 
 ```bash
 docker run -d --name bloogla --restart unless-stopped -p 80:80 -p 443:443 \
@@ -45,7 +59,7 @@ docker run -d --name bloogla --restart unless-stopped -p 80:80 -p 443:443 \
 docker logs bloogla   # open the setup link it prints
 ```
 
-**Without Docker:** download the program for your server from the
+**On a server without Docker:** download the program for your server from the
 [latest release](https://github.com/dincertekin/bloogla/releases/latest) and run it:
 
 ```bash
@@ -53,8 +67,7 @@ chmod +x bloogla-x86_64-linux
 BLOOGLA_TLS_DOMAINS=example.com ./bloogla-x86_64-linux
 ```
 
-**Just trying it?** Leave out `BLOOGLA_TLS_DOMAINS` and open
-`http://localhost:8080`. HTTPS certificates come from Let's Encrypt
+With `BLOOGLA_TLS_DOMAINS`, HTTPS certificates come from Let's Encrypt
 automatically. More in [Running Bloogla](docs/running.md).
 
 ## Features
@@ -85,12 +98,13 @@ code. Want your own? Themes are plain HTML and CSS: see
 
 ## Updating
 
-Open **Settings → Updates** and click **Check for updates**. On a Linux
-server, **Install** downloads the new version, checks it's a genuine signed
+Open **Settings → Updates** and click **Check for updates**. On Linux and
+Macs, **Install** downloads the new version, checks it's a genuine signed
 Bloogla release, and restarts in a few seconds. You can also let Bloogla
 check every day and install new versions by itself.
 
-With Docker, run `docker pull ghcr.io/dincertekin/bloogla`, then start the
+On Windows, download the new `.exe` and use it in place of the old one. With
+Docker, run `docker pull ghcr.io/dincertekin/bloogla`, then start the
 container again with the same command; your site lives in the `bloogla`
 volume. Download a backup first either way (**Settings → Backup**).
 [All the details](docs/running.md#updating).
@@ -99,8 +113,17 @@ volume. Download a backup first either way (**Settings → Backup**).
 
 - [Running Bloogla](docs/running.md): servers, configuration, commands, updates, backups
 - [Writing themes](docs/themes.md): templates, options, the security policy
+- [Translating](docs/translating.md): adding your language, no programming needed
 - [Security](docs/security.md): how a Bloogla site is protected
 - [Contributing](CONTRIBUTING.md): development setup, code tour, house rules
+
+## Help translate Bloogla
+
+Bloogla speaks English and Türkçe. Want it in your language? A language is
+one file of short texts, and you can add it right in your browser, no
+programming needed. The [translation guide](docs/translating.md) shows how,
+or [say hello](https://github.com/dincertekin/bloogla/issues/new?template=translation.yml)
+if you'd like to help review one.
 
 ## Contributing
 

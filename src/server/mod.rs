@@ -11,7 +11,9 @@ pub mod routes;
 mod tls;
 
 use crate::app::config::Config;
+use crate::app::console;
 use crate::app::state::AppState;
+use crate::db::settings;
 
 use sqlx::SqlitePool;
 use std::net::SocketAddr;
@@ -22,10 +24,21 @@ use tower_sessions::session_store::ExpiredDeletion;
 use tower_sessions::SessionManagerLayer;
 use tower_sessions_sqlx_store::SqliteStore;
 
-/// Log to stderr. `BLOOGLA_LOG` sets the level filter (default `info`), and
+/// Log to stderr. In a terminal window a person is watching, only problems
+/// are logged, as tidy lines (progress is shown by `app::console`).
+/// Otherwise `BLOOGLA_LOG` sets the level filter (default `info`), and
 /// `BLOOGLA_LOG_FORMAT=json` switches to one JSON object per line.
 pub fn init_logging() {
     use tracing_subscriber::EnvFilter;
+
+    if crate::app::console::for_a_person() {
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::new("warn,sqlx=error,tower_sessions=error"))
+            .with_writer(std::io::stderr)
+            .event_format(crate::app::console::FriendlyLog)
+            .init();
+        return;
+    }
 
     let filter = EnvFilter::try_from_env("BLOOGLA_LOG")
         .unwrap_or_else(|_| EnvFilter::new("info,sqlx=warn,tower_sessions=warn"));
@@ -79,15 +92,29 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
     // Post views are counted in memory and saved every few seconds.
     crate::handlers::site::analytics::spawn_view_saver(pool.clone());
 
-    let app = routes::build(state, sessions)?;
+    let app = routes::build(state.clone(), sessions)?;
     let addr = SocketAddr::new(config.host, config.port);
+    let listener = listen(addr)?;
+    // The start screen (or a log line on servers), once the site answers.
+    // Settings are loaded first, so it speaks the site's language.
+    settings::load(&pool).await;
+    let folder = std::env::current_dir().unwrap_or_default();
+    let ready = || {
+        console::start_screen(console::StartScreen {
+            site_url: &config.base_url,
+            setup_url: state
+                .setup_pending
+                .load(std::sync::atomic::Ordering::Acquire)
+                .then(|| format!("{}/setup?code={}", config.base_url, state.setup_code)),
+            folder: &folder,
+        })
+    };
     match &config.tls {
-        Some(tls_config) => tls::serve(app, addr, tls_config, shutdown_signal()).await?,
+        Some(tls_config) => tls::serve(app, listener, tls_config, shutdown_signal(), ready).await?,
         None => {
             tracing::info!("Listening on {addr} ({})", config.base_url);
-            let listener = tokio::net::TcpListener::bind(addr)
-                .await
-                .map_err(|e| format!("Could not listen on {addr}: {e}"))?;
+            let listener = tokio::net::TcpListener::from_std(listener)?;
+            ready();
             axum::serve(
                 listener,
                 app.into_make_service_with_connect_info::<SocketAddr>(),
@@ -99,10 +126,20 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
 
     crate::handlers::site::analytics::save_views(&pool).await;
     pool.close().await;
-    tracing::info!("Stopped");
+    console::stopped();
     // After installing an update: start the new version in this process's place.
     crate::services::updates::restart_if_updated()?;
     Ok(())
+}
+
+/// Start listening on `addr`, or explain plainly why that isn't possible
+/// (the port is taken, or needs administrator rights).
+pub fn listen(addr: SocketAddr) -> Result<std::net::TcpListener, String> {
+    let listener =
+        std::net::TcpListener::bind(addr).map_err(|e| console::port_problem(addr.port(), &e))?;
+    // Tokio needs it non-blocking.
+    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    Ok(listener)
 }
 
 /// Hourly housekeeping: the daily database backup and removing expired
@@ -110,7 +147,11 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
 fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
     let backups = crate::services::backup::automatic_backups_enabled();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
+        // The first round runs a few seconds after starting, once the start
+        // screen is shown, then every hour.
+        let hour = Duration::from_secs(60 * 60);
+        let first = tokio::time::Instant::now() + Duration::from_secs(5);
+        let mut interval = tokio::time::interval_at(first, hour);
         loop {
             interval.tick().await;
             if backups {
@@ -147,5 +188,5 @@ async fn shutdown_signal() {
         _ = terminate => {},
         _ = crate::services::updates::restart_requested() => {},
     }
-    tracing::info!("Shutting down");
+    console::stopping();
 }

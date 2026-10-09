@@ -1,11 +1,12 @@
 name: Release
 
 # Push a version tag (git tag v1.0.0 && git push --tags) to:
-# - build Bloogla for Linux servers (x86_64 and ARM), sign each program with
-#   the release signing key (repository secret BLOOGLA_SIGNING_KEY, see the
-#   README's "Releasing"), and attach them to a new GitHub release with the
-#   list of changes. Sites find it in Settings → Updates and can install it;
-#   they only accept programs with a valid signature (src/services/updates.rs);
+# - build Bloogla for Linux servers (x86_64 and ARM), Windows and Macs
+#   (Apple Silicon and Intel), sign each program with the release signing
+#   key (repository secret BLOOGLA_SIGNING_KEY, see CONTRIBUTING.md,
+#   "Releasing"), and attach them to a new GitHub release with the list of
+#   changes. Sites find it in Settings → Updates and can install it; they only
+#   accept programs with a valid signature (src/services/updates.rs);
 # - publish the Docker image ghcr.io/<owner>/bloogla:<version> and :latest,
 #   so people can run Bloogla without building it.
 on:
@@ -18,14 +19,30 @@ permissions:
 
 jobs:
   programs:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-musl
+          # Static Linux programs (musl) run on any Linux server.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
             asset: bloogla-x86_64-linux
-          - target: aarch64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
             asset: bloogla-aarch64-linux
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: bloogla-x86_64-windows.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: bloogla-aarch64-macos
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset: bloogla-x86_64-macos
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       # Sites check that the program they download says this version, so the
@@ -37,29 +54,34 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: mlugg/setup-zig@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
       - uses: taiki-e/install-action@v2
+        if: runner.os == 'Linux'
         with:
           tool: cargo-zigbuild
-      - uses: Swatinem/rust-cache@v2
-      # Static programs (musl) run on any Linux server.
-      - run: cargo zigbuild --release --target ${{ matrix.target }}
-      - name: Sign
-        env:
-          SIGNING_KEY: ${{ secrets.BLOOGLA_SIGNING_KEY }}
+      - name: Build (Linux, with Zig for static programs)
+        if: runner.os == 'Linux'
         run: |
-          test -n "$SIGNING_KEY" || { echo "Add the BLOOGLA_SIGNING_KEY secret (see README, Releasing)"; exit 1; }
-          cp target/${{ matrix.target }}/release/bloogla ${{ matrix.asset }}
-          # The signature covers "bloogla <version> <asset>" + the program, so it
-          # only fits this release (see signed_message in src/services/updates.rs).
-          { printf 'bloogla %s %s\n' "${GITHUB_REF_NAME#v}" "${{ matrix.asset }}"; cat ${{ matrix.asset }}; } > signed
-          printf '%s\n' "$SIGNING_KEY" > key.pem
-          openssl pkeyutl -sign -inkey key.pem -rawin -in signed -out ${{ matrix.asset }}.sig
-          rm key.pem signed
+          pip3 install --quiet ziglang
+          cargo zigbuild --release --target ${{ matrix.target }}
+      - name: Build (Windows and Mac)
+        if: runner.os != 'Linux'
+        env:
+          # Windows: put the C runtime inside the .exe, so it runs on computers
+          # without Visual Studio's runtime ("VCRUNTIME140.dll is missing").
+          RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Name the program
+        run: |
+          built=target/${{ matrix.target }}/release/bloogla
+          if [ -f "$built.exe" ]; then built="$built.exe"; fi
+          cp "$built" ${{ matrix.asset }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}*
+          path: ${{ matrix.asset }}
 
   github-release:
     needs: programs
@@ -70,6 +92,33 @@ jobs:
         with:
           path: programs
           merge-multiple: true
+      # Each signature covers "bloogla <version> <asset>" + the program, so it
+      # only fits this release (see signed_message in src/services/updates.rs).
+      - name: Sign
+        env:
+          SIGNING_KEY: ${{ secrets.BLOOGLA_SIGNING_KEY }}
+        run: |
+          test -n "$SIGNING_KEY" || { echo "Add the BLOOGLA_SIGNING_KEY secret (see CONTRIBUTING.md, Releasing)"; exit 1; }
+          printf '%s\n' "$SIGNING_KEY" > key.pem
+          cd programs
+          for asset in bloogla-*; do
+            { printf 'bloogla %s %s\n' "${GITHUB_REF_NAME#v}" "$asset"; cat "$asset"; } > ../signed
+            openssl pkeyutl -sign -inkey ../key.pem -rawin -in ../signed -out "$asset.sig"
+          done
+          cd ..
+          rm key.pem signed
+      # Macs: a downloaded program isn't marked runnable, so double-clicking it
+      # would open a text editor. A .zip keeps the mark (Safari unzips it).
+      # The updater uses the plain, signed files above.
+      - name: Zip the Mac programs
+        run: |
+          for asset in programs/bloogla-*-macos; do
+            dir=$(mktemp -d)
+            cp "$asset" "$dir/bloogla"
+            chmod +x "$dir/bloogla"
+            (cd "$dir" && zip -q -X "$OLDPWD/$asset.zip" bloogla)
+          done
+          ls -l programs
       - run: gh release create "$GITHUB_REF_NAME" programs/* --verify-tag --generate-notes --title "Bloogla ${GITHUB_REF_NAME#v}"
         env:
           GH_TOKEN: ${{ github.token }}
