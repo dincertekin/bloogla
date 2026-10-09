@@ -18,7 +18,29 @@ permissions:
   packages: write
 
 jobs:
+  # A draft release first: the programs are added to it, and it's only
+  # published (visible to people and to Settings → Updates) once all are
+  # there and signed.
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Sites check that the program they download says this version, so the
+      # tag and Cargo.toml must agree.
+      - name: Check the version
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME doesn't match Cargo.toml version $version"; exit 1; }
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A draft left by an earlier, failed run is reused.
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes --title "Bloogla ${GITHUB_REF_NAME#v}"
+
   programs:
+    needs: draft
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -45,12 +67,6 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      # Sites check that the program they download says this version, so the
-      # tag and Cargo.toml must agree.
-      - name: Check the version
-        run: |
-          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME doesn't match Cargo.toml version $version"; exit 1; }
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -73,25 +89,24 @@ jobs:
           # without Visual Studio's runtime ("VCRUNTIME140.dll is missing").
           RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
         run: cargo build --release --target ${{ matrix.target }}
-      - name: Name the program
+      - name: Add the program to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           built=target/${{ matrix.target }}/release/bloogla
           if [ -f "$built.exe" ]; then built="$built.exe"; fi
           cp "$built" ${{ matrix.asset }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          gh release upload "$GITHUB_REF_NAME" ${{ matrix.asset }} --clobber
 
-  github-release:
+  publish:
     needs: programs
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: programs
-          merge-multiple: true
+      - name: Download the programs
+        run: gh release download "$GITHUB_REF_NAME" --pattern 'bloogla-*' --dir programs --clobber
       # Each signature covers "bloogla <version> <asset>" + the program, so it
       # only fits this release (see signed_message in src/services/updates.rs).
       - name: Sign
@@ -101,6 +116,7 @@ jobs:
           test -n "$SIGNING_KEY" || { echo "Add the BLOOGLA_SIGNING_KEY secret (see CONTRIBUTING.md, Releasing)"; exit 1; }
           printf '%s\n' "$SIGNING_KEY" > key.pem
           cd programs
+          rm -f ./*.sig ./*.zip
           for asset in bloogla-*; do
             { printf 'bloogla %s %s\n' "${GITHUB_REF_NAME#v}" "$asset"; cat "$asset"; } > ../signed
             openssl pkeyutl -sign -inkey ../key.pem -rawin -in ../signed -out "$asset.sig"
@@ -109,7 +125,7 @@ jobs:
           rm key.pem signed
       # Macs: a downloaded program isn't marked runnable, so double-clicking it
       # would open a text editor. A .zip keeps the mark (Safari unzips it).
-      # The updater uses the plain, signed files above.
+      # The updater uses the plain, signed files.
       - name: Zip the Mac programs
         run: |
           for asset in programs/bloogla-*-macos; do
@@ -119,9 +135,10 @@ jobs:
             (cd "$dir" && zip -q -X "$OLDPWD/$asset.zip" bloogla)
           done
           ls -l programs
-      - run: gh release create "$GITHUB_REF_NAME" programs/* --verify-tag --generate-notes --title "Bloogla ${GITHUB_REF_NAME#v}"
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Publish the release
+        run: |
+          gh release upload "$GITHUB_REF_NAME" programs/*.sig programs/*.zip --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
 
   image:
     runs-on: ubuntu-latest
