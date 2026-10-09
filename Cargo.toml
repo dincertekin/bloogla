@@ -28,7 +28,7 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 # Templates: askama for the admin panel (compiled in), tera for themes (loaded at runtime)
 askama = "0.12"
 askama_axum = "0.4"
-tera = "1.19"
+tera = "2.4"
 
 # Content: Markdown, HTML sanitizing, images
 comrak = { version = "0.18", default-features = false }
