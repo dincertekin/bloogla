@@ -493,7 +493,7 @@ dependencies = [
 
 [[package]]
 name = "bloogla"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "ammonia",
  "argon2",
