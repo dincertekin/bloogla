@@ -11,6 +11,7 @@
 pub mod config;
 pub mod console;
 pub mod models;
+pub mod private_files;
 pub mod secrets;
 pub mod security;
 pub mod state;

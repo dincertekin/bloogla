@@ -117,9 +117,10 @@ document.addEventListener("htmx:afterRequest", (event) => {
     refreshLiveParts();
 });
 
-// Forms the server rejects (422) come back with their messages: show them.
+// Show validation and account-limit messages returned by our forms.
 document.addEventListener("htmx:beforeSwap", (event) => {
-    if (event.detail.xhr.status === 422) {
+    const xhr = event.detail.xhr;
+    if (xhr.status === 422 || (xhr.status === 429 && (xhr.getResponseHeader("Content-Type") || "").startsWith("text/html"))) {
         event.detail.shouldSwap = true;
         event.detail.isError = false;
     }

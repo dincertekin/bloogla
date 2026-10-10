@@ -112,6 +112,8 @@ The database is upgraded automatically on start.
 - **Download everything:** admins get the database and all images as one
   `.zip` in **Settings → Backup**. To restore it, stop Bloogla, unpack the
   `.zip` into the folder Bloogla runs in, and start it again.
+  The database is at `data/bloogla.db` inside the archive. For older archives
+  with `bloogla.db` at the top level, move it into `data/` before starting.
 - **On the server:** Bloogla also keeps a daily copy of the database in
   `data/backups/` (the last 7; turn it off with `BLOOGLA_AUTO_BACKUP=false`),
   and `bloogla backup [FILE]` makes one any time.

@@ -3,6 +3,7 @@
 //! database and uploaded images (Admin → Settings → Backup).
 
 use crate::app::console::{self, Kind};
+use crate::app::private_files;
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -17,17 +18,74 @@ pub async fn backup_to(pool: &SqlitePool, target: &Path) -> Result<(), String> {
     if target.exists() {
         return Err(format!("{} already exists", target.display()));
     }
-    if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
-    }
-
+    let parent = target
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    private_files::create_parents(parent).map_err(|e| e.to_string())?;
+    // VACUUM INTO requires a missing file and chooses its own permissions.
+    // Keep that intermediate file inside a private directory, then publish
+    // the completed, protected backup without overwriting another file.
+    let staging = parent.join(format!(
+        ".bloogla-backup-{}",
+        crate::app::security::random_hex(16)
+    ));
+    private_files::create_directory(&staging).map_err(|e| e.to_string())?;
+    let _cleanup = BackupStaging(staging.clone());
+    let database = staging.join("backup.db");
     sqlx::query("VACUUM INTO ?")
-        .bind(target.to_string_lossy().as_ref())
+        .bind(database.to_string_lossy().as_ref())
         .execute(pool)
         .await
-        .map(|_| ())
-        .map_err(|e| format!("backup failed: {e}"))
+        .map_err(|e| format!("backup failed: {e}"))?;
+    private_files::protect_file(&database).map_err(|e| e.to_string())?;
+    let target = target.to_path_buf();
+    tokio::task::spawn_blocking(move || publish_backup(&database, &target))
+        .await
+        .map_err(|e| format!("backup failed: {e}"))?
+}
+
+fn publish_backup(database: &Path, target: &Path) -> Result<(), String> {
+    if std::fs::hard_link(database, target).is_ok() {
+        return Ok(());
+    }
+    // Removable drives may not support hard links. A new private file is
+    // safe to copy into, and create_new still refuses to replace any file.
+    let error = |e| format!("backup failed: {e}");
+    let mut source = std::fs::File::open(database).map_err(error)?;
+    let mut destination = private_files::create_file(target).map_err(error)?;
+    if let Err(e) = std::io::copy(&mut source, &mut destination) {
+        drop(destination);
+        let _ = std::fs::remove_file(target);
+        return Err(error(e));
+    }
+    Ok(())
+}
+
+struct BackupStaging(PathBuf);
+
+impl Drop for BackupStaging {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Protect backups saved by older releases, too. Only touch Bloogla's own
+/// directory; an explicitly chosen CLI destination may be shared.
+pub fn protect_backup_directory() -> std::io::Result<()> {
+    let directory = Path::new(BACKUP_DIR);
+    private_files::create_directory(directory)?;
+    for entry in std::fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_file()
+            && path
+                .extension()
+                .is_some_and(|ext| ext == "db" || ext == "zip")
+        {
+            private_files::protect_file(&path)?;
+        }
+    }
+    Ok(())
 }
 
 /// Default path for a backup taken now, e.g. `data/backups/bloogla-20261002-101500.db`.
@@ -48,6 +106,10 @@ pub fn automatic_backups_enabled() -> bool {
 /// newest [`KEEP_AUTOMATIC`]. Called hourly, so frequent restarts don't
 /// replace older backups with near copies.
 pub async fn run_daily_backup(pool: &SqlitePool) {
+    if let Err(e) = protect_backup_directory() {
+        tracing::error!("Could not protect backup directory: {e}");
+        return;
+    }
     let due = newest_automatic_backup_age().is_none_or(|age| age >= DAY);
     if !due {
         return;
@@ -101,13 +163,17 @@ fn prune_automatic_backups() {
     }
 }
 
-/// Make a .zip with a fresh copy of the database (`bloogla.db`) and every
+/// Make a .zip with a fresh copy of the database (`data/bloogla.db`) and every
 /// uploaded file (`uploads/...`), and return where it was written.
 ///
 /// The caller sends it and deletes it. Unpacking it into an empty folder
 /// next to the `bloogla` program gives a working site again.
 pub async fn download_archive(pool: &SqlitePool, uploads: &Path) -> Result<PathBuf, String> {
-    let database = timestamped_path("download-");
+    protect_backup_directory().map_err(|e| e.to_string())?;
+    let database = PathBuf::from(BACKUP_DIR).join(format!(
+        "download-{}.db",
+        crate::app::security::random_hex(16)
+    ));
     backup_to(pool, &database).await?;
     let archive = database.with_extension("zip");
     let uploads = uploads.to_path_buf();
@@ -128,20 +194,26 @@ fn write_archive(database: &Path, uploads: &Path, archive: &Path) -> Result<(), 
     use zip::write::SimpleFileOptions;
 
     let error = |e: &dyn std::fmt::Display| format!("could not write the backup: {e}");
-    let file = std::fs::File::create(archive).map_err(|e| error(&e))?;
+    let file = private_files::create_file(archive).map_err(|e| error(&e))?;
     let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(file));
     let mut add = |name: &str, path: &Path| -> Result<(), String> {
         let size = std::fs::metadata(path).map_err(|e| error(&e))?.len();
         let options = SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored)
-            .large_file(size >= u32::MAX as u64);
+            .large_file(size >= u32::MAX as u64)
+            .unix_permissions(if name == "data/bloogla.db" {
+                0o600
+            } else {
+                0o644
+            });
         zip.start_file(name, options).map_err(|e| error(&e))?;
         let mut source = std::fs::File::open(path).map_err(|e| error(&e))?;
         std::io::copy(&mut source, &mut zip).map_err(|e| error(&e))?;
         Ok(())
     };
 
-    add("bloogla.db", database)?;
+    // Match the path opened on startup so unpacking the backup restores the site.
+    add("data/bloogla.db", database)?;
     if let Ok(entries) = std::fs::read_dir(uploads) {
         let mut files: Vec<PathBuf> = entries
             .flatten()

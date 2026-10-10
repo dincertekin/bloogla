@@ -22,11 +22,30 @@ pub async fn connect(database_url: &str) -> Result<SqlitePool, Box<dyn std::erro
         .busy_timeout(Duration::from_secs(5))
         .foreign_keys(true);
 
+    let filename = options.get_filename().to_path_buf();
+    let on_disk =
+        filename != std::path::Path::new(":memory:") && !database_url.contains("mode=memory");
+    if on_disk {
+        if !filename.exists() && database_url.contains("mode=rwc") {
+            // SQLite would otherwise create the database using the umask.
+            match crate::app::private_files::create_file(&filename) {
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        crate::app::private_files::protect_database(&filename)?;
+    }
+
     let pool = SqlitePoolOptions::new()
         .max_connections(10)
         .connect_with(options)
         .await?;
 
+    if on_disk {
+        // WAL and shared-memory files inherit the database's permissions.
+        crate::app::private_files::protect_database(&filename)?;
+    }
     let migrator = sqlx::migrate!("./migrations");
     refuse_pre_release_database(&pool, &migrator).await?;
     migrator.run(&pool).await?;

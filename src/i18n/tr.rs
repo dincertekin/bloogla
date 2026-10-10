@@ -369,6 +369,7 @@ pub const LANGUAGE: Language = Language {
         ("Turn off two-factor", "İki adımlı girişi kapat"),
         ("Turn off", "Kapat"),
         ("Turn on", "Aç"),
+        ("To change your email, enter your current password.", "E-postanızı değiştirmek için mevcut şifrenizi girin."),
         ("Two-factor login is off for this person. They sign in with just their password now.", "Bu kişinin iki adımlı girişi kapatıldı. Artık yalnızca şifresiyle giriş yapar."),
         ("Two-factor login is on.", "İki adımlı giriş açık."),
         ("Two-factor login on", "İki adımlı giriş açık"),

@@ -25,6 +25,8 @@ static CIPHER: OnceLock<ChaCha20Poly1305> = OnceLock::new();
 pub fn init() -> Result<(), String> {
     let path = Path::new(KEY_FILE);
     let key = if path.exists() {
+        crate::app::private_files::protect_file(path)
+            .map_err(|e| format!("Could not protect {KEY_FILE}: {e}"))?;
         let hex =
             std::fs::read_to_string(path).map_err(|e| format!("Could not read {KEY_FILE}: {e}"))?;
         from_hex(hex.trim())
@@ -43,6 +45,11 @@ pub fn init() -> Result<(), String> {
 
 fn use_key(key: &[u8]) {
     let _ = CIPHER.set(ChaCha20Poly1305::new(Key::from_slice(key)));
+}
+
+#[cfg(test)]
+pub(crate) fn init_for_tests() {
+    use_key(&[7u8; 32]);
 }
 
 /// Write a file only its owner can read.
@@ -93,7 +100,7 @@ mod tests {
 
     #[test]
     fn secrets_round_trip_and_detect_tampering() {
-        use_key(&[7u8; 32]);
+        init_for_tests();
         let stored = encrypt("hunter2");
         assert!(stored.starts_with(PREFIX) && !stored.contains("hunter2"));
         assert_ne!(

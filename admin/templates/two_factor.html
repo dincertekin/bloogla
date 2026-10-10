@@ -22,10 +22,17 @@
         {% if let Some(err) = error %}
         <div class="alert alert-error" role="alert">{{ err }}</div>
         {% endif %}
-        <form method="POST" action="/admin/profile/two-factor" class="upload-inline">
-            <input type="text" name="code" class="form-control code-input" required inputmode="numeric"
-                autocomplete="one-time-code" placeholder="123 456" aria-label="{{ me.t("Code") }}" autofocus />
-            <button type="submit" class="btn btn-primary">{{ me.t("Turn on") }}</button>
+        <form method="POST" action="/admin/profile/two-factor">
+            <div class="form-group">
+                <label for="two_factor_password">{{ me.t("Current password") }}</label>
+                <input type="password" id="two_factor_password" name="password" class="form-control" required
+                    autocomplete="current-password" />
+            </div>
+            <div class="upload-inline">
+                <input type="text" name="code" class="form-control code-input" required inputmode="numeric"
+                    autocomplete="one-time-code" placeholder="123 456" aria-label="{{ me.t("Code") }}" autofocus />
+                <button type="submit" class="btn btn-primary">{{ me.t("Turn on") }}</button>
+            </div>
         </form>
         <p style="margin-top: 1rem"><a href="/admin/profile#two-factor" class="text-secondary">{{ me.t("Cancel") }}</a></p>
     </div>

@@ -65,6 +65,9 @@ pub struct ProfileForm {
     /// `en`, `tr`, or empty for the site's language.
     #[serde(default)]
     language: String,
+    /// Required only when changing the sign-in and recovery address.
+    #[serde(default)]
+    current_password: String,
 }
 
 #[derive(Deserialize)]
@@ -72,6 +75,47 @@ pub struct PasswordForm {
     current_password: String,
     new_password: String,
     confirm_password: String,
+}
+
+/// Every sensitive profile action shares the login budget. Reserving before
+/// the async password check also covers concurrent guesses through different
+/// forms; a successful confirmation releases only its own slot.
+async fn confirm_password(
+    state: &AppState,
+    me: &CurrentUser,
+    password: String,
+) -> Result<(), Response> {
+    let Some(attempt) = super::auth::reserve_attempt(&me.email) else {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            alert(
+                me.lang,
+                "error",
+                "Too many failed sign-ins for this account. Wait a minute and try again.",
+            ),
+        )
+            .into_response());
+    };
+    let stored: Option<String> = or_log(
+        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
+            .bind(me.id)
+            .fetch_optional(&state.pool)
+            .await,
+        "load password",
+    );
+    let valid = tokio::task::spawn_blocking(move || verify_password(&password, stored.as_deref()))
+        .await
+        .unwrap_or(false);
+    super::auth::finish_password_check(&me.email, attempt, valid);
+    if !valid {
+        log_event("password_confirmation_failed", &[("user", &me.email)]);
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            alert(me.lang, "error", "Your current password isn't right."),
+        )
+            .into_response());
+    }
+    Ok(())
 }
 
 /// GET /admin/profile -> Your own name, email and password.
@@ -103,6 +147,7 @@ pub async fn page(
 pub async fn update(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    session: Session,
     Form(form): Form<ProfileForm>,
 ) -> Response {
     let email = form.email.trim();
@@ -121,6 +166,13 @@ pub async fn update(
         return alert(me.lang, "error", "Someone else already uses this email.");
     }
 
+    let email_changed = email != me.email;
+    if email_changed {
+        if let Err(response) = confirm_password(&state, &me, form.current_password).await {
+            return response;
+        }
+    }
+
     let language = Lang::parse(&form.language).map_or("", Lang::code);
     let previous_language: String = or_log(
         sqlx::query_scalar("SELECT language FROM users WHERE id = ?")
@@ -129,20 +181,30 @@ pub async fn update(
             .await,
         "load language",
     );
-    match sqlx::query("UPDATE users SET name = ?, email = ?, language = ? WHERE id = ?")
-        .bind(form.name.trim())
-        .bind(email)
-        .bind(language)
-        .bind(me.id)
-        .execute(&state.pool)
+    match crate::db::users::update_profile(&state.pool, &me, form.name.trim(), email, language)
         .await
     {
-        // A new language applies to the whole page, so reload it.
-        Ok(_) if language != previous_language => {
-            let site_language = settings::load(&state.pool).await.language;
-            saved_and_reload(Lang::parse(language).unwrap_or(site_language))
+        Ok(Some(version)) => {
+            if email_changed {
+                log_event(
+                    "email_changed",
+                    &[("user", &me.email), ("new_email", email)],
+                );
+                super::auth::sign_in(&session, me.id, version).await;
+            }
+            // Reload after an address change too, to clear the confirmation
+            // field and show the saved address and session everywhere.
+            if language != previous_language || email_changed {
+                let site_language = settings::load(&state.pool).await.language;
+                saved_and_reload(Lang::parse(language).unwrap_or(site_language))
+            } else {
+                alert(me.lang, "success", "Saved.")
+            }
         }
-        Ok(_) => alert(me.lang, "success", "Saved."),
+        Ok(None) => {
+            let _ = session.flush().await;
+            StatusCode::UNAUTHORIZED.into_response()
+        }
         Err(e) => {
             tracing::error!("Failed to update profile: {e}");
             alert(
@@ -177,33 +239,22 @@ pub async fn update_password(
         return alert(me.lang, "error", "The new passwords don't match.");
     }
 
-    let stored: Option<String> = or_log(
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load password",
-    );
-    // Password hashing is slow on purpose, so it runs off the async threads.
-    let current_password = form.current_password.clone();
-    let current_ok =
-        tokio::task::spawn_blocking(move || verify_password(&current_password, stored.as_deref()))
-            .await
-            .unwrap_or(false);
-    if !current_ok {
-        log_event("password_change_failed", &[("user", &me.email)]);
-        return alert(me.lang, "error", "Your current password isn't right.");
+    if let Err(response) = confirm_password(&state, &me, form.current_password).await {
+        return response;
     }
 
-    let Ok(hash) = hash_password(&form.new_password) else {
+    let Ok(Ok(hash)) = tokio::task::spawn_blocking(move || hash_password(&form.new_password)).await
+    else {
         return alert(
             me.lang,
             "error",
             "Couldn't change your password. Please try again.",
         );
     };
-    match crate::db::users::set_password(&state.pool, me.id, &hash).await {
-        Ok(new_version) => {
+    match crate::db::users::change_password(&state.pool, me.id, &hash, Some(me.session_version))
+        .await
+    {
+        Ok(Some(new_version)) => {
             log_event("password_changed", &[("user", &me.email)]);
             // Every other device is now signed out; this one stays signed in.
             crate::handlers::admin::auth::sign_in(&session, me.id, new_version).await;
@@ -212,6 +263,10 @@ pub async fn update_password(
                 "success",
                 "Password updated. Other devices have been signed out.",
             )
+        }
+        Ok(None) => {
+            let _ = session.flush().await;
+            Redirect::to("/admin/login").into_response()
         }
         Err(e) => {
             tracing::error!("Failed to update password: {e}");
@@ -248,24 +303,48 @@ async fn setup_page(
 /// Make new recovery codes for `me`, store their hashes and show them once.
 async fn show_new_codes(
     state: &AppState,
-    me: CurrentUser,
+    mut me: CurrentUser,
+    session: &Session,
     secret: Option<(&[u8], u64)>,
 ) -> Response {
     let codes = new_recovery_codes();
     let hashes: Vec<String> = codes.iter().map(|c| hash_recovery_code(c)).collect();
     let saved = match secret {
         Some((secret, step)) => {
-            crate::db::users::enable_two_factor(&state.pool, me.id, secret, step, &hashes).await
+            crate::db::users::enable_two_factor(
+                &state.pool,
+                me.id,
+                secret,
+                step,
+                &hashes,
+                me.session_version,
+            )
+            .await
         }
-        None => crate::db::users::set_recovery_codes(&state.pool, me.id, &hashes).await,
+        None => {
+            crate::db::users::set_recovery_codes(&state.pool, me.id, &hashes, me.session_version)
+                .await
+        }
     };
-    if let Err(e) = saved {
-        tracing::error!("Failed to save two-factor login: {e}");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(me.t("Couldn't save your changes. Please try again.")),
-        )
-            .into_response();
+    match saved {
+        Ok(Some(version)) => {
+            // Revoke existing password-only sessions when two-factor login is
+            // enabled, and keep only the session that confirmed this change.
+            crate::handlers::admin::auth::sign_in(session, me.id, version).await;
+            me.session_version = version;
+        }
+        Ok(None) => {
+            let _ = session.flush().await;
+            return Redirect::to("/admin/login").into_response();
+        }
+        Err(e) => {
+            tracing::error!("Failed to save two-factor login: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(me.t("Couldn't save your changes. Please try again.")),
+            )
+                .into_response();
+        }
     }
     TwoFactorTemplate {
         blog_name: settings::load(&state.pool).await.blog_name.clone(),
@@ -301,6 +380,8 @@ pub async fn two_factor_page(
 #[derive(Deserialize)]
 pub struct CodeForm {
     code: String,
+    #[serde(default)]
+    password: String,
 }
 
 /// POST /admin/profile/two-factor -> Confirm with a code from the app and turn it on.
@@ -315,6 +396,16 @@ pub async fn enable_two_factor(
     let Some(secret) = secret else {
         return Redirect::to("/admin/profile/two-factor").into_response();
     };
+    if let Err(response) = confirm_password(&state, &me, form.password).await {
+        let status = response.status();
+        let message = if status == StatusCode::TOO_MANY_REQUESTS {
+            "Too many failed sign-ins for this account. Wait a minute and try again."
+        } else {
+            "Your current password isn't right."
+        };
+        let error = me.t(message).to_string();
+        return (status, setup_page(&state, me, &secret, Some(error)).await).into_response();
+    }
     let Some(step) = crate::app::totp::verify(&secret, &form.code, unix_now(), 0) else {
         let error = me
             .t("That code isn't right. Try the newest one from your app.")
@@ -323,13 +414,15 @@ pub async fn enable_two_factor(
     };
     let _ = session.remove::<String>(TWO_FACTOR_SETUP).await;
     log_event("two_factor_enabled", &[("user", &me.email)]);
-    show_new_codes(&state, me, Some((&secret, step))).await
+    show_new_codes(&state, me, &session, Some((&secret, step))).await
 }
 
 /// POST /admin/profile/two-factor/recovery -> Replace the recovery codes.
 pub async fn new_recovery_codes_page(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    session: Session,
+    Form(form): Form<ConfirmPasswordForm>,
 ) -> Response {
     if crate::db::users::two_factor(&state.pool, me.id)
         .await
@@ -337,8 +430,11 @@ pub async fn new_recovery_codes_page(
     {
         return Redirect::to("/admin/profile#two-factor").into_response();
     }
+    if let Err(response) = confirm_password(&state, &me, form.password).await {
+        return response;
+    }
     log_event("recovery_codes_replaced", &[("user", &me.email)]);
-    show_new_codes(&state, me, None).await
+    show_new_codes(&state, me, &session, None).await
 }
 
 #[derive(Deserialize)]
@@ -352,25 +448,21 @@ pub async fn disable_two_factor(
     Extension(me): Extension<CurrentUser>,
     Form(form): Form<ConfirmPasswordForm>,
 ) -> Response {
-    let stored: Option<String> = or_log(
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load password",
-    );
-    let password = form.password;
-    let ok = tokio::task::spawn_blocking(move || verify_password(&password, stored.as_deref()))
-        .await
-        .unwrap_or(false);
-    if !ok {
-        return alert(me.lang, "error", "Your current password isn't right.");
+    if let Err(response) = confirm_password(&state, &me, form.password).await {
+        return response;
     }
-    match crate::db::users::disable_two_factor(&state.pool, me.id).await {
-        Ok(_) => {
+    match crate::db::users::disable_two_factor_if_current(
+        &state.pool,
+        me.id,
+        Some(me.session_version),
+    )
+    .await
+    {
+        Ok(true) => {
             log_event("two_factor_disabled", &[("user", &me.email)]);
             saved_and_reload(me.lang)
         }
+        Ok(false) => StatusCode::UNAUTHORIZED.into_response(),
         Err(e) => {
             tracing::error!("Failed to turn off two-factor login: {e}");
             alert(
