@@ -50,35 +50,57 @@ const SLOWDOWN: Duration = Duration::from_secs(60);
 /// guessing spread over many addresses. Accounts are slowed down rather than
 /// locked: a lock would let anyone lock the owner out by typing their email.
 #[derive(Default)]
-struct FailedLogins(HashMap<String, VecDeque<Instant>>);
+struct FailedLogins {
+    accounts: HashMap<String, VecDeque<LoginAttempt>>,
+    next_id: u64,
+}
+
+struct LoginAttempt {
+    id: u64,
+    started: Instant,
+    pending: bool,
+}
 
 impl FailedLogins {
-    /// Forget failures older than the window.
     fn prune(&mut self, now: Instant) {
-        self.0.retain(|_, times| {
-            times.retain(|t| now.duration_since(*t) < FAILURE_WINDOW);
-            !times.is_empty()
+        self.accounts.retain(|_, attempts| {
+            attempts.retain(|a| now.duration_since(a.started) < FAILURE_WINDOW);
+            !attempts.is_empty()
         });
     }
 
-    /// True when this account had too many failures lately and the last one
-    /// was less than [`SLOWDOWN`] ago.
-    fn must_wait(&mut self, email: &str, now: Instant) -> bool {
+    /// Reserve a slot under the mutex before any async credential checks.
+    /// In-flight requests count too, so a burst cannot bypass the limit.
+    fn reserve(&mut self, email: &str, now: Instant) -> Option<u64> {
         self.prune(now);
-        self.0.get(email).is_some_and(|times| {
-            times.len() >= FAILURES_ALLOWED
-                && times
-                    .back()
-                    .is_some_and(|last| now.duration_since(*last) < SLOWDOWN)
-        })
+        let attempts = self.accounts.entry(email.to_string()).or_default();
+        if attempts.len() >= FAILURES_ALLOWED
+            && attempts
+                .back()
+                .is_some_and(|a| now.duration_since(a.started) < SLOWDOWN)
+        {
+            return None;
+        }
+        self.next_id += 1;
+        attempts.push_back(LoginAttempt {
+            id: self.next_id,
+            started: now,
+            pending: true,
+        });
+        Some(self.next_id)
     }
 
-    fn record(&mut self, email: &str, now: Instant) {
-        self.0.entry(email.to_string()).or_default().push_back(now);
-    }
-
-    fn clear(&mut self, email: &str) {
-        self.0.remove(email);
+    fn finish(&mut self, email: &str, id: u64, valid: bool, signed_in: bool) {
+        if let Some(attempts) = self.accounts.get_mut(email) {
+            if let Some(attempt) = attempts.iter_mut().find(|a| a.id == id) {
+                attempt.pending = false;
+            }
+            // Checking a correct password before two-factor login only releases
+            // its own slot. It must not clear previous failed code guesses.
+            // A completed sign-in clears failures but preserves other requests
+            // still checking credentials, including ones that will fail later.
+            attempts.retain(|a| !(valid && a.id == id || signed_in && !a.pending));
+        }
     }
 }
 
@@ -90,6 +112,20 @@ fn failed_logins<T>(f: impl FnOnce(&mut FailedLogins) -> T) -> T {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     f(guard.get_or_insert_with(FailedLogins::default))
+}
+
+#[cfg(test)]
+pub(crate) fn clear_test_attempts() {
+    failed_logins(|f| f.accounts.clear());
+}
+
+/// Profile actions that ask for the password share the account's budget.
+pub(super) fn reserve_attempt(email: &str) -> Option<u64> {
+    failed_logins(|f| f.reserve(&email.to_lowercase(), Instant::now()))
+}
+
+pub(super) fn finish_password_check(email: &str, id: u64, valid: bool) {
+    failed_logins(|f| f.finish(&email.to_lowercase(), id, valid, false));
 }
 
 /// GET /admin/login -> Sign-in form.
@@ -119,7 +155,8 @@ pub async fn login(
     let ip = crate::handlers::client_ip(&state, peer, &headers).to_string();
     let email = form.email.trim().to_lowercase();
 
-    if failed_logins(|f| f.must_wait(&email, Instant::now())) {
+    let attempt = failed_logins(|f| f.reserve(&email, Instant::now()));
+    let Some(attempt) = attempt else {
         log_event("login_throttled", &[("email", &email), ("ip", &ip)]);
         let lang = settings::load(&state.pool).await.language;
         return (
@@ -136,7 +173,7 @@ pub async fn login(
             },
         )
             .into_response();
-    }
+    };
     let user: Option<(i64, String, i64, bool)> = sqlx::query_as(
         "SELECT id, password_hash, session_version, totp_secret IS NOT NULL
          FROM users WHERE email = ? COLLATE NOCASE",
@@ -160,10 +197,12 @@ pub async fn login(
 
     if let (true, Some((user_id, _, version, two_factor))) = (valid, user) {
         if two_factor {
+            failed_logins(|f| f.finish(&email, attempt, true, false));
             // The password was right; now ask for the code from the app.
             let waiting = async {
                 session.cycle_id().await?;
                 session.insert(PENDING_USER_ID, user_id).await?;
+                session.insert(PENDING_VERSION, version).await?;
                 session.insert(PENDING_SINCE, unix_now()).await
             }
             .await;
@@ -172,12 +211,12 @@ pub async fn login(
             }
             return Redirect::to("/admin/login/code").into_response();
         }
-        failed_logins(|f| f.clear(&email));
+        failed_logins(|f| f.finish(&email, attempt, true, true));
         log_event("login", &[("user", &email), ("ip", &ip)]);
         sign_in(&session, user_id, version).await;
         return Redirect::to("/admin").into_response();
     }
-    failed_logins(|f| f.record(&email, Instant::now()));
+    failed_logins(|f| f.finish(&email, attempt, false, false));
     log_event("login_failed", &[("email", &email), ("ip", &ip)]);
 
     let lang = settings::load(&state.pool).await.language;
@@ -193,6 +232,7 @@ pub async fn login(
 
 /// Session keys while the password was right but the code isn't entered yet.
 const PENDING_USER_ID: &str = "pending_user_id";
+const PENDING_VERSION: &str = "pending_version";
 const PENDING_SINCE: &str = "pending_since";
 /// How long the code page stays valid after the password.
 const PENDING_SECONDS: u64 = 5 * 60;
@@ -204,12 +244,31 @@ fn unix_now() -> u64 {
 }
 
 /// The account waiting for its code, if the password was entered recently.
-async fn pending_user(session: &Session) -> Option<i64> {
+async fn pending_user(state: &AppState, session: &Session) -> Option<(i64, i64)> {
     let since: u64 = session.get(PENDING_SINCE).await.ok().flatten()?;
     if unix_now().saturating_sub(since) > PENDING_SECONDS {
         return None;
     }
-    session.get(PENDING_USER_ID).await.ok().flatten()
+    let id: i64 = session.get(PENDING_USER_ID).await.ok().flatten()?;
+    let version: i64 = session.get(PENDING_VERSION).await.ok().flatten()?;
+    let current: Option<i64> = sqlx::query_scalar("SELECT session_version FROM users WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()?;
+    // A password change revokes the password already checked in the first
+    // step, as well as completed sign-ins.
+    if current != Some(version) {
+        clear_pending(session).await;
+        return None;
+    }
+    Some((id, version))
+}
+
+async fn clear_pending(session: &Session) {
+    let _ = session.remove::<i64>(PENDING_USER_ID).await;
+    let _ = session.remove::<i64>(PENDING_VERSION).await;
+    let _ = session.remove::<u64>(PENDING_SINCE).await;
 }
 
 #[derive(Template)]
@@ -226,7 +285,7 @@ pub struct CodeForm {
 
 /// GET /admin/login/code -> Ask for the code from the authenticator app.
 pub async fn code_page(State(state): State<AppState>, session: Session) -> Response {
-    if pending_user(&session).await.is_none() {
+    if pending_user(&state, &session).await.is_none() {
         return Redirect::to("/admin/login").into_response();
     }
     LoginCodeTemplate {
@@ -244,18 +303,17 @@ pub async fn check_code(
     session: Session,
     Form(form): Form<CodeForm>,
 ) -> Response {
-    let Some(user_id) = pending_user(&session).await else {
+    let Some((user_id, version)) = pending_user(&state, &session).await else {
         return Redirect::to("/admin/login").into_response();
     };
     let ip = crate::handlers::client_ip(&state, peer, &headers).to_string();
     let lang = settings::load(&state.pool).await.language;
-    let user: Option<(String, i64)> =
-        sqlx::query_as("SELECT email, session_version FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_optional(&state.pool)
-            .await
-            .unwrap_or(None);
-    let Some((email, version)) = user else {
+    let user: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None);
+    let Some(email) = user else {
         return Redirect::to("/admin/login").into_response();
     };
     let email = email.to_lowercase();
@@ -270,20 +328,20 @@ pub async fn check_code(
             .into_response()
     };
 
-    if failed_logins(|f| f.must_wait(&email, Instant::now())) {
+    let attempt = failed_logins(|f| f.reserve(&email, Instant::now()));
+    let Some(attempt) = attempt else {
         log_event("login_throttled", &[("email", &email), ("ip", &ip)]);
         return show_error(
             StatusCode::TOO_MANY_REQUESTS,
             "Too many failed sign-ins for this account. Wait a minute and try again.",
         );
-    }
+    };
 
     let typed = form.code.trim();
     let mut accepted = false;
     if let Some((secret, last_step)) = crate::db::users::two_factor(&state.pool, user_id).await {
         if let Some(step) = crate::app::totp::verify(&secret, typed, unix_now(), last_step) {
-            crate::db::users::set_two_factor_step(&state.pool, user_id, step).await;
-            accepted = true;
+            accepted = crate::db::users::set_two_factor_step(&state.pool, user_id, step).await;
         }
     }
     // A recovery code is longer than the six digits from the app.
@@ -296,7 +354,7 @@ pub async fn check_code(
     }
 
     if !accepted {
-        failed_logins(|f| f.record(&email, Instant::now()));
+        failed_logins(|f| f.finish(&email, attempt, false, false));
         log_event("login_code_failed", &[("email", &email), ("ip", &ip)]);
         return show_error(
             StatusCode::OK,
@@ -304,9 +362,8 @@ pub async fn check_code(
         );
     }
 
-    failed_logins(|f| f.clear(&email));
-    let _ = session.remove::<i64>(PENDING_USER_ID).await;
-    let _ = session.remove::<u64>(PENDING_SINCE).await;
+    failed_logins(|f| f.finish(&email, attempt, true, true));
+    clear_pending(&session).await;
     log_event(
         "login",
         &[("user", &email), ("ip", &ip), ("two_factor", "yes")],
@@ -345,21 +402,37 @@ mod tests {
     fn accounts_slow_down_after_repeated_failures() {
         let mut failed = FailedLogins::default();
         let start = Instant::now();
-        for i in 0..FAILURES_ALLOWED {
-            assert!(!failed.must_wait("a@x.com", start), "attempt {i} allowed");
-            failed.record("a@x.com", start);
+        for _ in 0..FAILURES_ALLOWED {
+            let id = failed.reserve("a@x.com", start).unwrap();
+            failed.finish("a@x.com", id, false, false);
         }
-        // Sixth try right away: wait. Other accounts aren't affected.
-        assert!(failed.must_wait("a@x.com", start + Duration::from_secs(5)));
-        assert!(!failed.must_wait("b@x.com", start));
-        // A minute later one more try is allowed.
-        assert!(!failed.must_wait("a@x.com", start + SLOWDOWN));
-        // After the window, everything is forgotten.
-        failed.record("a@x.com", start + SLOWDOWN);
-        assert!(!failed.must_wait("a@x.com", start + FAILURE_WINDOW + SLOWDOWN * 2));
-        // A successful sign-in clears the record.
-        failed.record("c@x.com", start);
-        failed.clear("c@x.com");
-        assert!(!failed.0.contains_key("c@x.com"));
+        assert!(failed
+            .reserve("a@x.com", start + Duration::from_secs(5))
+            .is_none());
+        assert!(failed.reserve("b@x.com", start).is_some());
+        assert!(failed.reserve("a@x.com", start + SLOWDOWN).is_some());
+        assert!(failed
+            .reserve("a@x.com", start + SLOWDOWN + Duration::from_secs(1))
+            .is_none());
+        assert!(failed
+            .reserve("a@x.com", start + FAILURE_WINDOW + SLOWDOWN * 2)
+            .is_some());
+    }
+
+    #[test]
+    fn pending_attempts_survive_a_successful_sign_in() {
+        let mut failed = FailedLogins::default();
+        let now = Instant::now();
+        let good = failed.reserve("a@x.com", now).unwrap();
+        for _ in 1..FAILURES_ALLOWED {
+            failed.reserve("a@x.com", now).unwrap();
+        }
+        assert!(failed.reserve("a@x.com", now).is_none());
+        failed.finish("a@x.com", good, true, true);
+        // Only the successful request's slot was released.
+        let id = failed.reserve("a@x.com", now).unwrap();
+        assert!(failed.reserve("a@x.com", now).is_none());
+        failed.finish("a@x.com", id, true, false);
+        assert_eq!(failed.accounts["a@x.com"].len(), 4);
     }
 }

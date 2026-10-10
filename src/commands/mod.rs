@@ -70,7 +70,8 @@ impl Command {
 
         // Every other command works on the database in `data/`.
         let config = Config::from_env()?;
-        std::fs::create_dir_all("data")?;
+        crate::app::private_files::create_directory(std::path::Path::new("data"))?;
+        crate::services::backup::protect_backup_directory()?;
         crate::app::secrets::init()?;
         let pool = crate::db::connect(&config.database_url).await?;
 

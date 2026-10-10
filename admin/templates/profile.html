@@ -34,6 +34,12 @@
             </div>
         </div>
         <div class="form-group" style="max-width: 320px">
+            <label for="profile_current_password">{{ me.t("Current password") }}</label>
+            <input type="password" id="profile_current_password" name="current_password" class="form-control"
+                autocomplete="current-password" />
+            <span class="form-hint">{{ me.t("To change your email, enter your current password.") }}</span>
+        </div>
+        <div class="form-group" style="max-width: 320px">
             <label for="language">{{ me.t("Language") }}</label>
             <select id="language" name="language" class="form-control">
                 <option value="" {% if language.is_empty() %}selected{% endif %}>{{ me.t("Same as the site") }}</option>
@@ -92,7 +98,9 @@
         {{ me.count(recovery_codes_left, "{n} recovery code left.", "{n} recovery codes left.") }}
     </p>
     <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-start">
-        <form method="POST" action="/admin/profile/two-factor/recovery">
+        <form method="POST" action="/admin/profile/two-factor/recovery" class="upload-inline">
+            <input type="password" name="password" class="form-control" required autocomplete="current-password"
+                placeholder="{{ me.t("Current password") }}" aria-label="{{ me.t("Current password") }}" />
             <button type="submit" class="btn btn-secondary">{{ me.t("New recovery codes") }}</button>
         </form>
         <form hx-post="/admin/profile/two-factor/off" hx-target="find .form-status" hx-swap="innerHTML"

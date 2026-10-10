@@ -114,16 +114,16 @@ pub async fn send_link(
     }
 
     let email = form.email.trim().to_lowercase();
-    let user: Option<i64> = or_log(
-        sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
+    let user: Option<(i64, i64)> = or_log(
+        sqlx::query_as("SELECT id, session_version FROM users WHERE email = ? COLLATE NOCASE")
             .bind(&email)
             .fetch_optional(&state.pool)
             .await,
         "find account for password reset",
     );
-    if let Some(user_id) = user {
-        match create_link(&state.pool, user_id).await {
-            Ok(token) => {
+    if let Some((user_id, version)) = user {
+        match create_link_if_current(&state.pool, user_id, version).await {
+            Ok(Some(token)) => {
                 let link = format!(
                     "{}/admin/reset-password?token={token}",
                     state.config.base_url
@@ -131,6 +131,7 @@ pub async fn send_link(
                 send_email(&state, email.clone(), link);
                 log_event("password_reset_requested", &[("user", &email)]);
             }
+            Ok(None) => {} // The password or recovery address changed meanwhile.
             Err(e) => tracing::error!("Could not save password reset link: {e}"),
         }
     }
@@ -138,22 +139,50 @@ pub async fn send_link(
 }
 
 /// Save a new reset code for `user_id` (replacing older ones) and return it.
+#[cfg(test)]
 pub async fn create_link(pool: &SqlitePool, user_id: i64) -> Result<String, sqlx::Error> {
-    let token = random_hex(32);
-    sqlx::query("DELETE FROM password_resets WHERE user_id = ? OR expires_at < datetime('now')")
+    let version = sqlx::query_scalar("SELECT session_version FROM users WHERE id = ?")
         .bind(user_id)
-        .execute(pool)
+        .fetch_one(pool)
         .await?;
+    create_link_if_current(pool, user_id, version)
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)
+}
+
+/// An in-flight request to the former recovery address must not issue a
+/// usable link after a password or email change. Take the write lock first;
+/// stale requests must not even delete a newer request's link.
+pub async fn create_link_if_current(
+    pool: &SqlitePool,
+    user_id: i64,
+    version: i64,
+) -> Result<Option<String>, sqlx::Error> {
+    let token = random_hex(32);
+    let mut tx = pool.begin().await?;
     sqlx::query(
+        "DELETE FROM password_resets
+         WHERE (user_id = ? OR expires_at < datetime('now'))
+         AND EXISTS (SELECT 1 FROM users WHERE id = ? AND session_version = ?)",
+    )
+    .bind(user_id)
+    .bind(user_id)
+    .bind(version)
+    .execute(&mut *tx)
+    .await?;
+    let inserted = sqlx::query(
         "INSERT INTO password_resets (token_hash, user_id, expires_at)
-         VALUES (?, ?, datetime('now', ?))",
+         SELECT ?, id, datetime('now', ?) FROM users WHERE id = ? AND session_version = ?",
     )
     .bind(hash_token(&token))
-    .bind(user_id)
     .bind(format!("+{LINK_MINUTES} minutes"))
-    .execute(pool)
-    .await?;
-    Ok(token)
+    .bind(user_id)
+    .bind(version)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    tx.commit().await?;
+    Ok((inserted == 1).then_some(token))
 }
 
 /// Send the link in the background, so the page answers just as fast for
@@ -242,8 +271,8 @@ pub async fn reset_page(
 /// POST /admin/reset-password -> Save the new password.
 pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -> Response {
     let lang = settings::load(&state.pool).await.language;
-    let Some(user_id) = user_for(&state.pool, &form.token).await else {
-        return private(
+    let invalid = || {
+        private(
             ResetTemplate {
                 lang,
                 token: None,
@@ -251,8 +280,11 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
                 error: None,
             }
             .into_response(),
-        );
+        )
     };
+    if user_for(&state.pool, &form.token).await.is_none() {
+        return invalid();
+    }
     let error = |message: String| {
         private(
             ResetTemplate {
@@ -280,19 +312,25 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
                 .to_string(),
         );
     };
-    if crate::db::users::set_password(&state.pool, user_id, &hash)
-        .await
-        .is_err()
+    // Recheck and consume the link after hashing: another request may have
+    // used or replaced it while that slow work ran.
+    let user_id = match crate::db::users::reset_password(
+        &state.pool,
+        &hash_token(&form.token),
+        &hash,
+    )
+    .await
     {
-        return error(
-            lang.t("Couldn't save the password. Please try again.")
-                .to_string(),
-        );
-    }
-    let _ = sqlx::query("DELETE FROM password_resets WHERE user_id = ?")
-        .bind(user_id)
-        .execute(&state.pool)
-        .await;
+        Ok(Some(id)) => id,
+        Ok(None) => return invalid(),
+        Err(e) => {
+            tracing::error!("Could not reset password: {e}");
+            return error(
+                lang.t("Couldn't save the password. Please try again.")
+                    .to_string(),
+            );
+        }
+    };
     let email: String = or_log(
         sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
             .bind(user_id)
