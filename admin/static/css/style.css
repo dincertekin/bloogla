@@ -1293,6 +1293,12 @@ code {
     font-size: 0.85rem;
 }
 
+/* HTML kept as written keeps its lines, so a box like <details> reads as it
+   does in Markdown. (`.ProseMirror` outranks the editor's own white-space rule.) */
+.visual-editor .ProseMirror .html-block {
+    white-space: pre-wrap;
+}
+
 /* List items hold paragraphs here; keep them as close as in the post. */
 .visual-editor li > p {
     margin: 0;

@@ -50,10 +50,31 @@ const Shortcode = Node.create({
     },
 });
 
-// HTML the editor can't show as formatted text (video embeds, boxes, forms...),
-// usually from WordPress imports. It runs from its first line to the next
-// blank line, like an HTML block in Markdown.
-const KEPT_HTML = /^<(iframe|video|audio|embed|object|script|style|svg|form|details|div|section|aside)[\s>/][\s\S]*?(?:\n[ \t]*\n|$)/i;
+// HTML the editor can't show as formatted text (video embeds, boxes, forms,
+// centered images...), usually from WordPress imports.
+const KEPT_HTML_START = /^<(iframe|video|audio|embed|object|script|style|svg|form|details|div|section|aside|figure|picture|table|center|p|img)[\s>/]/i;
+
+// The HTML block at the start of `src`, or null. It runs to the line with its
+// closing tag, so a box like <details> with blank lines inside stays whole
+// (ending it at the first blank line lost the closing tag, and the published
+// post then hid everything after it). Without a closing tag (an <img>, or
+// unfinished HTML) it runs to the next blank line.
+function keptHtml(src) {
+    const start = KEPT_HTML_START.exec(src);
+    if (!start) return null;
+    // Count tags with the same name, so a <div> inside a <div> doesn't end it.
+    const sameTag = new RegExp(`<(/?)${start[1]}(?=[\\s>/])`, "gi");
+    let depth = 0;
+    for (let tag; (tag = sameTag.exec(src)); ) {
+        depth += tag[1] ? -1 : 1;
+        if (depth === 0) {
+            const lineEnd = src.indexOf("\n", tag.index);
+            return lineEnd === -1 ? src : src.slice(0, lineEnd + 1);
+        }
+    }
+    const blankLine = /\n[ \t]*\n/.exec(src);
+    return blankLine ? src.slice(0, blankLine.index + 1) : src;
+}
 
 // Kept exactly as written, shown as a block of code (like shortcodes).
 const HtmlBlock = Node.create({
@@ -80,8 +101,8 @@ const HtmlBlock = Node.create({
             return match ? match.index + match[1].length : -1;
         },
         tokenize(src) {
-            const match = KEPT_HTML.exec(src);
-            if (match) return { type: "htmlBlock", raw: match[0], text: match[0].trim() };
+            const html = keptHtml(src);
+            if (html) return { type: "htmlBlock", raw: html, text: html.trim() };
         },
     },
     parseMarkdown(token) {
