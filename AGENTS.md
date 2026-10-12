@@ -33,7 +33,7 @@ with `npm install && npm run build`; don't edit the built file by hand.
 - `src/handlers/site/` public pages, rendered by themes (Tera, loaded at runtime from `themes/`)
 - `src/db/` queries; `src/db/settings.rs` is the typed `Settings` struct (all settings + defaults)
 - `src/services/` email, backups, themes, updates (GitHub check, signed self-update, restart)
-- `src/i18n/` languages: `tr.rs` maps English text → Turkish; `mod.rs` has `THEME_STRINGS`
+- `src/i18n/` languages: `tr.rs` and `lt.rs` map English text → Turkish and Lithuanian; `mod.rs` has `THEME_STRINGS`
 - `src/tests/` full-request tests with `TestSite` (fresh DB per test)
 - `admin/static/js/admin.js` shared admin behaviour, documented at the top of the file
 - `themes/{default,story,gazette}` bundled themes, embedded and installed on start
@@ -43,8 +43,8 @@ with `npm install && npm run build`; don't edit the built file by hand.
 ## Rules that tests or CI enforce
 
 - **Every interface string is translated.** Admin templates use
-  `me.t("English text")` / `me.tv(...)` / `me.count(...)`; add the Turkish line
-  to `src/i18n/tr.rs`. `cargo test` lists missing ones. Theme text goes through
+  `me.t("English text")` / `me.tv(...)` / `me.count(...)`; add a line to each
+  language file (`src/i18n/tr.rs`, `src/i18n/lt.rs`). `cargo test` lists missing ones. Theme text goes through
   `THEME_STRINGS` ids (`{{ t.back_to_all_posts }}`), because Tera can't look up
   keys containing dots.
 - **No inline scripts or `on*=` handlers in admin templates.** The admin CSP

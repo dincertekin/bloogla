@@ -54,16 +54,16 @@ fn transliterate(c: char) -> &'static str {
         'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' | 'ă' | 'ą' => "a",
         'ç' | 'ć' | 'č' => "c",
         'ď' | 'đ' => "d",
-        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ę' | 'ě' => "e",
+        'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ę' | 'ě' | 'ė' => "e",
         'ğ' => "g",
-        'ì' | 'í' | 'î' | 'ï' | 'ı' | 'ī' => "i",
+        'ì' | 'í' | 'î' | 'ï' | 'ı' | 'ī' | 'į' => "i",
         'ł' => "l",
         'ñ' | 'ń' | 'ň' => "n",
         'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'ō' | 'ő' => "o",
         'ř' => "r",
         'ş' | 'ś' | 'š' | 'ș' => "s",
         'ț' | 'ť' => "t",
-        'ù' | 'ú' | 'û' | 'ü' | 'ū' | 'ů' | 'ű' => "u",
+        'ù' | 'ú' | 'û' | 'ü' | 'ū' | 'ů' | 'ű' | 'ų' => "u",
         'ý' | 'ÿ' => "y",
         'ź' | 'ż' | 'ž' => "z",
         'ß' => "ss",
@@ -209,6 +209,11 @@ mod tests {
     fn slugify_transliterates_and_keeps_other_scripts() {
         assert_eq!(slugify("Dinçer'in Güzel Şehri"), "dincer-in-guzel-sehri");
         assert_eq!(slugify("İstanbul ılık"), "istanbul-ilik");
+        // Lithuanian: the same address the editor shows while typing.
+        assert_eq!(
+            slugify("Kelionė į Vilnių ir Šiaulius"),
+            "kelione-i-vilniu-ir-siaulius"
+        );
         assert_eq!(slugify("  Hello, World!  "), "hello-world");
         assert_eq!(slugify("Привет мир"), "привет-мир");
         assert_eq!(slugify("!!!"), "post");

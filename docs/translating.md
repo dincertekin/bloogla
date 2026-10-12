@@ -1,6 +1,6 @@
 # Translating Bloogla
 
-Bloogla speaks English and Türkçe today. Every language added means more
+Bloogla speaks English, Lietuvių and Türkçe today. Every language added means more
 people can run a website in their own words: the admin panel, the themes and
 the emails all use it. **You don't need to know Rust or install anything** to
 help.

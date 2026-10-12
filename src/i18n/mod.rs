@@ -15,6 +15,7 @@
 //! keeps its `{placeholders}`.
 
 mod en;
+mod lt;
 mod tr;
 
 use std::collections::HashMap;
@@ -40,7 +41,7 @@ pub struct Language {
 
 /// Every language Bloogla speaks, in the order language pickers show them.
 /// The first one is the default.
-pub const LANGUAGES: &[&Language] = &[&en::LANGUAGE, &tr::LANGUAGE];
+pub const LANGUAGES: &[&Language] = &[&en::LANGUAGE, &lt::LANGUAGE, &tr::LANGUAGE];
 
 /// Plural rule for languages where only exactly one is singular (English, German...).
 pub fn singular_if_one(n: i64) -> bool {

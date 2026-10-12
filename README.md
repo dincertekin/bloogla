@@ -79,7 +79,7 @@ automatically. More in [Running Bloogla](docs/running.md).
 | **Found on Google** | Meta tags, Open Graph, structured data, clean addresses with automatic redirects             |
 | **Analytics**       | Views and referring sites per day, without cookies or personal data                          |
 | **People**          | Admins, editors and authors, two-factor login, password reset by email                       |
-| **Languages**       | English and Türkçe, for the admin panel, the theme and emails                                |
+| **Languages**       | English, Lietuvių and Türkçe, for the admin panel, the theme and emails                      |
 | **Peace of mind**   | Built-in HTTPS, daily backups, one-click `.zip` backup, signed updates you can install from Settings |
 
 ## Themes
@@ -119,7 +119,7 @@ volume. Download a backup first either way (**Settings → Backup**).
 
 ## Help translate Bloogla
 
-Bloogla speaks English and Türkçe. Want it in your language? A language is
+Bloogla speaks English, Lietuvių and Türkçe. Want it in your language? A language is
 one file of short texts, and you can add it right in your browser, no
 programming needed. The [translation guide](docs/translating.md) shows how,
 or [say hello](https://github.com/dincertekin/bloogla/issues/new?template=translation.yml)
