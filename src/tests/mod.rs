@@ -63,6 +63,8 @@ pub struct Page {
     pub status: StatusCode,
     pub headers: HeaderMap,
     pub body: String,
+    /// The answer as sent, for files like the backup .zip.
+    pub bytes: Vec<u8>,
 }
 
 impl Page {
@@ -222,6 +224,7 @@ impl TestSite {
             status,
             headers,
             body: String::from_utf8_lossy(&bytes).into_owned(),
+            bytes: bytes.to_vec(),
         }
     }
 }

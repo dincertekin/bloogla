@@ -60,3 +60,39 @@ async fn admins_can_download_a_backup() {
         "/admin/login"
     );
 }
+
+#[tokio::test]
+async fn a_downloaded_backup_restores_the_site() {
+    use std::io::Read;
+
+    let mut site = TestSite::with_owner().await;
+    site.publish("Kept in the backup", "published").await;
+    let page = site.get("/admin/backup.zip").await;
+    assert_eq!(page.status, StatusCode::OK);
+
+    // Unpacked into Bloogla's folder, the database has to land where Bloogla
+    // reads it: data/bloogla.db.
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(page.bytes)).expect("a .zip");
+    let mut database = Vec::new();
+    zip.by_name("data/bloogla.db")
+        .expect("the database is in data/")
+        .read_to_end(&mut database)
+        .expect("readable");
+
+    let restored = std::env::temp_dir().join(format!(
+        "bloogla-restore-{}.db",
+        crate::app::security::random_hex(8)
+    ));
+    std::fs::write(&restored, database).expect("write");
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(&restored)
+        .read_only(true);
+    let pool = sqlx::SqlitePool::connect_with(options).await.expect("open");
+    let titles: Vec<String> = sqlx::query_scalar("SELECT title FROM posts")
+        .fetch_all(&pool)
+        .await
+        .expect("posts");
+    pool.close().await;
+    let _ = std::fs::remove_file(&restored);
+    assert!(titles.contains(&"Kept in the backup".to_string()));
+}
