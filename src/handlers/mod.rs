@@ -54,16 +54,19 @@ pub fn client_ip(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> IpA
 
 /// The visitor's address from `X-Forwarded-For`, trusting only the proxy.
 ///
-/// A visitor can send this header themselves, so the value arrives with the
-/// address they wrote first and the one the local proxy added last. The proxy
-/// is the only part we trust, so we read its entry: the last one. (Reading the
-/// first let a visitor write any address there and slip past the rate limits
-/// by changing it on every request.)
+/// A visitor can send this header themselves, so it arrives with the address
+/// they wrote first and the one the local proxy added last (at the end of the
+/// line, or on a line of its own). The proxy is the only part we trust, so we
+/// read its entry: the last one. (Reading the first let a visitor write any
+/// address there and slip past the rate limits by changing it on every
+/// request.)
 ///
 /// Only call this when the proxy is trusted (Bloogla is on a loopback address).
 pub fn forwarded_for(headers: &HeaderMap) -> Option<IpAddr> {
     headers
-        .get("x-forwarded-for")
+        .get_all("x-forwarded-for")
+        .iter()
+        .next_back()
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.rsplit(',').next())
         .and_then(|v| v.trim().parse().ok())

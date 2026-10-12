@@ -85,6 +85,20 @@ impl Page {
 impl TestSite {
     /// A brand-new site that hasn't been set up yet.
     pub async fn new() -> Self {
+        Self::with_config(Config::default()).await
+    }
+
+    /// A new site behind a local reverse proxy (`BLOOGLA_HOST=127.0.0.1`), so
+    /// visitors' addresses come from `X-Forwarded-For`.
+    pub async fn behind_proxy() -> Self {
+        Self::with_config(Config {
+            host: [127, 0, 0, 1].into(),
+            ..Config::default()
+        })
+        .await
+    }
+
+    async fn with_config(config: Config) -> Self {
         let turn = ONE_AT_A_TIME.lock().await;
         crate::db::settings::invalidate();
 
@@ -97,7 +111,7 @@ impl TestSite {
             .expect("test database");
         let state = AppState {
             pool: pool.clone(),
-            config: Config::default(),
+            config,
             themes: Arc::new(RwLock::new(crate::services::themes::Themes::load())),
             setup_pending: Arc::new(AtomicBool::new(true)),
             setup_code: SETUP_CODE.into(),
