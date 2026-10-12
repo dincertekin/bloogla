@@ -8,6 +8,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
+import { Selection } from "@tiptap/pm/state";
+import { Marked } from "marked";
 
 // A shortcode on its own line, like [youtube URL], [toc] or [note "Text"].
 const SHORTCODE_LINE = /^\[([a-z][\w-]*)(?:[ \t][^\n\]]*)?\][ \t]*(?:\n|$)/i;
@@ -113,7 +115,34 @@ const HtmlBlock = Node.create({
     },
 });
 
+// The editor writes the whole post back as Markdown in its own style, so
+// `*` lists become `-` and so on, and what it can't show (like <kbd> or
+// <sup>) is lost. To tell a harmless change of style from a loss, both texts
+// are turned into HTML (with spacing evened out) and compared.
+const reference = new Marked({ gfm: true });
+const asHtml = (markdown) =>
+    reference
+        .parse(markdown, { async: false })
+        .replace(/>\s+</g, "><")
+        .replace(/\s+/g, " ")
+        .trim();
+
 window.BlooglaVisualEditor = {
+    // Put `markdown` in the editor. Returns false when the editor would
+    // change what the post says or how it looks, so it should be edited as
+    // Markdown instead.
+    load(editor, markdown) {
+        editor.commands.setContent(markdown, { contentType: "markdown", emitUpdate: false });
+        // Start at the beginning, like a newly created editor. (Left at the
+        // end, a [youtube …] block there would be selected, and typing
+        // would replace it.)
+        editor.commands.command(({ tr }) => {
+            tr.setSelection(Selection.atStart(tr.doc));
+            return true;
+        });
+        return asHtml(editor.getMarkdown()) === asHtml(markdown);
+    },
+
     create({ element, markdown, placeholder, onChange }) {
         return new Editor({
             element,

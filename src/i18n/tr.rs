@@ -506,5 +506,9 @@ pub const LANGUAGE: Language = Language {
         ("Dates on your site and publish times use it.", "Sitenizdeki tarihler ve yayın saatleri bunu kullanır."),
         ("Use my computer's time zone", "Bilgisayarımın saat dilimini kullan"),
         ("Choose a time zone from the list.", "Listeden bir saat dilimi seçin."),
+        ("Plain text", "Düz metin"),
+        ("The post as plain text", "Yazının düz metni"),
+        ("Some parts of this post can't be shown in Write without changing them, so it opened as plain text. Here it stays exactly as you wrote it.", "Bu yazının bazı bölümleri Yaz sekmesinde değişmeden gösterilemiyor, bu yüzden düz metin olarak açıldı. Burada tam yazdığınız gibi kalır."),
+        ("Open in Write anyway", "Yine de Yaz sekmesinde aç"),
     ],
 };

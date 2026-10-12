@@ -1,9 +1,10 @@
 // The post and page editor (admin/templates/post_editor.html): the visual
-// editor and preview, formatting buttons, unsaved-text backup,
-// earlier versions, images and keyboard saving.
+// editor, the "Plain text" tab and the preview, formatting buttons,
+// unsaved-text backup, earlier versions, images and keyboard saving.
 //
-// Posts are saved as Markdown from a hidden text area (#content). The visual
-// editor (admin/static/js/visual-editor.js) writes into it as you type.
+// Posts are saved as Markdown from a text area (#content). The visual editor
+// (admin/static/js/visual-editor.js) writes into it as you type; the
+// "Plain text" tab shows the text area itself.
 (() => {
     const form = document.getElementById("editor-form");
     if (!form) return;
@@ -84,7 +85,6 @@
         titleField.value = revision.title;
         setMarkdown(revision.content);
         dirty = true;
-        showPreview(false);
         banner.hidden = false;
         document.getElementById("draft-text").textContent =
             text.loadedVersion.replace("{date}", button.dataset.revisionLabel);
@@ -271,11 +271,23 @@
     }
     coverRemove.addEventListener("click", () => setCover(""));
 
-    // ---- The visual editor and the preview ----
+    // ---- The visual editor, the "Plain text" tab and the preview ----
+    //
+    // The visual editor (the Write tab) writes the whole post back in its own
+    // Markdown, and drops what it can't show (some HTML, <kbd>, <sup>...).
+    // So it only takes a post it can write back without changing how it
+    // looks; any other post opens in the "Plain text" tab (the Markdown
+    // itself), with a note saying why, and stays exactly as written unless
+    // the person chooses Write anyway.
 
     const formatBar = document.querySelector(".format-bar");
     const visualBox = document.getElementById("visual-editor");
     const tabs = document.querySelectorAll(".segmented [data-mode]");
+    const notice = document.getElementById("markdown-notice");
+    let mode = "write";
+    // Whether the visual editor holds the text in #content. Typing in the
+    // "Plain text" tab makes it out of date until the visual editor loads it again.
+    let visualIsCurrent = false;
 
     const editor = window.BlooglaVisualEditor.create({
         element: visualBox,
@@ -287,20 +299,49 @@
             content.dispatchEvent(new Event("input", { bubbles: true }));
         },
     });
+    content.addEventListener("input", (event) => {
+        if (event.isTrusted) visualIsCurrent = false;
+    });
+
+    // Show one tab: "write" (the visual editor), "markdown" (the "Plain
+    // text" tab) or "preview".
+    function setMode(next) {
+        mode = next;
+        tabs.forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.mode === next)));
+        visualBox.hidden = next !== "write";
+        formatBar.hidden = next !== "write";
+        content.hidden = next !== "markdown";
+        preview.hidden = next !== "preview";
+        notice.hidden = true;
+        if (next === "preview") showPreview();
+    }
+
+    // Open the visual editor, unless it would change the post: then open
+    // the "Plain text" tab with the note instead (`anyway` skips that check).
+    // Returns whether the visual editor opened.
+    function openVisual(anyway) {
+        if (!visualIsCurrent) {
+            const keeps = window.BlooglaVisualEditor.load(editor, content.value);
+            if (!keeps && !anyway) {
+                setMode("markdown");
+                notice.hidden = false;
+                return false;
+            }
+            visualIsCurrent = true;
+        }
+        setMode("write");
+        return true;
+    }
 
     // Replace the whole text (restoring a draft or an earlier version).
     function setMarkdown(markdown) {
         content.value = markdown;
-        editor.commands.setContent(markdown, { contentType: "markdown", emitUpdate: false });
+        visualIsCurrent = false;
+        if (mode === "markdown") return;
+        openVisual(false);
     }
 
-    async function showPreview(on) {
-        tabs.forEach((tab) => tab.setAttribute("aria-selected", String((tab.dataset.mode === "preview") === on)));
-        visualBox.hidden = on;
-        formatBar.hidden = on;
-        preview.hidden = !on;
-        if (!on) return;
-
+    async function showPreview() {
         preview.innerHTML = `<p class="text-muted">${text.rendering}</p>`;
         const response = await fetch("/admin/preview", {
             method: "POST",
@@ -313,10 +354,19 @@
 
     tabs.forEach((tab) =>
         tab.addEventListener("click", () => {
-            showPreview(tab.dataset.mode === "preview");
-            if (tab.dataset.mode !== "preview") editor.commands.focus();
+            if (tab.dataset.mode !== "write") {
+                setMode(tab.dataset.mode);
+                if (mode === "markdown") content.focus();
+            } else if (openVisual(false)) {
+                editor.commands.focus();
+            }
         })
     );
+    notice.querySelector("[data-visual-anyway]").addEventListener("click", () => {
+        openVisual(true);
+        editor.commands.focus();
+    });
+    openVisual(false);
 
     // ---- Formatting buttons ----
 

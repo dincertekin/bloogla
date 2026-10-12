@@ -1340,6 +1340,33 @@ code {
     background: var(--bg-card);
 }
 
+/* The "Plain text" tab: the post's Markdown exactly as it's saved. */
+.markdown-editor {
+    display: block;
+    width: 100%;
+    min-height: 60vh;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.markdown-editor:focus {
+    outline: none;
+    border-color: var(--accent-black);
+}
+
+/* Why a post opened in the "Plain text" tab. */
+.editor-notice .link-button {
+    color: inherit;
+    text-decoration: underline;
+}
+
 .panel {
     padding: 1.25rem;
 }
@@ -1760,11 +1787,13 @@ code {
     /* A shorter writing area, so Save isn't far away. */
     .visual-editor,
     .visual-editor .ProseMirror,
+    .markdown-editor,
     .preview-pane {
         min-height: 45vh;
     }
 
     .visual-editor .ProseMirror,
+    .markdown-editor,
     .preview-pane {
         padding: 1rem;
     }

@@ -66,8 +66,16 @@
             <div class="editor-toolbar">
                 <div class="segmented" role="tablist" aria-label="{{ me.t("Editor mode") }}">
                     <button type="button" role="tab" aria-selected="true" data-mode="write">{{ me.t("Write") }}</button>
+                    <button type="button" role="tab" aria-selected="false" data-mode="markdown">{{ me.t("Plain text") }}</button>
                     <button type="button" role="tab" aria-selected="false" data-mode="preview">{{ me.t("Preview") }}</button>
                 </div>
+            </div>
+
+            <!-- Shown when a post opens as plain text (the post's Markdown)
+                 because Write would change it (see admin/static/js/editor.js). -->
+            <div id="markdown-notice" class="alert alert-info editor-notice" role="status" hidden>
+                {{ me.t("Some parts of this post can't be shown in Write without changing them, so it opened as plain text. Here it stays exactly as you wrote it.") }}
+                <button type="button" class="link-button" data-visual-anyway>{{ me.t("Open in Write anyway") }}</button>
             </div>
 
             <!-- Formatting buttons for the visual editor (see admin/static/js/editor.js). -->
@@ -87,8 +95,10 @@
                 <button type="button" data-format="quote" title="{{ me.t("Quote") }}" aria-label="{{ me.t("Quote") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6H3"/><path d="M21 12H8"/><path d="M21 18H8"/><path d="M3 12v6"/></svg></button>
                 <button type="button" data-format="divider" title="{{ me.t("Divider") }}" aria-label="{{ me.t("Divider") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
             </div>
-            <!-- What gets saved: the post as Markdown, kept up to date by the editor. -->
-            <textarea id="content" name="content" hidden>{{ post.content }}</textarea>
+            <!-- What gets saved: the post as Markdown. The visual editor keeps it
+                 up to date; the "Plain text" tab shows and edits it directly. -->
+            <textarea id="content" name="content" class="markdown-editor" hidden spellcheck="false"
+                aria-label="{{ me.t("The post as plain text") }}">{{ post.content }}</textarea>
             <div id="visual-editor" class="visual-editor prose"></div>
             <div id="preview" class="preview-pane prose" hidden></div>
         </div>
