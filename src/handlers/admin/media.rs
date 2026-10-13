@@ -341,7 +341,8 @@ pub async fn delete(State(state): State<AppState>, Path(id): Path<i64>) -> Statu
 ///
 /// JPEG and PNG are decoded, rotated upright, scaled down to [`MAX_DIMENSION`]
 /// and re-encoded, which also strips metadata such as GPS location. GIF and
-/// WebP are kept byte-for-byte so animations survive.
+/// WebP are kept as they are so animations survive, except that WebP's
+/// metadata is taken out (see [`without_webp_metadata`]).
 fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
     let format = image::guess_format(data)
         .map_err(|_| "not a supported image (JPEG, PNG, GIF or WebP)".to_string())?;
@@ -359,13 +360,17 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
                 tracing::warn!("Upload failed: {e}");
                 "could not read image".to_string()
             })?;
-            let (extension, mime_type) = if format == ImageFormat::Gif {
-                ("gif", "image/gif")
+            let (extension, mime_type, bytes) = if format == ImageFormat::Gif {
+                ("gif", "image/gif", data.to_vec())
             } else {
-                ("webp", "image/webp")
+                let bytes = without_webp_metadata(data).ok_or_else(|| {
+                    tracing::warn!("Upload failed: WebP chunks don't add up");
+                    "could not read image".to_string()
+                })?;
+                ("webp", "image/webp", bytes)
             };
             Ok(ProcessedImage {
-                bytes: data.to_vec(),
+                bytes,
                 extension,
                 mime_type,
                 width,
@@ -422,6 +427,51 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
     }
 }
 
+/// A WebP file without its `EXIF` and `XMP ` chunks, which hold what the
+/// camera wrote: GPS location, phone model, when it was taken. Everything
+/// else, the picture, animation frames and color profile, is copied as is.
+/// `None` if the chunks don't add up.
+///
+/// A WebP file is `RIFF`, its size, `WEBP`, then chunks: a 4-letter name, a
+/// size, the data, and a padding byte if the size is odd. Files with
+/// metadata start with a `VP8X` chunk whose flags say EXIF and XMP are
+/// there; those flags are cleared too.
+fn without_webp_metadata(data: &[u8]) -> Option<Vec<u8>> {
+    const EXIF_FLAG: u8 = 0x08;
+    const XMP_FLAG: u8 = 0x04;
+
+    if data.len() < 12 || &data[0..4] != b"RIFF" || &data[8..12] != b"WEBP" {
+        return None;
+    }
+    let riff_size = u32::from_le_bytes(data[4..8].try_into().ok()?) as usize;
+    let end = riff_size.checked_add(8)?;
+    let chunks = data.get(12..end)?;
+
+    let mut kept = b"WEBP".to_vec();
+    let mut rest = chunks;
+    while !rest.is_empty() {
+        let name = rest.get(0..4)?;
+        let size = u32::from_le_bytes(rest.get(4..8)?.try_into().ok()?) as usize;
+        let padded = size.checked_add(size % 2)?;
+        let chunk = rest.get(..8usize.checked_add(padded)?)?;
+        rest = &rest[chunk.len()..];
+        match name {
+            b"EXIF" | b"XMP " => continue,
+            b"VP8X" if size >= 1 => {
+                let mut chunk = chunk.to_vec();
+                chunk[8] &= !(EXIF_FLAG | XMP_FLAG);
+                kept.extend_from_slice(&chunk);
+            }
+            _ => kept.extend_from_slice(chunk),
+        }
+    }
+
+    let mut out = b"RIFF".to_vec();
+    out.extend_from_slice(&u32::try_from(kept.len()).ok()?.to_le_bytes());
+    out.extend_from_slice(&kept);
+    Some(out)
+}
+
 /// Write a processed image under a random name and record it in the library.
 async fn save_image(
     state: &AppState,
@@ -471,4 +521,94 @@ async fn save_image(
     })?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A small lossless WebP, and the same picture as `RIFF` chunks.
+    fn webp() -> (DynamicImage, Vec<u8>) {
+        let img = DynamicImage::ImageRgba8(image::RgbaImage::from_fn(6, 4, |x, y| {
+            image::Rgba([x as u8 * 40, y as u8 * 60, 90, 255])
+        }));
+        let mut bytes = Vec::new();
+        img.write_with_encoder(image::codecs::webp::WebPEncoder::new_lossless(&mut bytes))
+            .unwrap();
+        (img, bytes)
+    }
+
+    fn chunk(name: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut out = name.to_vec();
+        out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        out.extend_from_slice(data);
+        if data.len() % 2 == 1 {
+            out.push(0);
+        }
+        out
+    }
+
+    /// `body` (the `VP8L` chunk of [`webp`]) with a `VP8X` header saying
+    /// EXIF and XMP follow, and those two chunks, like a phone camera writes.
+    fn with_location(body: &[u8]) -> Vec<u8> {
+        let mut vp8x = vec![0x08 | 0x04, 0, 0, 0];
+        vp8x.extend_from_slice(&[5, 0, 0, 3, 0, 0]); // 6 x 4, stored minus one
+        let mut chunks = b"WEBP".to_vec();
+        chunks.extend(chunk(b"VP8X", &vp8x));
+        chunks.extend_from_slice(body);
+        // An odd size, so the padding byte is handled too.
+        chunks.extend(chunk(b"EXIF", b"MM\0*GPS 41.0128N 28.9800E Pixel 9"));
+        chunks.extend(chunk(b"XMP ", b"<x:xmpmeta>exif:GPSLatitude</x:xmpmeta>"));
+        let mut file = b"RIFF".to_vec();
+        file.extend_from_slice(&(chunks.len() as u32).to_le_bytes());
+        file.extend(chunks);
+        file
+    }
+
+    fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+        haystack.windows(needle.len()).any(|w| w == needle)
+    }
+
+    #[test]
+    fn webp_uploads_lose_their_location() {
+        let (img, plain) = webp();
+        let upload = with_location(&plain[12..]);
+        assert!(contains(&upload, b"41.0128N"));
+
+        let saved = process_image(&upload).expect("a valid WebP");
+        assert_eq!(saved.mime_type, "image/webp");
+        for gone in [
+            &b"EXIF"[..],
+            b"XMP ",
+            b"41.0128N",
+            b"Pixel 9",
+            b"GPSLatitude",
+        ] {
+            assert!(
+                !contains(&saved.bytes, gone),
+                "{} is still in the file",
+                String::from_utf8_lossy(gone)
+            );
+        }
+        // The VP8X flags no longer promise EXIF or XMP.
+        assert_eq!(saved.bytes[20] & (0x08 | 0x04), 0);
+        // The picture itself is untouched.
+        assert!(contains(&saved.bytes, &plain[12..]));
+        let back = image::load_from_memory(&saved.bytes).expect("still a WebP");
+        assert_eq!(back.to_rgba8(), img.to_rgba8());
+    }
+
+    #[test]
+    fn webp_without_metadata_is_kept_as_is() {
+        let (_, plain) = webp();
+        assert_eq!(process_image(&plain).expect("valid").bytes, plain);
+    }
+
+    #[test]
+    fn webp_with_chunks_that_dont_add_up_is_refused() {
+        let (_, plain) = webp();
+        let upload = with_location(&plain[12..]);
+        // Cut inside the EXIF chunk, but keep the RIFF size claiming more.
+        assert!(without_webp_metadata(&upload[..upload.len() - 20]).is_none());
+    }
 }
