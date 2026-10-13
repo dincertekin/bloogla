@@ -16,8 +16,8 @@ use axum::routing::{delete, get, post, MethodRouter};
 use axum::Router;
 use std::sync::Arc;
 use tower_governor::governor::GovernorConfigBuilder;
-use tower_governor::key_extractor::SmartIpKeyExtractor;
-use tower_governor::GovernorLayer;
+use tower_governor::key_extractor::KeyExtractor;
+use tower_governor::{GovernorError, GovernorLayer};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
@@ -260,6 +260,28 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         )))
 }
 
+/// The login limit's key behind a trusted local proxy: the visitor's address
+/// read the same way as [`crate::handlers::client_ip`] (the proxy's entry in
+/// `X-Forwarded-For`), or the connection's own address without the header.
+/// (`tower_governor`'s `SmartIpKeyExtractor` reads the first entry, which the
+/// visitor writes.)
+#[derive(Clone)]
+struct ProxyIpKeyExtractor;
+
+impl KeyExtractor for ProxyIpKeyExtractor {
+    type Key = std::net::IpAddr;
+
+    fn extract<T>(&self, req: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
+        crate::handlers::forwarded_for(req.headers())
+            .or_else(|| {
+                req.extensions()
+                    .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                    .map(|info| info.0.ip())
+            })
+            .ok_or(GovernorError::UnableToExtractKey)
+    }
+}
+
 /// GET and POST /admin/login. Password guessing is slowed down: 5 quick
 /// attempts per address, then one more every 12 seconds.
 ///
@@ -273,7 +295,7 @@ fn login_route(state: &AppState) -> Result<MethodRouter<AppState>, String> {
         let limit = GovernorConfigBuilder::default()
             .per_second(12)
             .burst_size(5)
-            .key_extractor(SmartIpKeyExtractor)
+            .key_extractor(ProxyIpKeyExtractor)
             .finish()
             .ok_or(ERROR)?;
         login.layer(GovernorLayer {
