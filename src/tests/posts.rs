@@ -163,6 +163,11 @@ async fn tags_used_only_by_drafts_stay_private() {
         assert_eq!(page.status, StatusCode::SEE_OTHER);
     }
 
+    // Settings only suggests tags the site shows for the menu.
+    let settings = site.get("/admin/settings").await;
+    assert!(settings.body.contains("/tag/travel"));
+    assert!(!settings.body.contains("/tag/project-falcon"));
+
     site.new_visitor();
     let home = site.get("/").await;
     assert!(home.body.contains("/tag/travel"));

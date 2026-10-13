@@ -10,7 +10,7 @@ pub fn slugify(name: &str) -> String {
     crate::content::text::slugify_or(name, "tag")
 }
 
-/// Every tag, by name (for the admin; the site shows [`listed`]).
+/// Every tag, by name (for the post editor; the site shows [`listed`]).
 pub async fn all(pool: &SqlitePool) -> Vec<Tag> {
     sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
         .fetch_all(pool)
