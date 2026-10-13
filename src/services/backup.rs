@@ -101,11 +101,12 @@ fn prune_automatic_backups() {
     }
 }
 
-/// Make a .zip with a fresh copy of the database (`bloogla.db`) and every
-/// uploaded file (`uploads/...`), and return where it was written.
+/// Make a .zip with a fresh copy of the database (`data/bloogla.db`) and
+/// every uploaded file (`uploads/...`), and return where it was written.
 ///
-/// The caller sends it and deletes it. Unpacking it into an empty folder
-/// next to the `bloogla` program gives a working site again.
+/// The caller sends it and deletes it. The paths inside are the ones Bloogla
+/// reads, so unpacking it into the folder Bloogla runs in (or an empty folder
+/// next to the `bloogla` program) gives the site back.
 pub async fn download_archive(pool: &SqlitePool, uploads: &Path) -> Result<PathBuf, String> {
     let database = timestamped_path("download-");
     backup_to(pool, &database).await?;
@@ -141,7 +142,7 @@ fn write_archive(database: &Path, uploads: &Path, archive: &Path) -> Result<(), 
         Ok(())
     };
 
-    add("bloogla.db", database)?;
+    add("data/bloogla.db", database)?;
     if let Ok(entries) = std::fs::read_dir(uploads) {
         let mut files: Vec<PathBuf> = entries
             .flatten()
