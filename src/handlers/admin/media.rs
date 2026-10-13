@@ -430,7 +430,8 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
 /// A WebP file without its `EXIF` and `XMP ` chunks, which hold what the
 /// camera wrote: GPS location, phone model, when it was taken. Everything
 /// else, the picture, animation frames and color profile, is copied as is.
-/// `None` if the chunks don't add up.
+/// `None` if the chunks don't add up. A missing padding byte after the last
+/// chunk is added rather than refused.
 ///
 /// A WebP file is `RIFF`, its size, `WEBP`, then chunks: a 4-letter name, a
 /// size, the data, and a padding byte if the size is odd. Files with
@@ -452,18 +453,25 @@ fn without_webp_metadata(data: &[u8]) -> Option<Vec<u8>> {
     while !rest.is_empty() {
         let name = rest.get(0..4)?;
         let size = u32::from_le_bytes(rest.get(4..8)?.try_into().ok()?) as usize;
-        let padded = size.checked_add(size % 2)?;
-        let chunk = rest.get(..8usize.checked_add(padded)?)?;
-        rest = &rest[chunk.len()..];
+        let unpadded = size.checked_add(8)?;
+        let padded = unpadded + size % 2;
+        // Some tools leave out the padding byte after the last chunk.
+        let taken = if rest.len() >= padded {
+            padded
+        } else if rest.len() == unpadded {
+            unpadded
+        } else {
+            return None;
+        };
+        let mut chunk = rest[..taken].to_vec();
+        rest = &rest[taken..];
+        chunk.resize(padded, 0);
         match name {
             b"EXIF" | b"XMP " => continue,
-            b"VP8X" if size >= 1 => {
-                let mut chunk = chunk.to_vec();
-                chunk[8] &= !(EXIF_FLAG | XMP_FLAG);
-                kept.extend_from_slice(&chunk);
-            }
-            _ => kept.extend_from_slice(chunk),
+            b"VP8X" if size >= 1 => chunk[8] &= !(EXIF_FLAG | XMP_FLAG),
+            _ => {}
         }
+        kept.extend_from_slice(&chunk);
     }
 
     let mut out = b"RIFF".to_vec();
@@ -602,6 +610,21 @@ mod tests {
     fn webp_without_metadata_is_kept_as_is() {
         let (_, plain) = webp();
         assert_eq!(process_image(&plain).expect("valid").bytes, plain);
+    }
+
+    #[test]
+    fn webp_without_the_last_padding_byte_is_accepted() {
+        let (img, plain) = webp();
+        // An odd-sized metadata chunk last, with its padding byte left out.
+        let mut upload = with_location(&plain[12..]);
+        upload.pop();
+        let riff_size = (upload.len() - 8) as u32;
+        upload[4..8].copy_from_slice(&riff_size.to_le_bytes());
+
+        let saved = process_image(&upload).expect("still a valid WebP");
+        assert!(!contains(&saved.bytes, b"GPSLatitude"));
+        let back = image::load_from_memory(&saved.bytes).expect("still a WebP");
+        assert_eq!(back.to_rgba8(), img.to_rgba8());
     }
 
     #[test]
