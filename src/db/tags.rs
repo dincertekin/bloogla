@@ -18,11 +18,10 @@ pub async fn all(pool: &SqlitePool) -> Vec<Tag> {
         .unwrap_or_default()
 }
 
-// The site only shows tags used by a post visitors can see. Drafts and
-// scheduled posts that aren't out yet don't count, so their tags (often the
-// name of something not announced yet) stay private.
-
 /// Tags with at least one public post, by name: the ones the site shows.
+/// Drafts and scheduled posts that aren't out yet don't count, so their tags
+/// (often the name of something not announced yet) stay private.
+///
 /// Built on every public page, so the public posts' tags are read once
 /// (`IN`) rather than checked tag by tag.
 pub async fn listed(pool: &SqlitePool) -> Vec<Tag> {
