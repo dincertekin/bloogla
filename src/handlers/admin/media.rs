@@ -427,11 +427,12 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
     }
 }
 
-/// A WebP file without its `EXIF` and `XMP ` chunks, which hold what the
-/// camera wrote: GPS location, phone model, when it was taken. Everything
-/// else, the picture, animation frames and color profile, is copied as is.
-/// `None` if the chunks don't add up. A missing padding byte after the last
-/// chunk is added rather than refused.
+/// A WebP file with only the chunks needed to show it: the picture,
+/// transparency, animation frames and color profile, copied as they are.
+/// Everything else goes: `EXIF` and `XMP ` (what the camera wrote: GPS
+/// location, phone model, when it was taken) and any chunk an app added,
+/// which readers ignore anyway. `None` if the chunks don't add up. A missing
+/// padding byte after the last chunk is added rather than refused.
 ///
 /// A WebP file is `RIFF`, its size, `WEBP`, then chunks: a 4-letter name, a
 /// size, the data, and a padding byte if the size is odd. Files with
@@ -467,9 +468,9 @@ fn without_webp_metadata(data: &[u8]) -> Option<Vec<u8>> {
         rest = &rest[taken..];
         chunk.resize(padded, 0);
         match name {
-            b"EXIF" | b"XMP " => continue,
             b"VP8X" if size >= 1 => chunk[8] &= !(EXIF_FLAG | XMP_FLAG),
-            _ => {}
+            b"VP8 " | b"VP8L" | b"ALPH" | b"ANIM" | b"ANMF" | b"ICCP" => {}
+            _ => continue,
         }
         kept.extend_from_slice(&chunk);
     }
@@ -628,21 +629,42 @@ mod tests {
     }
 
     #[test]
-    fn a_kept_last_chunk_gets_its_missing_padding_byte() {
+    fn chunks_an_app_added_are_removed_too() {
         let (img, plain) = webp();
-        // A chunk Bloogla keeps (unknown chunks are kept and ignored by
-        // readers), last, with an odd size and no padding byte.
-        let mut upload = with_location(&plain[12..]);
-        let mut extra = chunk(b"ZZZZ", b"odd");
-        extra.pop();
-        upload.extend_from_slice(&extra);
+        let mut upload = plain.clone();
+        upload.extend(chunk(b"ZZZZ", b"lat=41.0128;lon=28.98"));
+        let riff_size = (upload.len() - 8) as u32;
+        upload[4..8].copy_from_slice(&riff_size.to_le_bytes());
+
+        let saved = process_image(&upload).expect("a valid WebP");
+        assert_eq!(saved.bytes, plain);
+        let back = image::load_from_memory(&saved.bytes).expect("still a WebP");
+        assert_eq!(back.to_rgba8(), img.to_rgba8());
+    }
+
+    #[test]
+    fn a_picture_chunk_last_gets_its_missing_padding_byte() {
+        // The picture chunk is usually last, so that's where tools leave
+        // the padding byte out. Find a picture whose chunk has an odd size.
+        let (img, plain) = (1..40)
+            .map(|width| {
+                let img = DynamicImage::ImageRgba8(image::RgbaImage::from_fn(width, 3, |x, y| {
+                    image::Rgba([x as u8 * 6, y as u8 * 70, 200, 255])
+                }));
+                let mut bytes = Vec::new();
+                img.write_with_encoder(image::codecs::webp::WebPEncoder::new_lossless(&mut bytes))
+                    .unwrap();
+                (img, bytes)
+            })
+            .find(|(_, bytes)| u32::from_le_bytes(bytes[16..20].try_into().unwrap()) % 2 == 1)
+            .expect("some width gives an odd size");
+        assert_eq!(*plain.last().unwrap(), 0, "the encoder pads it");
+        let mut upload = plain[..plain.len() - 1].to_vec();
         let riff_size = (upload.len() - 8) as u32;
         upload[4..8].copy_from_slice(&riff_size.to_le_bytes());
 
         let saved = process_image(&upload).expect("still a valid WebP");
-        assert!(saved.bytes.ends_with(b"ZZZZ\x03\0\0\0odd\0"));
-        let riff_size = u32::from_le_bytes(saved.bytes[4..8].try_into().unwrap());
-        assert_eq!(riff_size as usize, saved.bytes.len() - 8);
+        assert_eq!(saved.bytes, plain, "the padding byte is back");
         let back = image::load_from_memory(&saved.bytes).expect("still a WebP");
         assert_eq!(back.to_rgba8(), img.to_rgba8());
     }
