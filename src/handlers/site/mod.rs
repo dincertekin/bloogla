@@ -25,7 +25,7 @@ const RATE_WINDOW: Duration = Duration::from_secs(10 * 60);
 /// Context every theme template receives: site info, menu, tags and default
 /// SEO tags.
 async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
-    let tags = crate::db::tags::all(&state.pool).await;
+    let tags = crate::db::tags::listed(&state.pool).await;
     let seo_head = seo_head(
         state,
         site,

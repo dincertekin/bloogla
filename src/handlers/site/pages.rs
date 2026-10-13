@@ -106,7 +106,7 @@ pub async fn tag(
     Path(slug): Path<String>,
     Query(query): Query<ListingQuery>,
 ) -> Response {
-    let Some(tag) = tags::find_by_slug(&state.pool, &slug).await else {
+    let Some(tag) = tags::find_listed_by_slug(&state.pool, &slug).await else {
         return not_found(&state).await;
     };
 
