@@ -10,7 +10,7 @@ pub fn slugify(name: &str) -> String {
     crate::content::text::slugify_or(name, "tag")
 }
 
-/// Every tag, by name.
+/// Every tag, by name (for the post editor; the site shows [`listed`]).
 pub async fn all(pool: &SqlitePool) -> Vec<Tag> {
     sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags ORDER BY name ASC")
         .fetch_all(pool)
@@ -18,12 +18,40 @@ pub async fn all(pool: &SqlitePool) -> Vec<Tag> {
         .unwrap_or_default()
 }
 
-pub async fn find_by_slug(pool: &SqlitePool, slug: &str) -> Option<Tag> {
+/// Tags with at least one public post, by name: the ones the site shows.
+/// Drafts and scheduled posts that aren't out yet don't count, so their tags
+/// (often the name of something not announced yet) stay private.
+///
+/// Built on every public page, so the public posts' tags are read once
+/// (`IN`) rather than checked tag by tag.
+pub async fn listed(pool: &SqlitePool) -> Vec<Tag> {
+    let filter = crate::db::posts::LISTED_POST_FILTER;
+    sqlx::query_as::<_, Tag>(&format!(
+        "SELECT id, name, slug FROM tags
+         WHERE id IN (SELECT pt.tag_id FROM post_tags pt
+                      JOIN posts ON posts.id = pt.post_id
+                      WHERE {filter})
+         ORDER BY name ASC"
+    ))
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+}
+
+/// A tag with at least one public post, for its page on the site. For one
+/// tag, checking its own posts (`EXISTS`) is quicker than reading them all.
+pub async fn find_listed_by_slug(pool: &SqlitePool, slug: &str) -> Option<Tag> {
+    let filter = crate::db::posts::LISTED_POST_FILTER;
     crate::db::or_log(
-        sqlx::query_as::<_, Tag>("SELECT id, name, slug FROM tags WHERE slug = ?")
-            .bind(slug)
-            .fetch_optional(pool)
-            .await,
+        sqlx::query_as::<_, Tag>(&format!(
+            "SELECT id, name, slug FROM tags
+             WHERE slug = ? AND EXISTS (SELECT 1 FROM post_tags pt
+                                        JOIN posts ON posts.id = pt.post_id
+                                        WHERE pt.tag_id = tags.id AND {filter})"
+        ))
+        .bind(slug)
+        .fetch_optional(pool)
+        .await,
         "find tag",
     )
 }

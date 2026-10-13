@@ -143,6 +143,46 @@ async fn tags_typed_in_the_editor_are_created_once() {
 }
 
 #[tokio::test]
+async fn tags_used_only_by_drafts_stay_private() {
+    let mut site = TestSite::with_owner().await;
+    for (title, status, tag) in [
+        ("Hello world", "published", "Travel"),
+        ("Announcing Project Falcon", "draft", "Project Falcon"),
+    ] {
+        let page = site
+            .post(
+                "/admin/posts",
+                &[
+                    ("title", title),
+                    ("content", "Text"),
+                    ("status", status),
+                    ("new_tags", tag),
+                ],
+            )
+            .await;
+        assert_eq!(page.status, StatusCode::SEE_OTHER);
+    }
+
+    // Settings only suggests tags the site shows for the menu.
+    let settings = site.get("/admin/settings").await;
+    assert!(settings.body.contains("/tag/travel"));
+    assert!(!settings.body.contains("/tag/project-falcon"));
+
+    site.new_visitor();
+    let home = site.get("/").await;
+    assert!(home.body.contains("/tag/travel"));
+    assert!(
+        !home.body.contains("Project Falcon"),
+        "a draft's tag is shown on the site"
+    );
+    assert_eq!(site.get("/tag/travel").await.status, StatusCode::OK);
+    assert_eq!(
+        site.get("/tag/project-falcon").await.status,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
 async fn publish_times_are_typed_in_the_site_time_zone() {
     let mut site = TestSite::with_owner().await;
     let saved = site

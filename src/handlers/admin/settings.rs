@@ -118,7 +118,9 @@ pub async fn page(
         let url = crate::server::routes::post_path(&page.slug, true);
         menu_suggestions.push((page.title, url));
     }
-    for tag in crate::db::tags::all(&state.pool).await {
+    // Like the pages above: only tags the site shows, or the link would be
+    // "not found" and the menu would show a draft's tag.
+    for tag in crate::db::tags::listed(&state.pool).await {
         menu_suggestions.push((tag.name, format!("/tag/{}", tag.slug)));
     }
     SettingsTemplate {
