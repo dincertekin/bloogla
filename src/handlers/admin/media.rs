@@ -454,7 +454,7 @@ fn without_webp_metadata(data: &[u8]) -> Option<Vec<u8>> {
         let name = rest.get(0..4)?;
         let size = u32::from_le_bytes(rest.get(4..8)?.try_into().ok()?) as usize;
         let unpadded = size.checked_add(8)?;
-        let padded = unpadded + size % 2;
+        let padded = unpadded.checked_add(size % 2)?;
         // Some tools leave out the padding byte after the last chunk.
         let taken = if rest.len() >= padded {
             padded
@@ -623,6 +623,26 @@ mod tests {
 
         let saved = process_image(&upload).expect("still a valid WebP");
         assert!(!contains(&saved.bytes, b"GPSLatitude"));
+        let back = image::load_from_memory(&saved.bytes).expect("still a WebP");
+        assert_eq!(back.to_rgba8(), img.to_rgba8());
+    }
+
+    #[test]
+    fn a_kept_last_chunk_gets_its_missing_padding_byte() {
+        let (img, plain) = webp();
+        // A chunk Bloogla keeps (unknown chunks are kept and ignored by
+        // readers), last, with an odd size and no padding byte.
+        let mut upload = with_location(&plain[12..]);
+        let mut extra = chunk(b"ZZZZ", b"odd");
+        extra.pop();
+        upload.extend_from_slice(&extra);
+        let riff_size = (upload.len() - 8) as u32;
+        upload[4..8].copy_from_slice(&riff_size.to_le_bytes());
+
+        let saved = process_image(&upload).expect("still a valid WebP");
+        assert!(saved.bytes.ends_with(b"ZZZZ\x03\0\0\0odd\0"));
+        let riff_size = u32::from_le_bytes(saved.bytes[4..8].try_into().unwrap());
+        assert_eq!(riff_size as usize, saved.bytes.len() - 8);
         let back = image::load_from_memory(&saved.bytes).expect("still a WebP");
         assert_eq!(back.to_rgba8(), img.to_rgba8());
     }
