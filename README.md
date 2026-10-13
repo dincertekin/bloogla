@@ -45,11 +45,10 @@ open it. It opens the setup page in your browser.
 | Your computer | Download |
 | --- | --- |
 | Windows | `bloogla-x86_64-windows.exe` |
-| Mac with Apple Silicon (M1 and newer) | `bloogla-aarch64-macos.zip` |
-| Mac with Intel | `bloogla-x86_64-macos.zip` |
 
-The first time, Windows and macOS ask whether to trust it;
-[here's what to click](docs/running.md#on-your-computer).
+The first time, Windows asks whether to trust it;
+[here's what to click](docs/running.md#on-your-computer). On a Mac, use
+Docker (below) or [build it yourself](docs/running.md#on-your-computer).
 
 **On a server with Docker** (point your domain at the server first):
 

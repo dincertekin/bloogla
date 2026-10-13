@@ -12,31 +12,27 @@ here? The [README](../README.md#quick-start) has the short version.
 
 ## On your computer
 
-Download the file for your computer from the
-[latest release](https://github.com/dincertekin/bloogla/releases/latest):
-`bloogla-x86_64-windows.exe` for Windows, `bloogla-aarch64-macos.zip` for
-Macs with Apple Silicon (M1 and newer), or `bloogla-x86_64-macos.zip` for
-Macs with Intel. Open it: a window shows your site's address and opens the
+On Windows, download `bloogla-x86_64-windows.exe` from the
+[latest release](https://github.com/dincertekin/bloogla/releases/latest).
+Open it: a window shows your site's address and opens the
 setup page in your browser. Keep that window open while you use your site;
 close it (or press Ctrl+C) to stop.
 
-Bloogla isn't signed by Microsoft or Apple yet, so the first time they ask
-whether to trust it:
-
-- **Windows:** "Windows protected your PC" → click **More info**, then
-  **Run anyway**. If Windows asks whether Bloogla may use the network, choose
-  **Private networks** and **Allow**.
-- **Mac:** double-click the `.zip` (Safari may have done it already), then
-  double-click `bloogla`. macOS says it can't check it for malicious
-  software: click **Done**, open **System Settings → Privacy & Security**,
-  scroll down and click **Open Anyway** next to "bloogla", and confirm.
-  This is needed once.
+Bloogla isn't signed by Microsoft yet, so the first time Windows says
+"Windows protected your PC": click **More info**, then **Run anyway**. If
+Windows asks whether Bloogla may use the network, choose **Private networks**
+and **Allow**.
 
 Bloogla keeps your site in the folder it starts from: `data/` (the database
-and backups), `uploads/` (pictures) and `themes/`. Double-clicked on a Mac,
-that's your home folder. To keep things tidy, make a folder for it (for
-example `Bloogla` in Documents), put the program there and start it from
-Terminal in that folder: `cd ~/Documents/Bloogla && ./bloogla`.
+and backups), `uploads/` (pictures) and `themes/`. To keep things tidy, make
+a folder for it (for example `Bloogla` in Documents) and put the program
+there before opening it.
+
+**On a Mac** there's no ready-made download (releases stopped including one
+in 1.2.0). Use Docker Desktop with the commands under "On a server", or
+build it with [Rust](https://rustup.rs): `cargo build --release` in a copy of
+this repository makes `target/release/bloogla`. To update a Mac build, build
+it again from the new version.
 
 ## On a server
 

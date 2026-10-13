@@ -40,13 +40,10 @@ const ASSET: Option<&str> = if cfg!(all(target_os = "linux", target_arch = "x86_
     Some("bloogla-x86_64-linux")
 } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
     Some("bloogla-aarch64-linux")
-} else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-    Some("bloogla-aarch64-macos")
-} else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
-    Some("bloogla-x86_64-macos")
 } else {
     // Windows: a running program can't restart itself in place, so it's
-    // updated by downloading the new .exe.
+    // updated by downloading the new .exe. Macs: releases have no Mac
+    // program (since 1.2.0), so a Mac build is updated by building it again.
     None
 };
 

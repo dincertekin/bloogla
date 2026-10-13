@@ -125,8 +125,9 @@ People update with one click and can't fix things by hand. After any update:
 - **Ask first before changing** the update-signing key or what is signed
   (`src/services/updates.rs`), `BLOOGLA_*` variable names, the backup format
   or the layout of the folder Bloogla runs in.
-- **Every platform we ship runs it:** Linux (x86_64, ARM), macOS and Windows.
-  Unix-only code needs `#[cfg(unix)]` and a working fallback.
+- **Every platform we ship runs it:** Linux (x86_64, ARM) and Windows; macOS
+  is only built from source (for development). Unix-only code needs
+  `#[cfg(unix)]` and a working fallback.
 
 ## Performance and privacy
 
