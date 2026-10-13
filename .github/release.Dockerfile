@@ -16,4 +16,3 @@ ENV BLOOGLA_HOST=0.0.0.0 \
 EXPOSE 8080 80 443
 VOLUME ["/app"]
 ENTRYPOINT ["/usr/local/bin/bloogla"]
-CMD ["serve"]

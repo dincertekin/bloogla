@@ -76,21 +76,27 @@ pub struct PasswordForm {
 
 /// Count failed password confirmations with sign-in failures. Checks already
 /// in progress are not reserved; only completed failures affect later requests.
+///
+/// Gives back `None` when the password is right, or the refusal to send.
+/// (An `Option` rather than a `Result`: a `Response` is large, and clippy
+/// warns about large error values.)
 async fn confirm_password(
     state: &AppState,
     me: &CurrentUser,
     password: String,
-) -> Result<(), Response> {
+) -> Option<Response> {
     if super::auth::must_wait(&me.email) {
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            alert(
-                me.lang,
-                "error",
-                "Too many failed sign-ins for this account. Wait a minute and try again.",
-            ),
-        )
-            .into_response());
+        return Some(
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                alert(
+                    me.lang,
+                    "error",
+                    "Too many failed sign-ins for this account. Wait a minute and try again.",
+                ),
+            )
+                .into_response(),
+        );
     }
     let stored: Option<String> = or_log(
         sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
@@ -105,13 +111,15 @@ async fn confirm_password(
     if !valid {
         super::auth::record_failure(&me.email);
         log_event("password_confirmation_failed", &[("user", &me.email)]);
-        return Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            alert(me.lang, "error", "Your current password isn't right."),
-        )
-            .into_response());
+        return Some(
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                alert(me.lang, "error", "Your current password isn't right."),
+            )
+                .into_response(),
+        );
     }
-    Ok(())
+    None
 }
 
 /// GET /admin/profile -> Your own name, email and password.
@@ -217,8 +225,8 @@ pub async fn update_password(
         return alert(me.lang, "error", "The new passwords don't match.");
     }
 
-    if let Err(response) = confirm_password(&state, &me, form.current_password).await {
-        return response;
+    if let Some(refusal) = confirm_password(&state, &me, form.current_password).await {
+        return refusal;
     }
 
     let Ok(hash) = hash_password(&form.new_password) else {
@@ -378,8 +386,8 @@ pub async fn disable_two_factor(
     Extension(me): Extension<CurrentUser>,
     Form(form): Form<ConfirmPasswordForm>,
 ) -> Response {
-    if let Err(response) = confirm_password(&state, &me, form.password).await {
-        return response;
+    if let Some(refusal) = confirm_password(&state, &me, form.password).await {
+        return refusal;
     }
     match crate::db::users::disable_two_factor(&state.pool, me.id).await {
         Ok(_) => {

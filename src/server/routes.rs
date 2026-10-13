@@ -14,7 +14,6 @@ use axum::http::{header, HeaderName, HeaderValue};
 use axum::middleware::{from_fn, from_fn_with_state};
 use axum::routing::{delete, get, post, MethodRouter};
 use axum::Router;
-use std::sync::Arc;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::{GovernorError, GovernorLayer};
@@ -87,23 +86,23 @@ fn public_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(site::pages::home))
         .route("/search", get(site::pages::search))
-        .route("/post/:slug", get(site::pages::show_post))
+        .route("/post/{slug}", get(site::pages::show_post))
         .route(
-            "/post/:slug/comments",
+            "/post/{slug}/comments",
             post(site::comments::submit).layer(DefaultBodyLimit::max(64 * 1024)),
         )
-        .route("/tag/:slug", get(site::pages::tag))
+        .route("/tag/{slug}", get(site::pages::tag))
         .route("/rss.xml", get(site::feeds::rss))
         .route("/sitemap.xml", get(site::feeds::sitemap))
         .route("/robots.txt", get(site::feeds::robots_txt))
         .route("/favicon.ico", get(site::feeds::favicon))
         .route("/health", get(site::feeds::health))
-        .route("/static/*path", get(assets::serve_static))
+        .route("/static/{*path}", get(assets::serve_static))
         .nest("/uploads", uploads)
         .nest("/theme-assets", theme_assets)
         // Standalone pages (About, Contact...). Listed last among public
         // routes; the fixed paths above take priority.
-        .route("/:slug", get(site::pages::show_page))
+        .route("/{slug}", get(site::pages::show_page))
 }
 
 /// The admin panel. Everything except login and setup needs a signed-in person.
@@ -121,6 +120,7 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             post(admin::settings::send_test_email),
         )
         .route("/admin/backup.zip", get(admin::backup::download))
+        .route("/admin/settings/backup", post(admin::backup::save_settings))
         .route(
             "/admin/settings/updates",
             post(admin::updates::save_settings),
@@ -134,21 +134,21 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route("/admin/themes", get(admin::themes::page))
         .route("/admin/themes/activate", post(admin::themes::activate))
         .route(
-            "/admin/themes/:id/options",
+            "/admin/themes/{id}/options",
             get(admin::themes::options_page).post(admin::themes::save_options),
         )
         .route(
             "/admin/users",
             get(admin::users::page).post(admin::users::create),
         )
-        .route("/admin/users/:id", delete(admin::users::delete))
-        .route("/admin/users/:id/role", post(admin::users::update_role))
+        .route("/admin/users/{id}", delete(admin::users::delete))
+        .route("/admin/users/{id}/role", post(admin::users::update_role))
         .route(
-            "/admin/users/:id/password",
+            "/admin/users/{id}/password",
             post(admin::users::reset_password),
         )
         .route(
-            "/admin/users/:id/two-factor/off",
+            "/admin/users/{id}/two-factor/off",
             post(admin::users::disable_two_factor),
         )
         .route_layer(from_fn(middleware::require_admin));
@@ -161,18 +161,18 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         )
         .route("/admin/pages/new", get(admin::posts::new_page))
         .route(
-            "/admin/pages/:id/edit",
+            "/admin/pages/{id}/edit",
             get(admin::posts::edit).post(admin::posts::update),
         )
-        .route("/admin/pages/:id", delete(admin::posts::delete))
+        .route("/admin/pages/{id}", delete(admin::posts::delete))
         .route("/admin/tags", get(admin::tags::page))
         .route("/admin/tags/new", post(admin::tags::create))
-        .route("/admin/tags/:id", delete(admin::tags::delete))
-        .route("/admin/media/:id", delete(admin::media::delete))
+        .route("/admin/tags/{id}", delete(admin::tags::delete))
+        .route("/admin/media/{id}", delete(admin::media::delete))
         .route("/admin/comments", get(admin::comments::page))
-        .route("/admin/comments/:id", delete(admin::comments::delete))
+        .route("/admin/comments/{id}", delete(admin::comments::delete))
         .route(
-            "/admin/comments/:id/:action",
+            "/admin/comments/{id}/{action}",
             post(admin::comments::set_status),
         )
         .route_layer(from_fn(middleware::require_editor));
@@ -208,12 +208,12 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         )
         .route("/admin/posts/new", get(admin::posts::new_post))
         .route(
-            "/admin/posts/:id/edit",
+            "/admin/posts/{id}/edit",
             get(admin::posts::edit).post(admin::posts::update),
         )
-        .route("/admin/posts/:id", delete(admin::posts::delete))
+        .route("/admin/posts/{id}", delete(admin::posts::delete))
         .route(
-            "/admin/posts/:id/revisions/:rev",
+            "/admin/posts/{id}/revisions/{rev}",
             get(admin::posts::revision),
         )
         .route("/admin/preview", post(admin::posts::preview))
@@ -229,7 +229,7 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
                 .post(admin::media::picker_upload)
                 .layer(upload_limit),
         )
-        .route("/admin/media/:id/alt", post(admin::media::update_alt));
+        .route("/admin/media/{id}/alt", post(admin::media::update_alt));
 
     let signed_in = Router::new()
         .merge(admins)
@@ -298,18 +298,14 @@ fn login_route(state: &AppState) -> Result<MethodRouter<AppState>, String> {
             .key_extractor(ProxyIpKeyExtractor)
             .finish()
             .ok_or(ERROR)?;
-        login.layer(GovernorLayer {
-            config: Arc::new(limit),
-        })
+        login.layer(GovernorLayer::new(limit))
     } else {
         let limit = GovernorConfigBuilder::default()
             .per_second(12)
             .burst_size(5)
             .finish()
             .ok_or(ERROR)?;
-        login.layer(GovernorLayer {
-            config: Arc::new(limit),
-        })
+        login.layer(GovernorLayer::new(limit))
     };
     // Added after the layer, so showing the form isn't rate-limited.
     Ok(login.get(admin::auth::login_page))

@@ -1,6 +1,6 @@
 [package]
 name = "bloogla"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 description = "A fast, single-binary blog engine and CMS: a modern WordPress alternative."
 repository = "https://github.com/dincertekin/bloogla"
@@ -9,13 +9,14 @@ readme = "README.md"
 
 [dependencies]
 # Web server
-axum = { version = "0.7", features = ["multipart"] }
-axum-extra = { version = "0.9", features = ["form"] }
+axum = { version = "0.8", features = ["multipart"] }
+axum-extra = { version = "0.12", features = ["form"] }
 tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal", "fs"] }
 tower-http = { version = "0.5", features = ["catch-panic", "compression-br", "compression-gzip", "fs", "set-header"] }
-tower_governor = "0.4"
-tower-sessions = { version = "0.13", default-features = false, features = ["axum-core"] }
-tower-sessions-sqlx-store = { version = "0.14", features = ["sqlite"] }
+# Login rate limit; only its axum part (the default also pulls in gRPC)
+tower_governor = { version = "0.8", default-features = false, features = ["axum"] }
+tower-sessions = { version = "0.14", default-features = false, features = ["axum-core"] }
+tower-sessions-sqlx-store = { version = "0.15", features = ["sqlite"] }
 
 # Built-in HTTPS (Let's Encrypt)
 axum-server = "0.8"
@@ -27,7 +28,8 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 
 # Templates: askama for the admin panel (compiled in), tera for themes (loaded at runtime)
 askama = "0.12"
-askama_axum = "0.4"
+# Stay on Tera 1: Tera 2 changes the template language and would break
+# existing themes.
 tera = "1.19"
 
 # Content: Markdown, HTML sanitizing, images
@@ -42,7 +44,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 # Security: password hashing, random tokens, encrypting
 # stored secrets, two-factor codes
 argon2 = { version = "0.5", features = ["password-hash"] }
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 hmac = "0.12"
 sha1 = "0.10"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }

@@ -1,15 +1,19 @@
-//! Downloading a backup of the whole site (Admin → Settings → Backup).
-//! Admins only. The work is done in `services/backup.rs`.
+//! Settings → Backup: downloading a backup of the whole site, and the daily
+//! copy on the server. Admins only. The work is done in `services/backup.rs`.
 
 use super::alert;
 use crate::app::models::CurrentUser;
 use crate::app::security::log_event;
 use crate::app::state::AppState;
 
+use crate::db::settings;
 use axum::body::Body;
+
 use axum::extract::{Extension, State};
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
+use axum_extra::extract::Form;
+use serde::Deserialize;
 
 /// Shown instead of the download when something went wrong.
 fn failed(me: &CurrentUser) -> Response {
@@ -61,4 +65,30 @@ pub async fn download(
         headers.insert(header::CONTENT_DISPOSITION, value);
     }
     response
+}
+
+#[derive(Deserialize)]
+pub struct BackupSettingsForm {
+    auto_backup: Option<String>,
+}
+
+/// POST /admin/settings/backup -> Save the "every day" checkbox.
+pub async fn save_settings(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Form(form): Form<BackupSettingsForm>,
+) -> Response {
+    // An unticked checkbox isn't sent at all.
+    let values = [("auto_backup", form.auto_backup.is_some().to_string())];
+    match settings::save(&state.pool, &values).await {
+        Ok(()) => alert(me.lang, "success", "Saved."),
+        Err(e) => {
+            tracing::error!("Failed to save backup settings: {e}");
+            alert(
+                me.lang,
+                "error",
+                "Couldn't save your changes. Please try again.",
+            )
+        }
+    }
 }

@@ -70,6 +70,8 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
         tracing::info!("{line}");
     }
     let setup_code = crate::handlers::admin::setup::prepare(&pool, &config.base_url).await?;
+    crate::services::backup::keep_old_off_switch(&pool, std::env::var("BLOOGLA_AUTO_BACKUP").ok())
+        .await;
 
     let state = AppState {
         pool: pool.clone(),
@@ -142,10 +144,9 @@ pub fn listen(addr: SocketAddr) -> Result<std::net::TcpListener, String> {
     Ok(listener)
 }
 
-/// Hourly housekeeping: the daily database backup and removing expired
-/// sign-in sessions.
+/// Hourly housekeeping: the daily database backup (when it's on in
+/// Settings → Backup) and removing expired sign-in sessions.
 fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
-    let backups = crate::services::backup::automatic_backups_enabled();
     tokio::spawn(async move {
         // The first round runs a few seconds after starting, once the start
         // screen is shown, then every hour.
@@ -154,7 +155,8 @@ fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
         let mut interval = tokio::time::interval_at(first, hour);
         loop {
             interval.tick().await;
-            if backups {
+            // Read every round, so turning it on or off needs no restart.
+            if crate::db::settings::load(&pool).await.auto_backup {
                 crate::services::backup::run_daily_backup(&pool).await;
             }
             if let Err(e) = session_store.delete_expired().await {

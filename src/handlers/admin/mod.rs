@@ -23,6 +23,57 @@ use crate::i18n::Lang;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 
+/// Lets a handler return an admin template as its answer: the template is
+/// turned into HTML, or a plain 500 page if that fails (it only can when a
+/// template has a bug). The askama_axum crate used to write this for us,
+/// but it only works with older versions of axum.
+fn render_template(template: &impl askama::Template) -> Response {
+    match template.render() {
+        Ok(html) => Html(html).into_response(),
+        Err(err) => {
+            tracing::error!("admin template failed: {err}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Writes the `IntoResponse` code for each listed template.
+macro_rules! templates_answer_requests {
+    ($($template:ty),* $(,)?) => {
+        $(
+            impl IntoResponse for $template {
+                fn into_response(self) -> Response {
+                    render_template(&self)
+                }
+            }
+        )*
+    };
+}
+
+templates_answer_requests!(
+    auth::LoginTemplate,
+    auth::LoginCodeTemplate,
+    comments::CommentsTemplate,
+    dashboard::DashboardTemplate,
+    media::MediaTemplate,
+    media::MediaPickerTemplate,
+    password_reset::ForgotTemplate,
+    password_reset::ResetTemplate,
+    posts::PostsTemplate,
+    posts::PostEditorTemplate,
+    profile::ProfileTemplate,
+    profile::TwoFactorTemplate,
+    settings::SettingsTemplate,
+    setup::SetupTemplate,
+    tags::TagsTemplate,
+    tags::TagItemTemplate,
+    themes::ThemesTemplate,
+    themes::OptionsTemplate,
+    updates::UpdateStatusTemplate,
+    users::UsersTemplate,
+    users::UserItemTemplate,
+);
+
 /// A status tab above a list, e.g. "Drafts (2)".
 pub struct StatusFilter {
     pub value: &'static str,

@@ -1,8 +1,7 @@
 //! First-run setup: create the admin account and default settings.
 //!
 //! Like WordPress, the first visit to a new site opens a setup page in the
-//! browser. Scripted installs can skip it with `BLOOGLA_ADMIN_EMAIL` /
-//! `BLOOGLA_ADMIN_PASSWORD` (and optional `BLOOGLA_BLOG_NAME`).
+//! browser. It's the only way to set up a site.
 //!
 //! So that a stranger who finds a fresh server first can't claim it, setup
 //! needs a one-time code. Bloogla prints it at start as a ready-made link
@@ -91,7 +90,7 @@ async fn create_site(
         return Err("Enter a valid email address.".into());
     }
     // The browser form checks this first and lists what's missing; this
-    // catches `BLOOGLA_ADMIN_PASSWORD` and anything else.
+    // catches anything that skipped the form's check.
     let missing = missing_password_rules(password);
     if !missing.is_empty() {
         let list: Vec<String> = missing
@@ -149,34 +148,14 @@ async fn create_site(
     Ok(user_id)
 }
 
-/// Prepare first-run setup.
-///
-/// With `BLOOGLA_ADMIN_EMAIL` and `BLOOGLA_ADMIN_PASSWORD` set, the site is
-/// created right away (for scripted installs). Otherwise returns `true` and the
-/// browser setup page at `/setup` stays open until someone completes it.
-/// Returns the setup code while browser setup is needed, `None` otherwise.
+/// Prepare first-run setup: the setup page at `/setup` stays open until
+/// someone completes it. Returns the setup code while setup is needed,
+/// `None` once the site is set up.
 pub async fn prepare(
     pool: &SqlitePool,
     base_url: &str,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
     if !needs_setup(pool).await? {
-        return Ok(None);
-    }
-
-    if let (Ok(email), Ok(password)) = (
-        std::env::var("BLOOGLA_ADMIN_EMAIL"),
-        std::env::var("BLOOGLA_ADMIN_PASSWORD"),
-    ) {
-        let blog_name = std::env::var("BLOOGLA_BLOG_NAME").unwrap_or_else(|_| "My Blog".into());
-        let name = std::env::var("BLOOGLA_ADMIN_NAME").unwrap_or_default();
-        create_site(pool, &blog_name, &name, &email, &password).await?;
-        crate::app::security::log_event(
-            "setup_completed",
-            &[
-                ("user", email.trim()),
-                ("from", "BLOOGLA_ADMIN_* variables"),
-            ],
-        );
         return Ok(None);
     }
 

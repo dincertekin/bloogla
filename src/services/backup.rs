@@ -1,5 +1,5 @@
 //! Backups: consistent copies of the SQLite database via `VACUUM INTO`
-//! (daily, and with `bloogla backup`), and a downloadable .zip with the
+//! (daily, when on in Settings → Backup), and a downloadable .zip with the
 //! database and uploaded images (Admin → Settings → Backup).
 
 use crate::app::console::{self, Kind};
@@ -36,12 +36,23 @@ pub fn timestamped_path(prefix: &str) -> PathBuf {
     PathBuf::from(BACKUP_DIR).join(format!("{prefix}bloogla-{stamp}.db"))
 }
 
-/// Whether daily automatic backups are on (`BLOOGLA_AUTO_BACKUP`, default yes).
-pub fn automatic_backups_enabled() -> bool {
-    !matches!(
-        std::env::var("BLOOGLA_AUTO_BACKUP").as_deref(),
-        Ok("false" | "0" | "no")
-    )
+/// Bloogla 1.0 turned daily backups off with `BLOOGLA_AUTO_BACKUP=false`;
+/// now it's a checkbox in Settings → Backup. Called on start with that
+/// variable's value: if it says off and the checkbox was never saved, save
+/// the checkbox as off, so updating doesn't quietly turn backups back on.
+pub async fn keep_old_off_switch(pool: &SqlitePool, old_variable: Option<String>) {
+    if !matches!(old_variable.as_deref(), Some("false" | "0" | "no")) {
+        return;
+    }
+    // `OR IGNORE`: a choice already saved in the admin wins.
+    let saved =
+        sqlx::query("INSERT OR IGNORE INTO settings (key, value) VALUES ('auto_backup', 'false')")
+            .execute(pool)
+            .await;
+    match saved {
+        Ok(_) => crate::db::settings::invalidate(),
+        Err(e) => tracing::error!("Could not keep BLOOGLA_AUTO_BACKUP=false: {e}"),
+    }
 }
 
 /// Take an automatic backup if the newest one is a day old, keeping the

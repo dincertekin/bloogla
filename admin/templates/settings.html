@@ -262,12 +262,24 @@
 <section class="card">
     <h2 class="section-title">{{ me.t("Backup") }}</h2>
     <p class="form-hint" style="margin-bottom: 1.25rem">
-        {{ me.t("Download everything on your site (posts, pages, settings, people and images) as one .zip file, and keep it somewhere safe. Bloogla also saves a copy of the database on the server every day.") }}
+        {{ me.t("Download everything on your site (posts, pages, settings, people and images) as one .zip file, and keep it somewhere safe.") }}
     </p>
     <a href="/admin/backup.zip" class="btn btn-primary" download>{{ me.t("Download backup") }}</a>
     <p class="form-hint" style="margin-top: 1rem">
         {{ me.t("To restore it, stop Bloogla, unpack the .zip into the folder Bloogla runs in, and start it again. On another server, enter the mail server password again and turn two-factor login back on: both are locked with a key that never leaves this server.") }}
     </p>
+
+    <form hx-post="/admin/settings/backup" hx-target="find .form-status" hx-swap="innerHTML" style="margin-top: 1.5rem">
+        <label class="check-row" style="margin-bottom: 1.25rem">
+            <input type="checkbox" name="auto_backup" value="1" {% if auto_backup %}checked{% endif %} />
+            <span>
+                {{ me.t("Save a copy of the database on the server every day") }}
+                <small>{{ me.t("The last 7 copies are kept in the data/backups folder. They don't include images.") }}</small>
+            </span>
+        </label>
+        <div class="form-status"></div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
+    </form>
 </section>
 </div>
 

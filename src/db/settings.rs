@@ -81,6 +81,10 @@ pub struct Settings {
     pub smtp_from: String,
     pub notify_comments: bool,
 
+    // Backup (Settings → Backup)
+    /// Save a copy of the database in `data/backups/` every day.
+    pub auto_backup: bool,
+
     // Updates (Settings → Updates)
     /// Check GitHub for a new version once a day.
     pub update_check_daily: bool,
@@ -136,6 +140,8 @@ impl Settings {
                 .unwrap_or_default(),
             smtp_from: text("smtp_from", ""),
             notify_comments: flag("notify_comments", true),
+
+            auto_backup: flag("auto_backup", true),
 
             update_check_daily: flag("update_check_daily", false),
             update_install_auto: flag("update_install_auto", false),

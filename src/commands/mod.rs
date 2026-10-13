@@ -2,7 +2,6 @@
 //! running it. `serve` starts the website (see `server/`); the other commands
 //! each have a file here.
 
-mod backup;
 mod disable_two_factor;
 mod reset_password;
 
@@ -12,11 +11,10 @@ pub const HELP: &str = "\
 Bloogla - a fast, single-binary blog engine
 
 USAGE:
+    bloogla                   Start the website
     bloogla [COMMAND]
 
 COMMANDS:
-    serve                     Start the web server (default)
-    backup [FILE]             Save a copy of the database (default: data/backups/)
     reset-password [EMAIL]    Set a new admin password
     disable-2fa EMAIL         Turn off two-factor login for someone locked out
     help                      Show this message
@@ -28,7 +26,6 @@ Configuration is read from BLOOGLA_* environment variables; see README.md.
 /// What to do, from the command line arguments.
 pub enum Command {
     Serve,
-    Backup(Option<String>),
     ResetPassword(Option<String>),
     DisableTwoFactor(String),
     Help,
@@ -41,9 +38,10 @@ impl Command {
     pub fn parse(args: &[String]) -> Option<Self> {
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         let command = match args.as_slice() {
-            [] | ["serve"] => Command::Serve,
-            ["backup"] => Command::Backup(None),
-            ["backup", file] => Command::Backup(Some(file.to_string())),
+            [] => Command::Serve,
+            // Not shown in the help: kept so servers set up to run
+            // `bloogla serve` (Bloogla 1.0) keep starting after an update.
+            ["serve"] => Command::Serve,
             ["reset-password"] => Command::ResetPassword(None),
             ["reset-password", email] => Command::ResetPassword(Some(email.to_string())),
             ["disable-2fa", email] => Command::DisableTwoFactor(email.to_string()),
@@ -76,7 +74,6 @@ impl Command {
 
         match self {
             Command::Serve => crate::server::run(config, pool).await,
-            Command::Backup(file) => backup::run(&pool, file).await,
             Command::ResetPassword(email) => reset_password::run(&pool, email).await,
             Command::DisableTwoFactor(email) => disable_two_factor::run(&pool, &email).await,
             // Already handled above.

@@ -36,6 +36,8 @@ pub struct SettingsTemplate {
     pub timezone: String,
     pub timezones: Vec<&'static str>,
     pub site_icon: String,
+    /// Settings → Backup: the daily copy on the server.
+    pub auto_backup: bool,
     /// Settings → Updates.
     pub update: super::updates::UpdateStatus,
 }
@@ -147,6 +149,7 @@ pub async fn page(
         timezone: site.timezone.name().to_string(),
         timezones: timezone_names(),
         site_icon: site.site_icon.clone(),
+        auto_backup: site.auto_backup,
         update: super::updates::UpdateStatus::load(&state, &site, &me, None),
         me,
     }

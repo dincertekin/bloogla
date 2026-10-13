@@ -59,3 +59,47 @@ async fn people_with_their_own_language_keep_it() {
     assert_eq!(saved.header("hx-trigger"), "");
     assert!(saved.body.contains("Saved."));
 }
+
+#[tokio::test]
+async fn daily_backups_can_be_turned_off_and_on() {
+    let mut site = TestSite::with_owner().await;
+    let checkbox = r#"name="auto_backup" value="1" checked"#;
+    // On for a new site.
+    assert!(site.get("/admin/settings").await.body.contains(checkbox));
+
+    // An unticked checkbox isn't sent, so an empty form turns it off.
+    let saved = site.post("/admin/settings/backup", &[]).await;
+    assert!(saved.body.contains("Saved."));
+    assert!(!site.get("/admin/settings").await.body.contains(checkbox));
+
+    site.post("/admin/settings/backup", &[("auto_backup", "1")])
+        .await;
+    assert!(site.get("/admin/settings").await.body.contains(checkbox));
+}
+
+#[tokio::test]
+async fn sites_that_turned_backups_off_in_1_0_keep_them_off() {
+    let mut site = TestSite::with_owner().await;
+    let checkbox = r#"name="auto_backup" value="1" checked"#;
+
+    // `BLOOGLA_AUTO_BACKUP=false` from Bloogla 1.0 becomes the unticked box.
+    crate::services::backup::keep_old_off_switch(&site.pool, Some("false".into())).await;
+    assert!(!site.get("/admin/settings").await.body.contains(checkbox));
+
+    // Once it's ticked in the admin, the old variable no longer matters.
+    site.post("/admin/settings/backup", &[("auto_backup", "1")])
+        .await;
+    crate::services::backup::keep_old_off_switch(&site.pool, Some("false".into())).await;
+    assert!(site.get("/admin/settings").await.body.contains(checkbox));
+}
+
+#[tokio::test]
+async fn backups_stay_on_without_the_old_variable() {
+    let mut site = TestSite::with_owner().await;
+    crate::services::backup::keep_old_off_switch(&site.pool, None).await;
+    crate::services::backup::keep_old_off_switch(&site.pool, Some("true".into())).await;
+    let page = site.get("/admin/settings").await;
+    assert!(page
+        .body
+        .contains(r#"name="auto_backup" value="1" checked"#));
+}

@@ -9,7 +9,7 @@
 //! server password has to be entered again and two-factor login set up again.
 
 use crate::app::security::{from_hex, to_hex};
-use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng};
+use chacha20poly1305::aead::{Aead, Generate, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 
 use std::path::Path;
@@ -31,7 +31,7 @@ pub fn init() -> Result<(), String> {
             .filter(|k| k.len() == 32)
             .ok_or(format!("{KEY_FILE} is damaged"))?
     } else {
-        let key = ChaCha20Poly1305::generate_key(&mut OsRng).to_vec();
+        let key = Key::generate().to_vec();
         write_private(path, &to_hex(&key))
             .map_err(|e| format!("Could not create {KEY_FILE}: {e}"))?;
         tracing::info!("Created {KEY_FILE}; keep it with your backups");
@@ -42,7 +42,9 @@ pub fn init() -> Result<(), String> {
 }
 
 fn use_key(key: &[u8]) {
-    let _ = CIPHER.set(ChaCha20Poly1305::new(Key::from_slice(key)));
+    // `init` already checked the length, and the key in tests is 32 bytes.
+    let key = Key::try_from(key).expect("the key is 32 bytes");
+    let _ = CIPHER.set(ChaCha20Poly1305::new(&key));
 }
 
 /// Write a file only its owner can read.
@@ -61,7 +63,7 @@ pub fn encrypt(plain: &str) -> String {
         return String::new();
     }
     let cipher = CIPHER.get().expect("secrets::init() runs at start");
-    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+    let nonce = Nonce::generate();
     let sealed = cipher
         .encrypt(&nonce, plain.as_bytes())
         .expect("encrypting in memory can't fail");
@@ -80,10 +82,8 @@ pub fn decrypt(stored: &str) -> Option<String> {
         return None;
     }
     let (nonce, sealed) = bytes.split_at(12);
-    let plain = CIPHER
-        .get()?
-        .decrypt(Nonce::from_slice(nonce), sealed)
-        .ok()?;
+    let nonce = Nonce::try_from(nonce).ok()?;
+    let plain = CIPHER.get()?.decrypt(&nonce, sealed).ok()?;
     String::from_utf8(plain).ok()
 }
 
@@ -110,5 +110,10 @@ mod tests {
         // Values from before encryption still read; empty stays empty.
         assert_eq!(decrypt("plain").as_deref(), Some("plain"));
         assert_eq!(encrypt(""), "");
+        // Written by Bloogla 1.0 (chacha20poly1305 0.10): upgrading the
+        // library must not lose saved mail passwords or two-factor keys.
+        let from_1_0 =
+            "enc:v1:000102030405060708090a0b44009f5709e99dd94291a91186f0925b1fabe06cc78edc";
+        assert_eq!(decrypt(from_1_0).as_deref(), Some("hunter2"));
     }
 }

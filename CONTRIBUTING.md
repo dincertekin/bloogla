@@ -107,7 +107,7 @@ Created at runtime: `data/` (database, backups), `uploads/`.
 ## Adding something new
 
 - **A new page or endpoint:** write a handler in `src/handlers/`, then add one `.route(...)` line in `src/server/routes.rs`.
-- **A new admin screen:** add `admin/templates/<name>.html` and `src/handlers/admin/<name>.rs` (the template struct sits next to its handlers), then add the route in the right role group.
+- **A new admin screen:** add `admin/templates/<name>.html` and `src/handlers/admin/<name>.rs` (the template struct sits next to its handlers), add the struct to the `templates_answer_requests!` list in `src/handlers/admin/mod.rs`, then add the route in the right role group.
 - **Something on an admin page that shows saved values** (a count, a name): give it an `id` and `data-live`. After any change on the page, admin.js fetches the page again and swaps in the new version, so nobody has to reload. A change that affects the whole page (like its language) answers with `saved_and_reload` instead.
 - **A new setting:** add a field to `Settings` in `src/db/settings.rs` and give it a default there.
 - **A database change:** add a new file to `migrations/` (never edit one that has already run).
@@ -127,10 +127,30 @@ Created at runtime: `data/` (database, backups), `uploads/`.
   on with `data-` attributes.
 - **Every interface text is translated:** wrap it in `me.t("...")` and add a
   line to each language file in `src/i18n/` (`tr.rs`, `lt.rs`).
+- **One way to do each thing.** Owners do things in the admin panel; the
+  command line is only for getting back in when the admin can't be reached.
+  A new way to do something replaces the old one.
+- **Keep it simple:** no options or code "for later", no new layers unless
+  they remove duplication that exists today. Use the dependencies already in
+  `Cargo.toml`; open an issue before adding one.
+- **Comments for a beginner:** short and friendly, explaining *why*.
 - **Fewer, finished features** beat many half-done ones. Small pull requests
   with a test are the easiest to review.
+- **Never break a running site.** People update with one click: their
+  database, backups, themes and links must keep working afterwards. Add
+  database changes as new migrations, keep theme variables working, and add a
+  redirect when an address moves.
+- **Public pages load nothing from other servers** (no CDNs, web fonts or
+  trackers), and the server only goes online for things the owner turned on.
+- **Treat uploads and imported files as hostile:** check size and type, and
+  show a friendly message instead of crashing on a broken file.
+- **Done means tested and documented:** a test for new behaviour (or for the
+  bug you fixed), the program run once by hand, and `docs/` updated for new
+  settings or `BLOOGLA_*` variables.
 
 ## Releasing (maintainers)
+
+`1.0.x` releases are fixes and dependency upkeep; `1.x.0` releases bring new features. No release may need people to edit files by hand.
 
 Set `version` in `Cargo.toml`, then push a matching tag (`git tag v1.0.0 && git push --tags`). GitHub Actions (`.github/workflows/release.yml`) builds the program for Linux servers (x86_64 and ARM), signs it, creates a GitHub release with it and the list of changes (running sites pick that up as an available update), and publishes the Docker image as `ghcr.io/<owner>/bloogla:<version>` and `:latest`. Make the package public once in GitHub (Packages → bloogla → Package settings) so anyone can pull it.
 

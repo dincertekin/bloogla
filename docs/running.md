@@ -71,11 +71,6 @@ Set via environment variables:
 | `BLOOGLA_PORT`           | `8080`                   | Listen port.                                                  |
 | `BLOOGLA_BASE_URL`       | `http://localhost:$PORT` | Public URL, used in links, feeds, SEO tags and CSRF checks.   |
 | `BLOOGLA_PRODUCTION`     | `false`                  | `true` makes session cookies HTTPS-only and enables HSTS.     |
-| `BLOOGLA_AUTO_BACKUP`    | `true`                   | Daily database backup to `data/backups/` (keeps 7).           |
-| `BLOOGLA_ADMIN_EMAIL`    |                          | With `BLOOGLA_ADMIN_PASSWORD`, creates the admin on first start instead of the browser setup page. |
-| `BLOOGLA_ADMIN_PASSWORD` |                          | See above.                                                    |
-| `BLOOGLA_ADMIN_NAME`     |                          | Display name for scripted setup.                              |
-| `BLOOGLA_BLOG_NAME`      | `My Blog`                | Site title for scripted setup.                                |
 | `BLOOGLA_TLS_DOMAINS`    |                          | Comma-separated domains. Turns on built-in HTTPS with automatic Let's Encrypt certificates (port 443, and 80 redirects). |
 | `BLOOGLA_TLS_EMAIL`      |                          | Contact address for certificate expiry notices.               |
 | `BLOOGLA_TLS_STAGING`    | `false`                  | Use Let's Encrypt's test server while trying things out.      |
@@ -88,11 +83,13 @@ Bloogla keeps its files in the folder it is started from: `data/` (database and 
 ## Commands
 
 ```bash
-bloogla                          # start the server (same as `bloogla serve`)
-bloogla backup [FILE]            # consistent copy of the live database
+bloogla                          # start the website
 bloogla reset-password [EMAIL]   # set a new admin password and sign out all sessions
 bloogla disable-2fa EMAIL        # turn off two-factor login for someone locked out
 ```
+
+Everything else is done in the admin panel; these two commands are for
+getting back in when you can't sign in.
 
 ## Updating
 
@@ -116,8 +113,9 @@ The database is upgraded automatically on start.
   `data/`: move it into `data/`, replacing the `bloogla.db` there, and delete
   `bloogla.db-wal` and `bloogla.db-shm` next to it if they exist.)
 - **On the server:** Bloogla also keeps a daily copy of the database in
-  `data/backups/` (the last 7; turn it off with `BLOOGLA_AUTO_BACKUP=false`),
-  and `bloogla backup [FILE]` makes one any time.
+  `data/backups/` (the last 7). It's on at first; turn it off in
+  **Settings → Backup**. If you turned it off with `BLOOGLA_AUTO_BACKUP=false`
+  in Bloogla 1.0, it stays off after updating.
 - **Keep `data/secret.key` with your backups.** The mail server password and
   two-factor keys are locked with it; without it you enter the mail password
   again and people set up two-factor login again.
