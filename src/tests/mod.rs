@@ -17,6 +17,7 @@ mod posts;
 mod security;
 mod settings;
 mod setup_and_login;
+mod shared_failures;
 mod themes;
 
 use crate::app::config::Config;
@@ -103,6 +104,7 @@ impl TestSite {
     async fn with_config(config: Config) -> Self {
         let turn = ONE_AT_A_TIME.lock().await;
         crate::db::settings::invalidate();
+        crate::handlers::admin::auth::clear_test_failures();
 
         let database = std::env::temp_dir().join(format!(
             "bloogla-test-{}.db",

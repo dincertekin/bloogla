@@ -117,9 +117,12 @@ document.addEventListener("htmx:afterRequest", (event) => {
     refreshLiveParts();
 });
 
-// Forms the server rejects (422) come back with their messages: show them.
+// Validation and account slowdowns can return HTML messages: show them.
 document.addEventListener("htmx:beforeSwap", (event) => {
-    if (event.detail.xhr.status === 422) {
+    const xhr = event.detail.xhr;
+    const htmlSlowdown = xhr.status === 429
+        && (xhr.getResponseHeader("Content-Type") || "").startsWith("text/html");
+    if (xhr.status === 422 || htmlSlowdown) {
         event.detail.shouldSwap = true;
         event.detail.isError = false;
     }

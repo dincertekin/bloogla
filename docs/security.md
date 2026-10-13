@@ -18,3 +18,7 @@ report a vulnerability, see [SECURITY.md](../SECURITY.md).
 - **Sessions:** HTTP-only, same-site cookies (HTTPS-only in production); expired sessions are removed hourly. Changing a password (or an admin resetting it) signs that account out on every other device.
 - **Security log:** Sign-ins, failed sign-ins, password and role changes and new people are logged as `security event=...` lines. Find them with `grep "security event"` in the log (or `docker logs bloogla`).
 - **Dependencies:** CI runs `cargo audit` on every push and weekly, and Dependabot proposes updates.
+
+Sign-in failures and current-password checks in Profile share the same account
+limit. A successful password confirmation does not clear earlier failures. The
+limit counts completed failures; checks already in progress may finish together.

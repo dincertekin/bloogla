@@ -92,6 +92,23 @@ fn failed_logins<T>(f: impl FnOnce(&mut FailedLogins) -> T) -> T {
     f(guard.get_or_insert_with(FailedLogins::default))
 }
 
+/// Sign-in and current-password forms use the same failure count.
+/// A successful confirmation does not erase failures from another form.
+pub(super) fn must_wait(email: &str) -> bool {
+    let email = email.trim().to_lowercase();
+    failed_logins(|f| f.must_wait(&email, Instant::now()))
+}
+
+pub(super) fn record_failure(email: &str) {
+    let email = email.trim().to_lowercase();
+    failed_logins(|f| f.record(&email, Instant::now()));
+}
+
+#[cfg(test)]
+pub(crate) fn clear_test_failures() {
+    failed_logins(|f| f.0.clear());
+}
+
 /// GET /admin/login -> Sign-in form.
 pub async fn login_page(
     State(state): State<AppState>,
@@ -119,7 +136,7 @@ pub async fn login(
     let ip = crate::handlers::client_ip(&state, peer, &headers).to_string();
     let email = form.email.trim().to_lowercase();
 
-    if failed_logins(|f| f.must_wait(&email, Instant::now())) {
+    if must_wait(&email) {
         log_event("login_throttled", &[("email", &email), ("ip", &ip)]);
         let lang = settings::load(&state.pool).await.language;
         return (
@@ -270,7 +287,7 @@ pub async fn check_code(
             .into_response()
     };
 
-    if failed_logins(|f| f.must_wait(&email, Instant::now())) {
+    if must_wait(&email) {
         log_event("login_throttled", &[("email", &email), ("ip", &ip)]);
         return show_error(
             StatusCode::TOO_MANY_REQUESTS,
@@ -296,7 +313,7 @@ pub async fn check_code(
     }
 
     if !accepted {
-        failed_logins(|f| f.record(&email, Instant::now()));
+        record_failure(&email);
         log_event("login_code_failed", &[("email", &email), ("ip", &ip)]);
         return show_error(
             StatusCode::OK,

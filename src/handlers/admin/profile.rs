@@ -74,6 +74,46 @@ pub struct PasswordForm {
     confirm_password: String,
 }
 
+/// Count failed password confirmations with sign-in failures. Checks already
+/// in progress are not reserved; only completed failures affect later requests.
+async fn confirm_password(
+    state: &AppState,
+    me: &CurrentUser,
+    password: String,
+) -> Result<(), Response> {
+    if super::auth::must_wait(&me.email) {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            alert(
+                me.lang,
+                "error",
+                "Too many failed sign-ins for this account. Wait a minute and try again.",
+            ),
+        )
+            .into_response());
+    }
+    let stored: Option<String> = or_log(
+        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
+            .bind(me.id)
+            .fetch_optional(&state.pool)
+            .await,
+        "load password",
+    );
+    let valid = tokio::task::spawn_blocking(move || verify_password(&password, stored.as_deref()))
+        .await
+        .unwrap_or(false);
+    if !valid {
+        super::auth::record_failure(&me.email);
+        log_event("password_confirmation_failed", &[("user", &me.email)]);
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            alert(me.lang, "error", "Your current password isn't right."),
+        )
+            .into_response());
+    }
+    Ok(())
+}
+
 /// GET /admin/profile -> Your own name, email and password.
 pub async fn page(
     State(state): State<AppState>,
@@ -177,22 +217,8 @@ pub async fn update_password(
         return alert(me.lang, "error", "The new passwords don't match.");
     }
 
-    let stored: Option<String> = or_log(
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load password",
-    );
-    // Password hashing is slow on purpose, so it runs off the async threads.
-    let current_password = form.current_password.clone();
-    let current_ok =
-        tokio::task::spawn_blocking(move || verify_password(&current_password, stored.as_deref()))
-            .await
-            .unwrap_or(false);
-    if !current_ok {
-        log_event("password_change_failed", &[("user", &me.email)]);
-        return alert(me.lang, "error", "Your current password isn't right.");
+    if let Err(response) = confirm_password(&state, &me, form.current_password).await {
+        return response;
     }
 
     let Ok(hash) = hash_password(&form.new_password) else {
@@ -352,19 +378,8 @@ pub async fn disable_two_factor(
     Extension(me): Extension<CurrentUser>,
     Form(form): Form<ConfirmPasswordForm>,
 ) -> Response {
-    let stored: Option<String> = or_log(
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load password",
-    );
-    let password = form.password;
-    let ok = tokio::task::spawn_blocking(move || verify_password(&password, stored.as_deref()))
-        .await
-        .unwrap_or(false);
-    if !ok {
-        return alert(me.lang, "error", "Your current password isn't right.");
+    if let Err(response) = confirm_password(&state, &me, form.password).await {
+        return response;
     }
     match crate::db::users::disable_two_factor(&state.pool, me.id).await {
         Ok(_) => {
