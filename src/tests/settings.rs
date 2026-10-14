@@ -1,6 +1,58 @@
 //! Saving settings and your profile without reloading the page by hand.
 
-use super::{TestSite, ADMIN_EMAIL};
+use super::{TestSite, ADMIN_EMAIL, ADMIN_PASSWORD};
+use axum::http::StatusCode;
+
+async fn email_now(site: &TestSite) -> String {
+    sqlx::query_scalar("SELECT email FROM users")
+        .fetch_one(&site.pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn changing_your_email_needs_your_password() {
+    let mut site = TestSite::with_owner().await;
+    let new_email = "someone-else@example.com";
+
+    let without = site
+        .post("/admin/profile", &[("name", "Owner"), ("email", new_email)])
+        .await;
+    assert!(without
+        .body
+        .contains("Enter your current password to change your email."));
+    let wrong = site
+        .post(
+            "/admin/profile",
+            &[
+                ("name", "Owner"),
+                ("email", new_email),
+                ("current_password", "wrong"),
+            ],
+        )
+        .await;
+    assert_eq!(wrong.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(wrong.body.contains("Your current password isn't right."));
+    assert_eq!(email_now(&site).await, ADMIN_EMAIL);
+
+    let name_only = site
+        .post("/admin/profile", &[("name", "Sam"), ("email", ADMIN_EMAIL)])
+        .await;
+    assert!(name_only.body.contains("Saved."));
+
+    let right = site
+        .post(
+            "/admin/profile",
+            &[
+                ("name", "Sam"),
+                ("email", new_email),
+                ("current_password", ADMIN_PASSWORD),
+            ],
+        )
+        .await;
+    assert!(right.body.contains("Saved."));
+    assert_eq!(email_now(&site).await, new_email);
+}
 
 #[tokio::test]
 async fn a_new_site_language_reloads_the_admin_in_that_language() {

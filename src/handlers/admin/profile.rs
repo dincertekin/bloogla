@@ -65,6 +65,8 @@ pub struct ProfileForm {
     /// `en`, `tr`, or empty for the site's language.
     #[serde(default)]
     language: String,
+    #[serde(default)]
+    current_password: String,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +170,19 @@ pub async fn update(
     if taken.is_some() {
         return alert(me.lang, "error", "Someone else already uses this email.");
     }
+    let email_changes = !email.eq_ignore_ascii_case(&me.email);
+    if email_changes {
+        if form.current_password.is_empty() {
+            return alert(
+                me.lang,
+                "error",
+                "Enter your current password to change your email.",
+            );
+        }
+        if let Some(refusal) = confirm_password(&state, &me, form.current_password).await {
+            return refusal;
+        }
+    }
 
     let language = Lang::parse(&form.language).map_or("", Lang::code);
     let previous_language: String = or_log(
@@ -177,14 +192,20 @@ pub async fn update(
             .await,
         "load language",
     );
-    match sqlx::query("UPDATE users SET name = ?, email = ?, language = ? WHERE id = ?")
+    let saved = sqlx::query("UPDATE users SET name = ?, email = ?, language = ? WHERE id = ?")
         .bind(form.name.trim())
         .bind(email)
         .bind(language)
         .bind(me.id)
         .execute(&state.pool)
-        .await
-    {
+        .await;
+    if saved.is_ok() && email_changes {
+        log_event(
+            "email_changed",
+            &[("user", &me.email), ("new_email", email)],
+        );
+    }
+    match saved {
         // A new language applies to the whole page, so reload it.
         Ok(_) if language != previous_language => {
             let site_language = settings::load(&state.pool).await.language;
