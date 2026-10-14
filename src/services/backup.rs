@@ -113,26 +113,33 @@ fn prune_automatic_backups() {
 }
 
 /// Make a .zip with a fresh copy of the database (`data/bloogla.db`) and
-/// every uploaded file (`uploads/...`), and return where it was written.
+/// every uploaded file (`uploads/...`) at `archive`.
 ///
-/// The caller sends it and deletes it. The paths inside are the ones Bloogla
-/// reads, so unpacking it into the folder Bloogla runs in (or an empty folder
-/// next to the `bloogla` program) gives the site back.
-pub async fn download_archive(pool: &SqlitePool, uploads: &Path) -> Result<PathBuf, String> {
-    let database = timestamped_path("download-");
+/// The paths inside are the ones Bloogla reads, so unpacking it into the
+/// folder Bloogla runs in (or restoring it in Settings → Backup) gives the
+/// site back. Used for downloads and for the copy saved before a restore.
+pub async fn write_backup(pool: &SqlitePool, uploads: &Path, archive: &Path) -> Result<(), String> {
+    let database = archive.with_extension("db");
     backup_to(pool, &database).await?;
-    let archive = database.with_extension("zip");
     let uploads = uploads.to_path_buf();
-    let (db, zip) = (database.clone(), archive.clone());
+    let (db, zip) = (database.clone(), archive.to_path_buf());
     let result = tokio::task::spawn_blocking(move || write_archive(&db, &uploads, &zip))
         .await
         .map_err(|e| e.to_string())
         .and_then(|r| r);
     let _ = std::fs::remove_file(&database);
     if result.is_err() {
-        let _ = std::fs::remove_file(&archive);
+        let _ = std::fs::remove_file(archive);
     }
-    result.map(|()| archive)
+    result
+}
+
+/// [`write_backup`] to a new file in `data/backups/`, for downloading. The
+/// caller sends it and deletes it.
+pub async fn download_archive(pool: &SqlitePool, uploads: &Path) -> Result<PathBuf, String> {
+    let archive = timestamped_path("download-").with_extension("zip");
+    write_backup(pool, uploads, &archive).await?;
+    Ok(archive)
 }
 
 fn write_archive(database: &Path, uploads: &Path, archive: &Path) -> Result<(), String> {

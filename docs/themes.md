@@ -1,8 +1,16 @@
 # Writing themes
 
-Bloogla comes with three themes: **Default** (`themes/default`), **Story**
-(`themes/story`, a calm reading layout) and **Gazette** (`themes/gazette`, a
-newspaper front page). Each is a good starting point for your own.
+Bloogla comes with seven themes, each a good starting point for your own:
+
+| Theme      | Folder            | For                                                            |
+| ---------- | ----------------- | -------------------------------------------------------------- |
+| Default    | `themes/default`  | A clean blog: the newest post large, then a grid of cards      |
+| Story      | `themes/story`    | Calm reading, in the style of Medium                           |
+| Gazette    | `themes/gazette`  | A newspaper front page                                         |
+| Folio      | `themes/folio`    | Photographs first: a large lead picture and a picture grid     |
+| Notebook   | `themes/notebook` | Writing: one quiet column, titles listed by year               |
+| Atelier    | `themes/atelier`  | Warm and friendly: rounded cards and a welcome card            |
+| Brief      | `themes/brief`    | A business or project's news, with a strong logo header        |
 
 A theme is a folder in `themes/` with a `theme.toml` and Tera templates in `templates/`. The easiest start is a copy of `themes/default` with a new folder name. Install a theme by copying its folder into `themes/` and restarting Bloogla; it then shows up in **Admin → Appearance**.
 
@@ -35,6 +43,7 @@ Files in the theme's `static/` folder are served at `/theme-assets/<theme>/stati
 
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
 - Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small`, an 800px-wide copy for `srcset`) and `content_html`.
+- Posts also get `previous_post` and `next_post` (each with `title` and `url`, or empty for the oldest and newest post, and on pages): the older and newer post, for links at the end. `{% if previous_post %}` works everywhere.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html`.
 
 ## Theme options
@@ -55,7 +64,26 @@ hint = "Used for links, buttons and highlights."
 {% if theme_options.show_powered_by %}Powered by Bloogla{% endif %}
 ```
 
-Values are checked before they're saved (colors must look like `#2563eb`, images must be from the media library or `https://`, a select only accepts its choices), so they're safe to use in styles. The default theme has three: accent color, footer text and "Powered by Bloogla".
+Values are checked before they're saved (colors must look like `#2563eb`, images must be from the media library or `https://`, a select only accepts its choices), so they're safe to use in styles.
+
+Every bundled theme offers the same five, so changing theme keeps the same kind of choices: **Logo** (`logo`, an image shown instead of the site title), **Light or dark** (`color_scheme`, a select: "Follow the visitor's device", "Always light" or "Always dark"), **Accent color**, **Footer text** and **Show "Powered by Bloogla"**. Atelier adds a welcome card and Brief a heading and a menu button. Labels, hints and choices are English and are translated in the admin like any other text, so a bundled theme's new option needs a line in each language file (`cargo test` lists missing ones).
+
+### Light and dark
+
+The bundled themes put `data-scheme="light"` or `data-scheme="dark"` on `<html>` when "Always light" or "Always dark" is chosen, and write their dark colors for both cases:
+
+```css
+@media (prefers-color-scheme: dark) {
+    :root:not([data-scheme="light"]) { --bg: #121214; /* ... */ }
+}
+:root[data-scheme="dark"] { --bg: #121214; /* ... */ }
+```
+
+Their `templates/colors.html` sets the accent color, and a lighter shade of it for dark mode (`color-mix(in srgb, <accent> 55%, white)`), so links stay readable on a dark background whatever color an admin picks. Copy it into your theme and include it in `<head>`.
+
+### Moving between pages
+
+The bundled themes animate page changes with CSS view transitions: the header stays still, the old content (`<main id="main">`, named `page`) fades out quickly and the new content rises into place. Copy the "Moving between pages" block from a bundled theme's `style.css` to do the same. Keep the old and new content from showing at the same time (a plain crossfade looks blurry), don't scale text, and turn it off under `prefers-reduced-motion`. Browsers without view transitions simply show the new page.
 
 ## Scripts and the security policy
 

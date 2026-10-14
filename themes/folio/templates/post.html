@@ -1,0 +1,34 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<article class="h-entry">
+    {% if post.cover_image %}
+    <img src="{{ post.cover_image }}" alt="" class="story-cover" decoding="async" fetchpriority="high"
+        {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
+        {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="100vw"{% endif %} />
+    {% endif %}
+
+    <div class="story">
+        <header class="story-header">
+            <div class="meta">
+                {% if post.tags %}<a class="topic p-category" href="/tag/{{ post.tags[0].slug }}">{{ post.tags[0].name }}</a> &middot; {% endif %}
+                <time class="dt-published" datetime="{{ post.published_at }}">{{ post.created_at }}</time>
+                {% if post.author_name %}&middot; {{ t.by_name | replace(from="{name}", to=post.author_name) }}{% endif %}
+            </div>
+            <h1 class="story-title p-name"><a class="u-url" href="{{ base_url }}{{ post.url }}">{{ post.title }}</a></h1>
+        </header>
+
+        <div class="post-body e-content">
+            {{ content_html | safe }}
+        </div>
+
+        {% include "templates/post_nav.html" %}
+
+        {% if comments_enabled %}
+        {% include "templates/comments.html" %}
+        {% endif %}
+    </div>
+</article>
+{% endblock %}

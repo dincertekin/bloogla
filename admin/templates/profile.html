@@ -91,18 +91,21 @@
     <p class="form-hint" style="margin-bottom: 1rem">
         {{ me.count(recovery_codes_left, "{n} recovery code left.", "{n} recovery codes left.") }}
     </p>
-    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-start">
-        <form method="POST" action="/admin/profile/two-factor/recovery">
-            <button type="submit" class="btn btn-secondary">{{ me.t("New recovery codes") }}</button>
-        </form>
-        <form hx-post="/admin/profile/two-factor/off" hx-target="find .form-status" hx-swap="innerHTML"
-            class="upload-inline" data-reset-on-success>
-            <input type="password" name="password" class="form-control" required autocomplete="current-password"
-                placeholder="{{ me.t("Current password") }}" aria-label="{{ me.t("Current password") }}" />
-            <button type="submit" class="btn btn-ghost-danger">{{ me.t("Turn off") }}</button>
-            <div class="form-status" style="flex-basis: 100%"></div>
-        </form>
-    </div>
+    <form method="POST" action="/admin/profile/two-factor/recovery" style="margin-bottom: 1.75rem">
+        <button type="submit" class="btn btn-secondary">{{ me.t("New recovery codes") }}</button>
+    </form>
+
+    <!-- Turning it off asks for the password, in a field of its own. -->
+    <form hx-post="/admin/profile/two-factor/off" hx-target="find .form-status" hx-swap="innerHTML"
+        data-reset-on-success style="border-top: 1px solid var(--border-light); padding-top: 1.5rem; max-width: 24rem">
+        <div class="form-group">
+            <label for="two-factor-off-password">{{ me.t("Current password") }}</label>
+            <input type="password" id="two-factor-off-password" name="password" class="form-control" required
+                autocomplete="current-password" />
+        </div>
+        <div class="form-status"></div>
+        <button type="submit" class="btn btn-ghost-danger">{{ me.t("Turn off two-factor") }}</button>
+    </form>
     {% else %}
     <p class="form-hint" style="margin-bottom: 1rem">
         {{ me.t("Recommended. Sign-ins then need a code from an authenticator app on your phone as well as your password, so a leaked password alone isn't enough. It's optional and you can turn it off any time.") }}

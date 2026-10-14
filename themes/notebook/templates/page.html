@@ -1,0 +1,18 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ post.title }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<article>
+    <header class="entry-header">
+        <h1 class="entry-heading">{{ post.title }}</h1>
+    </header>
+    {% if post.cover_image %}
+    <img src="{{ post.cover_image }}" alt="" class="entry-cover" decoding="async" fetchpriority="high"
+        {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
+    {% endif %}
+    <div class="post-body">
+        {{ content_html | safe }}
+    </div>
+</article>
+{% endblock %}

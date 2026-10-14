@@ -1,0 +1,11 @@
+{#- Light or dark (Appearance → "Light or dark"), and the accent color. In dark
+    mode a lighter shade of the accent is used, so links stay readable on a
+    dark background whatever color was chosen. -#}
+{%- set scheme = theme_options.color_scheme | default(value="") -%}
+{%- set accent = theme_options.accent_color -%}
+<meta name="color-scheme" content="{% if scheme == "Always light" %}light{% elif scheme == "Always dark" %}dark{% else %}light dark{% endif %}">
+<style>
+:root{--accent:{{ accent }};--accent-hover:color-mix(in srgb,{{ accent }} 80%,black);--on-accent:#ffffff;--soft:color-mix(in srgb,{{ accent }} 9%,var(--surface))}
+@media (prefers-color-scheme:dark){:root:not([data-scheme="light"]){--accent:color-mix(in srgb,{{ accent }} 55%,white);--accent-hover:color-mix(in srgb,{{ accent }} 35%,white);--on-accent:#111111;--soft:color-mix(in srgb,{{ accent }} 16%,var(--surface))}}
+:root[data-scheme="dark"]{--accent:color-mix(in srgb,{{ accent }} 55%,white);--accent-hover:color-mix(in srgb,{{ accent }} 35%,white);--on-accent:#111111;--soft:color-mix(in srgb,{{ accent }} 16%,var(--surface))}
+</style>

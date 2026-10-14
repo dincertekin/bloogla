@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 
-<body>
+<body data-show-password="{{ lang.t("Show password") }}" data-hide-password="{{ lang.t("Hide password") }}">
     <main class="container" style="max-width: 420px; margin-top: 8vh; padding: 0 1rem;">
         <a href="/" class="btn btn-ghost btn-sm" style="margin-bottom: 1.5rem">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -46,7 +46,7 @@
                         <label for="password">{{ lang.t("Password") }}</label>
                         <a href="/admin/forgot-password" class="form-hint">{{ lang.t("Forgot password?") }}</a>
                     </div>
-                    <input type="password" id="password" name="password" class="form-control" placeholder="••••••••"
+                    <input type="password" id="password" name="password" class="form-control{% if wrong_input %} is-invalid shake{% endif %}" placeholder="••••••••"
                         autocomplete="current-password" required />
                 </div>
 

@@ -1,0 +1,17 @@
+{# One story in the grid: its picture (or first words), title and date. #}
+<article class="tile">
+    {% if post.cover_image %}
+    <a class="tile-cover" href="{{ post.url }}" tabindex="-1" aria-hidden="true">
+        <img src="{% if post.cover_small %}{{ post.cover_small }}{% else %}{{ post.cover_image }}{% endif %}" alt="" decoding="async"
+            {% if loop.index > 3 %}loading="lazy"{% endif %}
+            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
+    </a>
+    {% else %}
+    {# Plain text: the excerpt can hold links, which can't sit inside this one. #}
+    <a class="tile-blank" href="{{ post.url }}" tabindex="-1" aria-hidden="true">{{ post.content | striptags | truncate(length=220) }}</a>
+    {% endif %}
+    <a class="tile-title" href="{{ post.url }}">{{ post.title }}</a>
+    <div class="meta">
+        {% if post.tags %}<span class="topic">{{ post.tags[0].name }}</span> &middot; {% endif %}<time>{{ post.created_at }}</time>
+    </div>
+</article>

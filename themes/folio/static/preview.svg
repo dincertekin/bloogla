@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+  <!-- Preview for Admin → Appearance: a large lead picture, then a grid of pictures. -->
+  <rect width="640" height="400" fill="#f4f3ef"/>
+  <text x="28" y="34" font-family="Helvetica, Arial, sans-serif" font-weight="800" font-size="15" letter-spacing="2" fill="#141414">FOLIO</text>
+  <rect x="460" y="25" width="40" height="7" rx="1" fill="#141414"/>
+  <rect x="516" y="25" width="40" height="7" rx="1" fill="#141414"/>
+  <rect x="572" y="25" width="40" height="7" rx="1" fill="#141414"/>
+  <rect x="28" y="56" width="584" height="190" rx="3" fill="#b9b3a6"/>
+  <rect x="28" y="260" width="260" height="16" rx="2" fill="#141414"/>
+  <rect x="512" y="264" width="100" height="8" rx="2" fill="#9a3412"/>
+  <rect x="28" y="298" width="138" height="84" rx="3" fill="#c9c2b4"/>
+  <rect x="177" y="298" width="138" height="84" rx="3" fill="#a9b1ad"/>
+  <rect x="326" y="298" width="138" height="84" rx="3" fill="#c4b8a8"/>
+  <rect x="475" y="298" width="137" height="84" rx="3" fill="#b4b9b0"/>
+</svg>

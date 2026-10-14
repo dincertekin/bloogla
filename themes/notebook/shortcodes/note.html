@@ -1,0 +1,2 @@
+{#- [note "Text"] or [note "Text" kind="warning"]: a highlighted aside. -#}
+<aside class="note{% if params.kind %} note-{{ params.kind }}{% endif %}">{{ args | join(sep=" ") }}</aside>

@@ -8,7 +8,7 @@ Bloogla simpler, faster or safer for them?**
 
 - **Report a bug or suggest an idea:** [open an issue](https://github.com/dincertekin/bloogla/issues/new/choose).
   Security problems go [privately](SECURITY.md) instead.
-- **Translate:** the interface is in English, Lithuanian and Turkish. Adding a language
+- **Translate:** the interface is in English, German, French, Lithuanian and Turkish. Adding a language
   takes no programming, only a browser: see
   [docs/translating.md](docs/translating.md). Fixes to existing translations
   are very welcome too.
@@ -112,7 +112,7 @@ Created at runtime: `data/` (database, backups), `uploads/`.
 - **A new setting:** add a field to `Settings` in `src/db/settings.rs` and give it a default there.
 - **A database change:** add a new file to `migrations/` (never edit one that has already run).
 - **A test:** copy one from `src/tests/`. `TestSite::with_owner()` gives you a fresh site with the owner signed in; `site.get(...)` and `site.post(...)` work like a browser.
-- **New interface text:** wrap it in `me.t("...")` and add its translation to each language file in `src/i18n/` (`tr.rs`, `lt.rs`); `cargo test` lists anything missing.
+- **New interface text:** wrap it in `me.t("...")` and add its translation to each language file in `src/i18n/` (`de.rs`, `fr.rs`, `lt.rs`, `tr.rs`); `cargo test` lists anything missing.
 - **A new language:** see [docs/translating.md](docs/translating.md).
 
 ## House rules
@@ -126,7 +126,9 @@ Created at runtime: `data/` (database, backups), `uploads/`.
   them, and a test checks. Behaviour lives in `admin/static/js/` and is switched
   on with `data-` attributes.
 - **Every interface text is translated:** wrap it in `me.t("...")` and add a
-  line to each language file in `src/i18n/` (`tr.rs`, `lt.rs`).
+  line to each language file in `src/i18n/` (`de.rs`, `fr.rs`, `lt.rs`, `tr.rs`).
+  Every language speaks to people politely, with the formal "you" (Sie, vous,
+  siz, jūs); see [docs/translating.md](docs/translating.md).
 - **One way to do each thing.** Owners do things in the admin panel; the
   command line is only for getting back in when the admin can't be reached.
   A new way to do something replaces the old one.

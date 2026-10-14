@@ -1,0 +1,56 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}
+{% if search_query %}
+{{ t.search_query | replace(from="{query}", to=search_query) }} - {{ blog_name }}
+{% elif tag_name %}
+{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}
+{% else %}
+{{ blog_name }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{# The first page of the home page shows the newest story across the page. #}
+{% set lead = search_query == "" and tag_name is not defined and pagination.current == 1 %}
+
+{% if search_query %}
+<h1 class="page-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
+{% elif tag_name %}
+<h1 class="page-title">{{ t.posts_tagged_with_hashtag | replace(from="{tag}", to=tag_name) }}</h1>
+{% else %}
+<h1 class="visually-hidden">{{ blog_name }}</h1>
+{% endif %}
+
+{% for post in posts %}
+{% if lead and loop.first %}
+<article class="lead">
+    {% if post.cover_image %}
+    <a class="lead-cover" href="{{ post.url }}" tabindex="-1" aria-hidden="true">
+        <img src="{{ post.cover_image }}" alt="" decoding="async" fetchpriority="high"
+            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
+            {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="100vw"{% endif %} />
+    </a>
+    {% endif %}
+    <div class="lead-text">
+        <h2 class="lead-title"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <div class="meta">
+            {% if post.tags %}<span class="topic">{{ post.tags[0].name }}</span> &middot; {% endif %}<time>{{ post.created_at }}</time>
+        </div>
+    </div>
+</article>
+{% endif %}
+{% else %}
+<p class="empty-state">{{ t.no_posts_found }}</p>
+{% endfor %}
+
+<section class="tiles" aria-label="{{ t.more_stories }}">
+    {% for post in posts %}
+    {% if lead and loop.first %}{# Shown across the page above. #}{% else %}
+    {% include "templates/tile.html" %}
+    {% endif %}
+    {% endfor %}
+</section>
+
+{% include "templates/pagination.html" %}
+{% endblock %}

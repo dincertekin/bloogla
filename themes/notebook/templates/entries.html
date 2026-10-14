@@ -1,0 +1,21 @@
+{#- A list of writing with a heading for each year. Posts come newest first,
+    so a new heading starts whenever the year changes. `set_global` keeps the
+    year from one round of the loop to the next. -#}
+{% set_global year = "" %}
+{% for post in posts %}
+{% set this_year = post.published_at | truncate(length=4, end="") %}
+{% if this_year != year %}
+{% if not loop.first %}</ol></section>{% endif %}
+<section class="year">
+    <h2>{{ this_year }}</h2>
+    <ol class="entries">
+{% set_global year = this_year %}
+{% endif %}
+        <li>
+            <a href="{{ post.url }}">
+                <time class="mono">{{ post.created_at }}</time>
+                <span class="entry-title">{{ post.title }}</span>
+            </a>
+        </li>
+{% if loop.last %}</ol></section>{% endif %}
+{% endfor %}

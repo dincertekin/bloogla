@@ -13,6 +13,9 @@ use sqlx::SqlitePool;
 use std::str::FromStr;
 use std::time::Duration;
 
+/// The files in `migrations/`, built into the program.
+pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
+
 /// Open the database (creating it if needed) and apply any new migrations.
 pub async fn connect(database_url: &str) -> Result<SqlitePool, Box<dyn std::error::Error>> {
     let options = SqliteConnectOptions::from_str(database_url)?
@@ -27,9 +30,8 @@ pub async fn connect(database_url: &str) -> Result<SqlitePool, Box<dyn std::erro
         .connect_with(options)
         .await?;
 
-    let migrator = sqlx::migrate!("./migrations");
-    refuse_pre_release_database(&pool, &migrator).await?;
-    migrator.run(&pool).await?;
+    refuse_pre_release_database(&pool, &MIGRATOR).await?;
+    MIGRATOR.run(&pool).await?;
 
     Ok(pool)
 }

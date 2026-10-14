@@ -38,6 +38,8 @@ pub struct SettingsTemplate {
     pub site_icon: String,
     /// Settings → Backup: the daily copy on the server.
     pub auto_backup: bool,
+    /// Settings → Backup → Restore (always the upload form here).
+    pub restore: super::backup::RestoreCard,
     /// Settings → Updates.
     pub update: super::updates::UpdateStatus,
 }
@@ -150,6 +152,7 @@ pub async fn page(
         timezones: timezone_names(),
         site_icon: site.site_icon.clone(),
         auto_backup: site.auto_backup,
+        restore: Default::default(),
         update: super::updates::UpdateStatus::load(&state, &site, &me, None),
         me,
     }

@@ -1,0 +1,11 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ t.page_not_found }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<section>
+    <h1 class="entry-heading">{{ t.page_not_found }}</h1>
+    <p class="empty-state">{{ t.the_page_you_are_looking_for }}</p>
+    <a href="/" class="back-link">&larr; {{ t.back_to_all_posts }}</a>
+</section>
+{% endblock %}

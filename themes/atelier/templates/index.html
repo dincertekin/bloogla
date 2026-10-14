@@ -1,0 +1,40 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}
+{% if search_query %}
+{{ t.search_query | replace(from="{query}", to=search_query) }} - {{ blog_name }}
+{% elif tag_name %}
+{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}
+{% else %}
+{{ blog_name }}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if search_query %}
+<h1 class="page-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
+{% elif tag_name %}
+<h1 class="page-title">{{ t.posts_tagged_with_hashtag | replace(from="{tag}", to=tag_name) }}</h1>
+{% elif theme_options.intro_title and pagination.current == 1 %}
+{# The welcome card from Appearance, on the first page of the home page. #}
+<section class="welcome">
+    {% if theme_options.intro_image %}<img src="{{ theme_options.intro_image }}" alt="" width="150" height="150">{% endif %}
+    <div>
+        <h1>{{ theme_options.intro_title }}</h1>
+        {% if theme_options.intro_text %}<p>{{ theme_options.intro_text }}</p>{% endif %}
+    </div>
+</section>
+{% else %}
+<h1 class="visually-hidden">{{ blog_name }}</h1>
+{% endif %}
+
+<div class="cards">
+    {% for post in posts %}
+    {% include "templates/card.html" %}
+    {% else %}
+    <p class="empty-state">{{ t.no_posts_found }}</p>
+    {% endfor %}
+</div>
+
+{% include "templates/pagination.html" %}
+{% endblock %}

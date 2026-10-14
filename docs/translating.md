@@ -1,6 +1,6 @@
 # Translating Bloogla
 
-Bloogla speaks English, Lietuvių and Türkçe today. Every language added means more
+Bloogla speaks English, Deutsch, Français, Lietuvių and Türkçe today. Every language added means more
 people can run a website in their own words: the admin panel, the themes and
 the emails all use it. **You don't need to know Rust or install anything** to
 help.
@@ -85,13 +85,16 @@ it in **Profile → Language**.
 - **Write like the English does:** short, friendly, plain. Bloogla is for
   people who aren't developers, so prefer everyday words to technical ones
   ("address" rather than "URL", "sign in" rather than "authenticate").
-- **Use the informal or formal "you"** your language uses in friendly apps,
-  and keep it the same everywhere.
+- **Always use the polite, formal "you"**, and the same everywhere: *Sie*
+  in German, *vous* in French, *siz* in Turkish, *jūs* in Lithuanian. People
+  of every age run websites with Bloogla, and many are speaking to it for the
+  first time; the polite form is never wrong. Keep the tone warm and simple
+  all the same: polite doesn't mean stiff.
 - **Counts:** English has a text for one and for many (`"{n} comment"` and
   `"{n} comments"`). If your language changes words in other ways (Russian,
   Arabic, Polish…), choose wording that works for any number, like
-  "Comments: {n}". If it uses the singular for zero too (French), tell us in
-  the pull request and we'll switch the rule.
+  "Comments: {n}". If it uses the singular for zero too (like French), tell
+  us in the pull request and we'll switch the rule.
 - **Keep names as they are:** Bloogla, Gmail, Docker, YouTube.
 - **Not sure about a text?** Search for it in the code to see where it's
   used, or ask in your pull request.

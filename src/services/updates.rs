@@ -369,7 +369,8 @@ fn download(url: &str, limit: u64) -> Result<Vec<u8>, String> {
 
 // ---- Restarting ----
 
-/// The program to start again once the server has stopped (set after an update).
+/// The program to start again once the server has stopped (set after an
+/// update, or when a backup is about to be restored).
 static RESTART_WITH: OnceLock<PathBuf> = OnceLock::new();
 
 fn restart_signal() -> &'static tokio::sync::Notify {
@@ -378,8 +379,8 @@ fn restart_signal() -> &'static tokio::sync::Notify {
 }
 
 /// Stop the server in a moment (after answering the admin who clicked
-/// Install), then start the new program in its place.
-fn restart_soon(program: PathBuf) {
+/// Install or Restore), then start `program` in its place.
+pub fn restart_soon(program: PathBuf) {
     let _ = RESTART_WITH.set(program);
     tokio::spawn(async {
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -387,15 +388,15 @@ fn restart_soon(program: PathBuf) {
     });
 }
 
-/// Resolves when an update asks the server to stop and restart.
+/// Resolves when an update or a restore asks the server to stop and restart.
 pub async fn restart_requested() {
     restart_signal().notified().await;
 }
 
-/// After the server has stopped: if an update was installed, replace this
-/// process with the new program (same arguments, same process id, so Docker,
+/// After the server has stopped: if an update or a restore asked for it,
+/// replace this process with the program (same arguments, same process id, so Docker,
 /// systemd or a terminal keep running it). Returns if there's nothing to do.
-pub fn restart_if_updated() -> Result<(), String> {
+pub fn restart_if_requested() -> Result<(), String> {
     let Some(program) = RESTART_WITH.get() else {
         return Ok(());
     };

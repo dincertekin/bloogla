@@ -74,25 +74,32 @@ automatically. More in [Running Bloogla](docs/running.md).
 |                     |                                                                                              |
 | ------------------- | -------------------------------------------------------------------------------------------- |
 | **Writing**         | Visual editor, drafts and scheduling, pages, tags, image library, revisions, YouTube and Vimeo embeds |
-| **Your site**       | Three themes with dark mode, menus, search, comments with spam protection, RSS, sitemap      |
+| **Your site**       | Seven themes with light and dark mode, menus, search, comments with spam protection, RSS, sitemap |
 | **Found on Google** | Meta tags, Open Graph, structured data, clean addresses with automatic redirects             |
 | **Analytics**       | Views and referring sites per day, without cookies or personal data                          |
 | **People**          | Admins, editors and authors, two-factor login, password reset by email                       |
-| **Languages**       | English, Lietuvių and Türkçe, for the admin panel, the theme and emails                      |
-| **Peace of mind**   | Built-in HTTPS, daily backups, one-click `.zip` backup, signed updates you can install from Settings |
+| **Languages**       | English, Deutsch, Français, Lietuvių and Türkçe, for the admin panel, the theme and emails  |
+| **Peace of mind**   | Built-in HTTPS, daily backups, one-click `.zip` backup and restore, signed updates you can install from Settings |
 
 ## Themes
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="themes/default/static/preview.svg" alt="Default theme"><br><b>Default</b><br>A clean, classic blog</td>
-    <td align="center" width="33%"><img src="themes/story/static/preview.svg" alt="Story theme"><br><b>Story</b><br>Calm reading, Medium-style</td>
-    <td align="center" width="33%"><img src="themes/gazette/static/preview.svg" alt="Gazette theme"><br><b>Gazette</b><br>A newspaper front page</td>
+    <td align="center" width="25%"><img src="themes/default/static/preview.svg" alt="Default theme"><br><b>Default</b><br>A clean blog with a featured post</td>
+    <td align="center" width="25%"><img src="themes/folio/static/preview.svg" alt="Folio theme"><br><b>Folio</b><br>Photographs first</td>
+    <td align="center" width="25%"><img src="themes/notebook/static/preview.svg" alt="Notebook theme"><br><b>Notebook</b><br>Quiet writing, titles by year</td>
+    <td align="center" width="25%"><img src="themes/atelier/static/preview.svg" alt="Atelier theme"><br><b>Atelier</b><br>Warm, rounded and friendly</td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src="themes/brief/static/preview.svg" alt="Brief theme"><br><b>Brief</b><br>News for a business or project</td>
+    <td align="center" width="25%"><img src="themes/story/static/preview.svg" alt="Story theme"><br><b>Story</b><br>Calm reading, Medium-style</td>
+    <td align="center" width="25%"><img src="themes/gazette/static/preview.svg" alt="Gazette theme"><br><b>Gazette</b><br>A newspaper front page</td>
+    <td></td>
   </tr>
 </table>
 
-Pick one in **Appearance** and change its colors and texts without touching
-code. Want your own? Themes are plain HTML and CSS: see
+Pick one in **Appearance** and change its logo, colors, light or dark mode
+and texts without touching code. Want your own? Themes are plain HTML and CSS: see
 [Writing themes](docs/themes.md).
 
 ## Updating
@@ -118,7 +125,7 @@ volume. Download a backup first either way (**Settings → Backup**).
 
 ## Help translate Bloogla
 
-Bloogla speaks English, Lietuvių and Türkçe. Want it in your language? A language is
+Bloogla speaks English, Deutsch, Français, Lietuvių and Türkçe. Want it in your language? A language is
 one file of short texts, and you can add it right in your browser, no
 programming needed. The [translation guide](docs/translating.md) shows how,
 or [say hello](https://github.com/dincertekin/bloogla/issues/new?template=translation.yml)

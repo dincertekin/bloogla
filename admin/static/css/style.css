@@ -148,6 +148,61 @@ select.form-control {
     cursor: pointer;
 }
 
+/* A password field with its eye button (admin.js adds both). */
+.password-field {
+    position: relative;
+    display: block;
+}
+
+.password-field .form-control {
+    padding-right: 2.75rem;
+}
+
+.password-eye {
+    position: absolute;
+    top: 50%;
+    right: 0.25rem;
+    transform: translateY(-50%);
+    width: 2.25rem;
+    height: 2.25rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.password-eye:hover {
+    color: var(--text-primary);
+    background: var(--chip-bg);
+}
+
+.password-eye:focus-visible {
+    outline: 2px solid var(--accent-black);
+    outline-offset: 1px;
+}
+
+.password-eye svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Edge and old Internet Explorer add their own eye, but only sometimes:
+   hidden, so there's always exactly one. */
+input::-ms-reveal,
+input::-ms-clear {
+    display: none;
+}
+
 .form-control:focus {
     border-color: var(--accent-black);
     box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.05);
@@ -209,12 +264,13 @@ select.form-control {
     z-index: 100;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.16s ease-in;
 }
 
 .modal-overlay.active {
     opacity: 1;
     pointer-events: auto;
+    transition: opacity 0.22s ease-out;
 }
 
 .modal-card {
@@ -225,8 +281,9 @@ select.form-control {
     max-width: 600px;
     width: 90%;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-    transform: scale(0.95);
-    transition: transform 0.2s ease;
+    /* Opening, the card rises and settles; closing, it drops back quickly. */
+    transform: translateY(12px) scale(0.98);
+    transition: transform 0.16s ease-in;
 }
 
 /* A pop-up's title with its close button. */
@@ -243,7 +300,8 @@ select.form-control {
 }
 
 .modal-overlay.active .modal-card {
-    transform: scale(1);
+    transform: none;
+    transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-actions {
@@ -1995,20 +2053,53 @@ code {
    MOTION: moving between pages, saving, items coming and going
    ============================================================ */
 
-/* Moving to another admin page fades instead of flashing white, and the
-   sidebar stays where it is. Browsers without view transitions simply load
-   the page. */
+/* Moving to another admin page: the sidebar stays still and only the content
+   changes. The old content steps back and fades out quickly, then the new
+   content rises softly into place. They barely overlap, so text never shows
+   twice (a plain crossfade does, and looks blurry), and nothing is scaled, so
+   text stays sharp. Browsers without view transitions show the new page. */
 @view-transition {
     navigation: auto;
 }
 
-.sidebar {
-    view-transition-name: sidebar;
+.main-content {
+    view-transition-name: page;
 }
 
-::view-transition-old(root),
+/* Everything else is the same on every page, so it changes at once. */
+::view-transition-old(root) {
+    display: none;
+}
+
 ::view-transition-new(root) {
-    animation-duration: 0.18s;
+    animation: none;
+}
+
+/* The content area takes its new size at once instead of stretching. */
+::view-transition-group(page) {
+    animation: none;
+}
+
+::view-transition-old(page) {
+    animation: page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(page) {
+    animation: page-in 340ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
+}
+
+@keyframes page-out {
+    to {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes page-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
 }
 
 @keyframes fade-in {
@@ -2030,9 +2121,10 @@ code {
     }
 }
 
-/* Buttons press in slightly when clicked. */
+/* Buttons press down slightly when clicked (moved, not shrunk, so the text
+   stays sharp). */
 .btn:active {
-    transform: scale(0.98);
+    transform: translateY(1px);
 }
 
 /* While saving: htmx marks the form or button with .htmx-request, admin.js
@@ -2085,15 +2177,133 @@ form.htmx-request {
     opacity: 0;
 }
 
-/* Switching tabs fades the new panel in. */
+/* Switching tabs: the new panel rises softly into place. */
 .has-tabs [data-tab-panel] {
-    animation: fade-in 0.2s ease;
+    animation: panel-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
 }
 
 /* The phone menu slides down a little as it opens. */
 .sidebar.menu-open nav,
 .sidebar.menu-open .sidebar-bottom {
     animation: drop-in 0.2s ease;
+}
+
+/* "No": a wrong password or code, or a form the server refused, shakes
+   left and right a few times and settles, like the macOS sign-in window.
+   Only for what someone typed; problems on the server get a calm message. */
+@keyframes shake {
+    0%, 100% { transform: none; }
+    15% { transform: translateX(-8px); }
+    30% { transform: translateX(7px); }
+    45% { transform: translateX(-5px); }
+    60% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+}
+
+.shake {
+    animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.form-control.is-invalid {
+    border-color: var(--danger-hover);
+}
+
+/* "Done": after saving, the spinner gives way to a check that draws itself,
+   then the button returns to normal (admin.js adds .is-done for a moment). */
+.btn {
+    position: relative;
+}
+
+.btn.is-done {
+    color: transparent !important;
+}
+
+.btn-check {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.15em;
+    height: 1.15em;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.btn.is-done .btn-check {
+    stroke: var(--check-color, currentColor);
+}
+
+.btn-check path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: draw-check 0.36s cubic-bezier(0.65, 0, 0.35, 1) 0.05s forwards;
+}
+
+@keyframes draw-check {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+/* A check before "Copied". */
+.copy-check {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 0.35em;
+    vertical-align: -0.15em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.copy-check path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: draw-check 0.32s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+/* Messages under a form arrive with a small drop. */
+.form-status .alert {
+    animation: drop-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* A count next to a menu item gives one small bounce when it changes. */
+@keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+.nav-badge.pop {
+    animation: pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* A removed row closes the gap below it instead of the rest jumping up
+   (admin.js sets its height first, then this takes it to nothing). */
+.collapsing {
+    overflow: hidden;
+    opacity: 0;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-width: 0 !important;
+    transition: height 0.26s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease,
+        margin 0.26s cubic-bezier(0.4, 0, 0.2, 1), padding 0.26s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* People who ask their system for less motion get none. */

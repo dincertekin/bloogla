@@ -77,6 +77,46 @@ pub async fn find_public(pool: &SqlitePool, slug: &str, is_page: bool) -> Option
     )
 }
 
+/// A link to another post, for "Previous post" and "Next post".
+#[derive(Debug, serde::Serialize)]
+pub struct PostLink {
+    pub title: String,
+    pub url: String,
+}
+
+/// The listed posts just before (older) and after (newer) `post`, by publish
+/// date; the id breaks ties between posts published at the same moment.
+pub async fn neighbours(pool: &SqlitePool, post: &Post) -> (Option<PostLink>, Option<PostLink>) {
+    let find = |newer: bool| {
+        let (compare, order) = if newer { (">", "ASC") } else { ("<", "DESC") };
+        format!(
+            "SELECT title, slug FROM posts WHERE {LISTED_POST_FILTER}
+               AND (datetime(published_at) {compare} datetime(?)
+                    OR (datetime(published_at) = datetime(?) AND id {compare} ?))
+             ORDER BY datetime(published_at) {order}, id {order} LIMIT 1"
+        )
+    };
+    let mut links = Vec::new();
+    for newer in [false, true] {
+        let row: Option<(String, String)> = or_log(
+            sqlx::query_as(&find(newer))
+                .bind(&post.published_at)
+                .bind(&post.published_at)
+                .bind(post.id)
+                .fetch_optional(pool)
+                .await,
+            "find neighbouring post",
+        );
+        links.push(row.map(|(title, slug)| PostLink {
+            title,
+            url: crate::server::routes::post_path(&slug, false),
+        }));
+    }
+    let next = links.pop().flatten();
+    let previous = links.pop().flatten();
+    (previous, next)
+}
+
 /// Pages visitors may see, for the menu editor in Settings:
 /// in the order they were published (oldest first), so a new page goes last.
 pub async fn public_pages(pool: &SqlitePool) -> Vec<Post> {

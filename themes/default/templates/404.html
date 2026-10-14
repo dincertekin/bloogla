@@ -3,11 +3,11 @@
 {% block title %}{{ t.page_not_found }} - {{ blog_name }}{% endblock %}
 
 {% block content %}
-<section class="single-post">
-    <h1 class="single-title">{{ t.page_not_found }}</h1>
+<section class="single">
+    <header class="single-header">
+        <h1 class="single-title">{{ t.page_not_found }}</h1>
+    </header>
     <p class="empty-state">{{ t.the_page_you_are_looking_for }}</p>
-    <footer class="single-footer">
-        <a href="/" class="back-link">&larr; {{ t.back_to_all_posts }}</a>
-    </footer>
+    <a href="/" class="back-link">&larr; {{ t.back_to_all_posts }}</a>
 </section>
 {% endblock %}

@@ -1,0 +1,15 @@
+{# One post in the grid: a rounded card with its picture, label, title and first words. #}
+<article class="card">
+    {% if post.cover_image %}
+    <a class="card-cover" href="{{ post.url }}" tabindex="-1" aria-hidden="true">
+        <img src="{% if post.cover_small %}{{ post.cover_small }}{% else %}{{ post.cover_image }}{% endif %}" alt="" decoding="async"
+            {% if loop.index > 3 %}loading="lazy"{% endif %}
+            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
+    </a>
+    {% endif %}
+    <div class="card-text">
+        <span class="label">{% if post.tags %}{{ post.tags[0].name }} &middot; {% endif %}{{ t.n_min_read | replace(from="{n}", to=post.reading_time ~ "") }}</span>
+        <h2 class="card-title"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <div class="card-excerpt">{{ post.content | safe }}</div>
+    </div>
+</article>

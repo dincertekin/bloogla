@@ -129,8 +129,9 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
     crate::handlers::site::analytics::save_views(&pool).await;
     pool.close().await;
     console::stopped();
-    // After installing an update: start the new version in this process's place.
-    crate::services::updates::restart_if_updated()?;
+    // After installing an update or before restoring a backup: start
+    // (the new version of) Bloogla again in this process's place.
+    crate::services::updates::restart_if_requested()?;
     Ok(())
 }
 

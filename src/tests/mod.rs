@@ -8,12 +8,14 @@
 //! - `badges`: numbers next to menu items, the new-version notice
 //! - `setup_and_login`: first-run setup, signing in and out, password reset
 //! - `posts`: writing posts and what visitors see
+//! - `restore`: restoring a backup .zip
 //! - `security`: CSRF, security headers, caching
 //! - `settings`: saving settings and your profile
 //! - `themes`: every bundled theme draws every page
 
 mod badges;
 mod posts;
+mod restore;
 mod security;
 mod settings;
 mod setup_and_login;
@@ -56,6 +58,9 @@ pub struct TestSite {
     /// Each site's visitor has its own address, so rate limits don't mix.
     address: SocketAddr,
     database: PathBuf,
+    /// The site's own folder (`data/`, `uploads/`), so nothing a test does
+    /// touches the folder `cargo test` runs in.
+    pub folder: PathBuf,
     _turn: tokio::sync::MutexGuard<'static, ()>,
 }
 
@@ -103,6 +108,15 @@ impl TestSite {
 
     async fn with_config(config: Config) -> Self {
         let turn = ONE_AT_A_TIME.lock().await;
+        let folder = std::env::temp_dir().join(format!(
+            "bloogla-test-site-{}",
+            crate::app::security::random_hex(8)
+        ));
+        std::fs::create_dir_all(folder.join("data")).expect("test site folder");
+        let config = Config {
+            folder: folder.clone(),
+            ..config
+        };
         crate::db::settings::invalidate();
         crate::handlers::admin::auth::clear_test_failures();
 
@@ -138,6 +152,7 @@ impl TestSite {
             cookie: None,
             address,
             database,
+            folder,
             _turn: turn,
         }
     }
@@ -213,6 +228,25 @@ impl TestSite {
         self.send(request, Body::from(body.join("&"))).await
     }
 
+    /// Send a file the way a form with `<input type="file" name={field}>` does.
+    pub async fn upload(&mut self, path: &str, field: &str, file_name: &str, bytes: &[u8]) -> Page {
+        let boundary = "bloogla-test-boundary";
+        let mut body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{file_name}\"\r\n\
+             Content-Type: application/octet-stream\r\n\r\n"
+        )
+        .into_bytes();
+        body.extend_from_slice(bytes);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        let request = Request::post(path)
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .header("sec-fetch-site", "same-origin");
+        self.send(request, Body::from(body)).await
+    }
+
     /// Send any request (with this visitor's cookie) and read the answer.
     pub async fn send(&mut self, request: axum::http::request::Builder, body: Body) -> Page {
         let mut request = request;
@@ -250,5 +284,6 @@ impl Drop for TestSite {
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{}{suffix}", self.database.display()));
         }
+        let _ = std::fs::remove_dir_all(&self.folder);
     }
 }

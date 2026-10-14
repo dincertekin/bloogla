@@ -83,7 +83,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-scheme="light"]) {
         --bg: #121212;
         --bg-soft: #1b1b1b;
         --chip: #242424;
@@ -102,6 +102,26 @@
         --code-function: #8ab8f5;
         --code-type: #72d3df;
     }
+}
+
+:root[data-scheme="dark"] {
+    --bg: #121212;
+    --bg-soft: #1b1b1b;
+    --chip: #242424;
+    --text: #e6e6e6;
+    --text-muted: #a0a0a0;
+    --line: #242424;
+    --line-strong: #2e2e2e;
+    --accent: #4cc35a;
+    --accent-hover: #74d37f;
+    --code-bg: #1b1b1b;
+    --code-text: #e6e6e6;
+    --code-comment: #a0a0a0;
+    --code-keyword: #d7a6f2;
+    --code-string: #7fd49b;
+    --code-number: #f2b866;
+    --code-function: #8ab8f5;
+    --code-type: #72d3df;
 }
 
 * {
@@ -1071,20 +1091,7 @@ a {
     border-left-color: #d97706;
 }
 
-/* Motion: pages fade into each other, the header stays put. */
-@view-transition {
-    navigation: auto;
-}
-
-.site-header {
-    view-transition-name: site-header;
-}
-
-::view-transition-old(root),
-::view-transition-new(root) {
-    animation-duration: 0.2s;
-}
-
+/* Motion: small and gentle, and none for people who ask for less. */
 @keyframes fade-in {
     from {
         opacity: 0;
@@ -1101,6 +1108,71 @@ a {
     cursor: progress;
 }
 
+/* ---- Moving between pages ----
+   The header and footer stay still; only the page's content changes. The old
+   content steps back and fades out quickly, then the new content rises softly
+   into place. The two barely overlap, so text never shows twice (a plain
+   crossfade does, and looks blurry), and nothing is scaled, so text stays
+   sharp. Browsers without view transitions simply show the new page. */
+@view-transition {
+    navigation: auto;
+}
+
+#main {
+    view-transition-name: page;
+}
+
+/* Everything outside the content changes at once: it's the same on every page. */
+::view-transition-old(root) {
+    display: none;
+}
+
+::view-transition-new(root) {
+    animation: none;
+}
+
+/* The content area takes its new size at once instead of stretching. */
+::view-transition-group(page) {
+    animation: none;
+}
+
+::view-transition-old(page) {
+    animation: page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(page) {
+    animation: page-in 340ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
+}
+
+@keyframes page-out {
+    to {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes page-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+}
+
+/* ---- Small things that answer the hand ---- */
+
+a,
+button,
+input,
+textarea {
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease,
+        box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+button:active,
+.pagination a:active {
+    transform: translateY(1px);
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -1113,5 +1185,136 @@ a {
     ::view-transition-old(*),
     ::view-transition-new(*) {
         animation: none !important;
+    }
+}
+
+/* ---- Previous and next post, and the logo (added in this version) ---- */
+
+.site-logo {
+    display: block;
+    height: var(--logo-height, 40px);
+    width: auto;
+    max-width: 240px;
+    object-fit: contain;
+}
+
+.post-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 2.5rem 0 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line-strong);
+    font-family: var(--sans);
+}
+
+.post-nav a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: 44px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.post-nav a:hover strong {
+    color: var(--accent);
+}
+
+.post-nav span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.post-nav strong {
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.post-nav-next {
+    grid-column: 2;
+    text-align: right;
+    align-items: flex-end;
+}
+
+/* ---- The comment button: a spinner while sending, then a check that draws
+   itself; a shake when the comment isn't accepted (see comments.js) ---- */
+
+.comment-form button {
+    position: relative;
+}
+
+.comment-form.is-sending button,
+.comment-form.is-done button {
+    color: transparent;
+    opacity: 1;
+}
+
+.comment-form.is-sending button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1em;
+    height: 1em;
+    border: 2px solid var(--ink, currentColor);
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+.button-check {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.3em;
+    height: 1.3em;
+    fill: none;
+    stroke: var(--ink, currentColor);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.button-check path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: draw-check 0.36s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes draw-check {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes shake {
+    0%, 100% { transform: none; }
+    15% { transform: translateX(-8px); }
+    30% { transform: translateX(7px); }
+    45% { transform: translateX(-5px); }
+    60% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+}
+
+.shake {
+    animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* "Thanks! Your comment…" rises softly into place. */
+.comment-notice {
+    animation: notice-in 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes notice-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
 }

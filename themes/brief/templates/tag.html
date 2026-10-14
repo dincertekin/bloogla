@@ -1,0 +1,19 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}{% endblock %}
+
+{% block band %}
+<section class="band"><div class="container"><h1>{{ tag_name }}</h1></div></section>
+{% endblock %}
+
+{% block content %}
+<section class="rows">
+    {% for post in posts %}
+    {% include "templates/row.html" %}
+    {% else %}
+    <p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
+    {% endfor %}
+</section>
+
+{% include "templates/pagination.html" %}
+{% endblock %}

@@ -14,7 +14,9 @@
 //! `cargo test` checks that every language translates every piece of text and
 //! keeps its `{placeholders}`.
 
+mod de;
 mod en;
+mod fr;
 mod lt;
 mod tr;
 
@@ -41,7 +43,13 @@ pub struct Language {
 
 /// Every language Bloogla speaks, in the order language pickers show them.
 /// The first one is the default.
-pub const LANGUAGES: &[&Language] = &[&en::LANGUAGE, &lt::LANGUAGE, &tr::LANGUAGE];
+pub const LANGUAGES: &[&Language] = &[
+    &en::LANGUAGE,
+    &de::LANGUAGE,
+    &fr::LANGUAGE,
+    &lt::LANGUAGE,
+    &tr::LANGUAGE,
+];
 
 /// Plural rule for languages where only exactly one is singular (English, German...).
 pub fn singular_if_one(n: i64) -> bool {
@@ -225,6 +233,7 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("name", "Name"),
     ("never_shown", "Never shown"),
     ("newer", "Newer"),
+    ("next_post", "Next post"),
     ("no_posts_found", "No posts found."),
     (
         "no_posts_found_with_tag_tag",
@@ -239,6 +248,7 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("posts_tagged_with_hashtag", "Posts tagged with “#{tag}”"),
     ("posts_tagged_with_tag", "Posts tagged with {tag}"),
     ("powered_by_name", "Powered by {name}"),
+    ("previous_post", "Previous post"),
     ("search_posts", "Search posts..."),
     ("search_query", "Search: {query}"),
     ("search_results_for_query", "Search results for “{query}”"),
@@ -350,6 +360,21 @@ mod tests {
             keys.extend(rust_message_keys(source));
         }
         keys.extend(THEME_STRINGS.iter().map(|(_, en)| en.to_string()));
+        // The bundled themes' options in Appearance: label, hint and choices.
+        let themes = concat!(env!("CARGO_MANIFEST_DIR"), "/themes");
+        for theme in std::fs::read_dir(themes).unwrap().flatten() {
+            let Ok(toml) = std::fs::read_to_string(theme.path().join("theme.toml")) else {
+                continue;
+            };
+            let meta: crate::services::themes::ThemeMeta = toml::from_str(&toml).unwrap();
+            for option in meta.options {
+                keys.insert(option.label);
+                keys.extend(option.choices);
+                if !option.hint.is_empty() {
+                    keys.insert(option.hint);
+                }
+            }
+        }
         keys.extend(
             crate::app::security::PASSWORD_RULES
                 .iter()

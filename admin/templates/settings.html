@@ -266,7 +266,7 @@
     </p>
     <a href="/admin/backup.zip" class="btn btn-primary" download>{{ me.t("Download backup") }}</a>
     <p class="form-hint" style="margin-top: 1rem">
-        {{ me.t("To restore it, stop Bloogla, unpack the .zip into the folder Bloogla runs in, and start it again. On another server, enter the mail server password again and turn two-factor login back on: both are locked with a key that never leaves this server.") }}
+        {{ me.t("Restore it below. On another server, enter the mail server password again and turn two-factor login back on after restoring: both are locked with a key that never leaves this server.") }}
     </p>
 
     <form hx-post="/admin/settings/backup" hx-target="find .form-status" hx-swap="innerHTML" style="margin-top: 1.5rem">
@@ -281,6 +281,7 @@
         <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
     </form>
 </section>
+{% include "restore.html" %}
 </div>
 
 <div data-tab-panel="updates">

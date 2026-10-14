@@ -1,9 +1,14 @@
 use std::env;
 use std::net::IpAddr;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
+    /// The folder the site lives in (`data/`, `uploads/`): the one Bloogla
+    /// was started from. Tests use a temporary folder, so restoring a backup
+    /// in a test never touches a real site.
+    pub folder: PathBuf,
     pub host: IpAddr,
     pub port: u16,
     pub production: bool,
@@ -27,6 +32,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             database_url: "sqlite://data/bloogla.db?mode=rwc".to_string(),
+            folder: PathBuf::from("."),
             host: IpAddr::from([0, 0, 0, 0]),
             port: 8080,
             production: false,

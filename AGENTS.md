@@ -28,7 +28,7 @@ updates itself, so a mistake can cost someone their site, not just a red test.
 - **No overengineering.** Build what was asked, the simplest way that is
   correct. No speculative options, settings or "for later" code; no new
   layer or helper unless it removes duplication that exists now. The
-  finished feature still includes its test, Turkish text and docs: those
+  finished feature still includes its test, translations and docs: those
   aren't extras (see "Done means").
 - **Follow the structure.** New code goes where "Where things are" says;
   copy the shape of the nearest similar screen or service. Add a new folder
@@ -64,7 +64,7 @@ built file by hand.
 - `src/handlers/site/` public pages, rendered by themes (Tera, loaded at runtime from `themes/`)
 - `src/db/` queries; `src/db/settings.rs` is the typed `Settings` struct (all settings + defaults)
 - `src/services/` email, backups, themes, updates (GitHub check, signed self-update, restart)
-- `src/i18n/` languages: `tr.rs` and `lt.rs` map English text → Turkish and Lithuanian; `mod.rs` has `THEME_STRINGS`
+- `src/i18n/` languages: `de.rs`, `fr.rs`, `lt.rs` and `tr.rs` map English text → German, French, Lithuanian and Turkish; `mod.rs` has `THEME_STRINGS`
 - `src/tests/` full-request tests with `TestSite` (fresh DB per test)
 - `admin/static/js/admin.js` shared admin behaviour, documented at the top of the file
 - `themes/{default,story,gazette}` bundled themes, embedded and installed on start
@@ -92,7 +92,9 @@ Say plainly what you could not check (no browser, no real domain, no Linux).
 
 - **Every interface string is translated.** Admin templates use
   `me.t("English text")` / `me.tv(...)` / `me.count(...)`; add a line to each
-  language file (`src/i18n/tr.rs`, `src/i18n/lt.rs`). `cargo test` lists missing ones. Theme text goes through
+  language file in `src/i18n/` (`de.rs`, `fr.rs`, `lt.rs`, `tr.rs`). `cargo test` lists missing ones. Every
+  language uses the polite, formal "you" (Sie, vous, siz, jūs), warm but never
+  informal. Theme text goes through
   `THEME_STRINGS` ids (`{{ t.back_to_all_posts }}`), because Tera can't look up
   keys containing dots.
 - **No inline scripts or `on*=` handlers in admin templates.** The admin CSP
@@ -191,7 +193,16 @@ People update with one click and can't fix things by hand. After any update:
 - **Accessibility:** every field has a label, everything works with the
   keyboard, pop-ups keep focus inside and give it back, images have alt text,
   text keeps enough contrast in light and dark mode.
-- **Motion:** keep animations subtle and respect `prefers-reduced-motion`.
+- **Motion:** smooth, premium-feeling motion is part of Bloogla: page changes,
+  tabs, new items and hovers should glide, never jump. Moving between pages,
+  the frame (header, sidebar) stays still and only the content changes: the
+  old content fades out quickly, then the new one rises in (see "MOTION" in
+  `admin/static/css/style.css`). Never let two pages show at once (a plain
+  crossfade looks blurry) and don't scale text. Motion means something, the
+  same everywhere: a shake is "no" (only for what someone typed), a check
+  drawing itself is "done", rows close up when removed, pop-ups rise in.
+  Reuse these (`shake`, `showDone` in `admin.js`) rather than inventing new
+  ones. Always respect `prefers-reduced-motion`.
 - **The terminal window:** what the person running Bloogla sees goes through
   `app::console` (start screen, `activity_t` news lines, `failed`), translated
   like the admin. In Docker/systemd it falls back to log lines by itself;

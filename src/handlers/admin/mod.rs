@@ -53,6 +53,7 @@ macro_rules! templates_answer_requests {
 templates_answer_requests!(
     auth::LoginTemplate,
     auth::LoginCodeTemplate,
+    backup::RestoreTemplate,
     comments::CommentsTemplate,
     dashboard::DashboardTemplate,
     media::MediaTemplate,

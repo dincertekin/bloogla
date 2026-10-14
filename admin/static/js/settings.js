@@ -77,6 +77,24 @@
         save();
     });
 
+    // Moving a link up or down slides the rows to their new places instead of
+    // jumping: note where each row is, move it, then animate from there.
+    const lessMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const glide = (move) => {
+        const all = [...rows.querySelectorAll(".menu-row")];
+        const before = new Map(all.map((row) => [row, row.getBoundingClientRect().top]));
+        move();
+        if (lessMotion.matches) return;
+        for (const row of all) {
+            const distance = before.get(row) - row.getBoundingClientRect().top;
+            if (!distance) continue;
+            row.animate([{ transform: `translateY(${distance}px)` }, { transform: "none" }], {
+                duration: 320,
+                easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+            });
+        }
+    };
+
     rows.addEventListener("click", (event) => {
         const button = event.target.closest("button");
         if (!button) return;
@@ -84,10 +102,10 @@
         if (button.hasAttribute("data-menu-remove")) {
             row.remove();
         } else if (button.dataset.menuMove === "-1" && row.previousElementSibling) {
-            row.previousElementSibling.before(row);
+            glide(() => row.previousElementSibling.before(row));
             button.focus();
         } else if (button.dataset.menuMove === "1" && row.nextElementSibling) {
-            row.nextElementSibling.after(row);
+            glide(() => row.nextElementSibling.after(row));
             button.focus();
         }
         save();

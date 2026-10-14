@@ -1,0 +1,17 @@
+{#- Links to the older and newer post, at the end of a post. -#}
+{% if previous_post or next_post %}
+<nav class="post-nav" aria-label="{{ t.more_stories }}">
+    {% if previous_post %}
+    <a class="post-nav-previous" href="{{ previous_post.url }}" rel="prev">
+        <span>&larr; {{ t.previous_post }}</span>
+        <strong>{{ previous_post.title }}</strong>
+    </a>
+    {% endif %}
+    {% if next_post %}
+    <a class="post-nav-next" href="{{ next_post.url }}" rel="next">
+        <span>{{ t.next_post }} &rarr;</span>
+        <strong>{{ next_post.title }}</strong>
+    </a>
+    {% endif %}
+</nav>
+{% endif %}

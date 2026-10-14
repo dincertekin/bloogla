@@ -26,7 +26,7 @@
             <form method="POST" action="/admin/login/code">
                 <div class="form-group" style="margin-bottom: 1.5rem">
                     <label for="code">{{ lang.t("Code") }}</label>
-                    <input type="text" id="code" name="code" class="form-control code-input" style="max-width: none" required
+                    <input type="text" id="code" name="code" class="form-control code-input{% if wrong_input %} is-invalid shake{% endif %}" style="max-width: none" required
                         inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" spellcheck="false"
                         autofocus />
                     <span class="form-hint">{{ lang.t("Lost your phone? Enter one of your recovery codes instead.") }}</span>

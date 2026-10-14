@@ -1,0 +1,1175 @@
+/* Brief: clear and professional news for a business or project, with a strong logo header.
+   Built from this theme's colours and layout plus the parts every bundled
+   theme shares (post text, code, comments). Colours are variables; the dark set
+   is used when the visitor's device is in dark mode, or when Appearance says
+   "Always dark". */
+
+/* Fonts (SIL Open Font License, see ../fonts/OFL.txt). Each file covers some
+   letters; browsers only download the ones a page uses. */
+@font-face {
+    font-family: "Brief Sans";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url("../fonts/public-sans-latin-ext-wght-normal.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "Brief Sans";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url("../fonts/public-sans-latin-wght-normal.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+    --font-ui: "Brief Sans", "Segoe UI", Arial, sans-serif;
+    --font-heading: var(--font-ui);
+    --font-body: var(--font-ui);
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --radius: 8px;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --text: #0b1f33;
+    --text-body: #1e3247;
+    --muted: #4f6275;
+    --line: #e3e8ee;
+    --line-strong: #cdd6df;
+    --band: #f4f7fa;
+    --code-bg: #f4f7fa;
+    --code-text: #0b1f33;
+    --code-comment: #6b7280;
+    --code-keyword: #7c3aed;
+    --code-string: #047857;
+    --code-number: #b45309;
+    --code-function: #2563eb;
+    --code-type: #0e7490;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-scheme="light"]) {
+        --bg: #0b1622;
+        --surface: #112131;
+        --text: #e8eef4;
+        --text-body: #c9d5e0;
+        --muted: #93a5b6;
+        --line: #1e2f40;
+        --line-strong: #2a3d50;
+        --band: #0f1d2b;
+        --code-bg: #112131;
+        --code-text: #e8eef4;
+        --code-comment: #9ca3af;
+        --code-keyword: #c4b5fd;
+        --code-string: #6ee7b7;
+        --code-number: #fcd34d;
+        --code-function: #93c5fd;
+        --code-type: #67e8f9;
+    }
+}
+
+:root[data-scheme="dark"] {
+    --bg: #0b1622;
+    --surface: #112131;
+    --text: #e8eef4;
+    --text-body: #c9d5e0;
+    --muted: #93a5b6;
+    --line: #1e2f40;
+    --line-strong: #2a3d50;
+    --band: #0f1d2b;
+    --code-bg: #112131;
+    --code-text: #e8eef4;
+    --code-comment: #9ca3af;
+    --code-keyword: #c4b5fd;
+    --code-string: #6ee7b7;
+    --code-number: #fcd34d;
+    --code-function: #93c5fd;
+    --code-type: #67e8f9;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-ui);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+h1,
+h2,
+h3 {
+    letter-spacing: -0.02em;
+}
+
+.container {
+    width: 100%;
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+/* ---- Header: logo and name, a menu, maybe a button ---- */
+
+.site-header {
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+}
+
+.header-content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 2rem;
+    min-height: 76px;
+    padding: 0.75rem 0;
+}
+
+.site-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1.75rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.site-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+}
+
+.site-nav a:hover {
+    color: var(--accent);
+}
+
+/* Appearance → "Show the last menu link as a button". */
+.site-nav .nav-button {
+    padding: 0 1.15rem;
+    border-radius: var(--radius);
+    background: var(--text);
+    color: var(--bg);
+    font-weight: 600;
+}
+
+.site-nav .nav-button:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+/* ---- A band with the page's heading ---- */
+
+.band {
+    background: var(--band);
+    border-bottom: 1px solid var(--line);
+    padding: 2.75rem 0;
+}
+
+.band h1 {
+    font-size: 2.75rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin: 0;
+}
+
+.band p {
+    margin: 0.6rem 0 0;
+    font-size: 1.125rem;
+    color: var(--muted);
+}
+
+/* ---- Main ---- */
+
+.main-content {
+    flex: 1 0 auto;
+    padding-top: 2.5rem;
+    padding-bottom: 4rem;
+}
+
+.kicker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.kicker .topic {
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.kicker time {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+/* The newest story with the next few beside it. */
+.front {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 2.5rem;
+    margin-bottom: 3rem;
+}
+
+.lead {
+    grid-column: span 7;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.lead img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius);
+    background: var(--line);
+}
+
+.lead h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.lead-excerpt {
+    color: var(--muted);
+    font-size: 1.0625rem;
+}
+
+.lead-excerpt p {
+    margin: 0;
+}
+
+.briefs {
+    grid-column: span 5;
+    display: flex;
+    flex-direction: column;
+}
+
+.front:not(:has(.briefs)) .lead {
+    grid-column: 1 / -1;
+}
+
+.brief {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.brief:first-child {
+    padding-top: 0;
+}
+
+.brief h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 0;
+}
+
+.lead h2 a:hover,
+.brief h3 a:hover,
+.row h2 a:hover {
+    color: var(--accent);
+}
+
+/* Older news: plain rows. */
+.rows {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--line);
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr);
+    gap: 1.5rem;
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.row h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 0 0 0.3rem;
+}
+
+.row-excerpt {
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.row-excerpt p {
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .front {
+        grid-template-columns: 1fr;
+    }
+
+    .lead,
+    .briefs {
+        grid-column: 1 / -1;
+    }
+
+    .row {
+        grid-template-columns: 1fr;
+        gap: 0.4rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 0 1.25rem;
+    }
+
+    .band h1 {
+        font-size: 2rem;
+    }
+
+    .lead h2 {
+        font-size: 1.6rem;
+    }
+}
+
+/* ---- One story ---- */
+
+.single {
+    max-width: 46rem;
+    margin: 0 auto;
+}
+
+.single-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    margin-bottom: 1.75rem;
+}
+
+.single-title {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1.12;
+    margin: 0;
+}
+
+.single-cover {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    margin-bottom: 2rem;
+}
+
+.post-body {
+    --body-size: 1.0625rem;
+}
+
+@media (max-width: 600px) {
+    .single-title {
+        font-size: 1.9rem;
+    }
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 2rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+/* ---- Footer ---- */
+
+.site-footer {
+    border-top: 1px solid var(--line);
+    background: var(--band);
+    padding: 2rem 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+.footer-content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+}
+
+.footer-content p {
+    margin: 0;
+}
+
+.footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.25rem;
+}
+
+.site-footer a {
+    font-weight: 600;
+}
+
+.site-footer a:hover {
+    color: var(--text);
+}
+
+.search-form input {
+    font: inherit;
+    min-height: 44px;
+    width: 15rem;
+    padding: 0 0.9rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+}
+
+/* ---- Everything inside a post: text, images, code, tables ---- */
+
+.post-body {
+    font-family: var(--font-body);
+    font-size: var(--body-size, 1.125rem);
+    line-height: 1.75;
+    color: var(--text-body);
+    overflow-wrap: break-word;
+}
+
+.post-body p,
+.post-body ul,
+.post-body ol,
+.post-body blockquote,
+.post-body table,
+.post-body pre,
+.post-body figure {
+    margin: 0 0 1.4rem;
+}
+
+.post-body h2,
+.post-body h3,
+.post-body h4 {
+    font-family: var(--font-heading);
+    color: var(--text);
+    line-height: 1.3;
+    margin: 2.25rem 0 0.75rem;
+}
+
+.post-body h2 {
+    font-size: 1.55em;
+}
+
+.post-body h3 {
+    font-size: 1.25em;
+}
+
+.post-body img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    margin: 2rem 0;
+}
+
+.post-body ul,
+.post-body ol {
+    padding-left: 1.5rem;
+}
+
+.post-body li {
+    margin-bottom: 0.35rem;
+}
+
+.post-body blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 1.1rem;
+    color: var(--muted);
+    font-style: italic;
+}
+
+.post-body blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+.post-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.post-body a:hover {
+    color: var(--accent-hover);
+}
+
+.post-body table {
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+    font-size: 0.95em;
+}
+
+.post-body th,
+.post-body td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.9rem;
+    text-align: left;
+}
+
+.post-body th {
+    background: var(--code-bg);
+}
+
+.post-body hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 2.5rem 0;
+}
+
+.post-body code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+}
+
+.post-body :not(pre) > code {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+}
+
+.post-body pre {
+    position: relative;
+    background: var(--code-bg);
+    color: var(--code-text);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    line-height: 1.6;
+    font-size: 0.95rem;
+    tab-size: 4;
+}
+
+.copy-code {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font: 600 0.75rem var(--font-ui);
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.post-body pre:hover .copy-code,
+.copy-code:focus-visible {
+    opacity: 1;
+}
+
+@media (hover: none) {
+    .copy-code {
+        opacity: 1;
+    }
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype {
+    color: var(--code-comment);
+    font-style: italic;
+}
+
+.token.keyword,
+.token.attr-name,
+.token.selector,
+.token.important,
+.token.atrule {
+    color: var(--code-keyword);
+}
+
+.token.string,
+.token.char,
+.token.attr-value,
+.token.regex,
+.token.inserted {
+    color: var(--code-string);
+}
+
+.token.number,
+.token.boolean,
+.token.constant,
+.token.symbol,
+.token.deleted {
+    color: var(--code-number);
+}
+
+.token.function,
+.token.macro,
+.token.property {
+    color: var(--code-function);
+}
+
+.token.class-name,
+.token.builtin,
+.token.tag {
+    color: var(--code-type);
+}
+
+.token.punctuation,
+.token.operator {
+    color: var(--muted);
+}
+
+/* Shortcodes and embeds a writer adds to a post. */
+.embed {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    margin: 2rem 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--line);
+}
+
+.embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.post-body audio.media,
+.post-body video.media {
+    display: block;
+    width: 100%;
+    margin: 2rem 0;
+    border-radius: var(--radius);
+}
+
+.toc {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 0.95em;
+}
+
+.toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.toc li {
+    margin: 0.25rem 0;
+}
+
+.toc .toc-sub {
+    padding-left: 1rem;
+}
+
+.note {
+    margin: 1.5rem 0;
+    padding: 0.9rem 1.1rem;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--soft);
+}
+
+.note-warning {
+    border-left-color: #d97706;
+    background: color-mix(in srgb, #f59e0b 14%, var(--surface));
+}
+
+/* ---- Previous and next post ---- */
+
+.post-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--font-ui);
+}
+
+.post-nav a {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: 44px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.post-nav a:hover strong {
+    color: var(--accent);
+}
+
+.post-nav span {
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+.post-nav strong {
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.post-nav-next {
+    grid-column: 2;
+    text-align: right;
+    align-items: flex-end;
+}
+
+/* ---- Pagination ---- */
+
+.pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2.5rem;
+    font-family: var(--font-ui);
+}
+
+.pagination a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.pagination a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.pagination-status {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* ---- Comments ---- */
+
+.comments {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--font-ui);
+}
+
+.comments-title {
+    font-family: var(--font-heading);
+    font-size: 1.3rem;
+    margin: 0 0 1.25rem;
+}
+
+.comment {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.comment-meta {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    margin-bottom: 0.35rem;
+}
+
+.comment-meta time {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.comment-body p {
+    margin: 0 0 0.5rem;
+    overflow-wrap: break-word;
+}
+
+.comment-notice {
+    margin: 1.25rem 0 0;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    background: var(--soft);
+    font-size: 0.95rem;
+    animation: fade-in 0.3s ease;
+}
+
+.comment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.comment-form h3 {
+    font-size: 1.05rem;
+    margin: 0;
+}
+
+.comment-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.comment-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.comment-optional {
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.comment-form input,
+.comment-form textarea {
+    font: inherit;
+    font-weight: 400;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.comment-form input:focus,
+.comment-form textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.comment-trap {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.comment-form button {
+    align-self: flex-start;
+    font: inherit;
+    font-weight: 700;
+    min-height: 44px;
+    padding: 0 1.4rem;
+    border: 0;
+    border-radius: var(--button-radius, var(--radius));
+    background: var(--accent);
+    color: var(--on-accent);
+    cursor: pointer;
+}
+
+.comment-form button:hover {
+    background: var(--accent-hover);
+}
+
+.comment-form.is-sending button {
+    opacity: 0.7;
+    cursor: progress;
+}
+
+@media (max-width: 640px) {
+    .comment-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .post-body pre {
+        font-size: 0.875rem;
+    }
+}
+
+/* ---- Small shared pieces ---- */
+
+/* Text only screen readers (and search engines) read. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.skip-link {
+    position: absolute;
+    left: -10000px;
+}
+
+.skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+    z-index: 10;
+    background: var(--surface);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.site-logo {
+    display: block;
+    height: var(--logo-height, 40px);
+    width: auto;
+    max-width: 240px;
+    object-fit: contain;
+}
+
+.empty-state {
+    color: var(--muted);
+}
+
+/* ---- Motion: gentle, and none for people who ask for less ---- */
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+
+/* ---- Moving between pages ----
+   The header and footer stay still; only the page's content changes. The old
+   content steps back and fades out quickly, then the new content rises softly
+   into place. The two barely overlap, so text never shows twice (a plain
+   crossfade does, and looks blurry), and nothing is scaled, so text stays
+   sharp. Browsers without view transitions simply show the new page. */
+@view-transition {
+    navigation: auto;
+}
+
+#main {
+    view-transition-name: page;
+}
+
+/* Everything outside the content changes at once: it's the same on every page. */
+::view-transition-old(root) {
+    display: none;
+}
+
+::view-transition-new(root) {
+    animation: none;
+}
+
+/* The content area takes its new size at once instead of stretching. */
+::view-transition-group(page) {
+    animation: none;
+}
+
+::view-transition-old(page) {
+    animation: page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(page) {
+    animation: page-in 340ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
+}
+
+@keyframes page-out {
+    to {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+@keyframes page-in {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+}
+
+/* ---- Small things that answer the hand ---- */
+
+a,
+button,
+input,
+textarea {
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease,
+        box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+button:active,
+.pagination a:active {
+    transform: translateY(1px);
+}
+
+/* Pictures ease in a little under the pointer, inside their rounded frame. */
+.lead > a:first-child {
+    display: block;
+    overflow: hidden;
+    border-radius: var(--radius);
+}
+
+.lead > a:first-child img {
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lead:hover > a:first-child img {
+    transform: scale(1.04);
+}
+
+/* The heading band under the header moves with the page's content. */
+.band {
+    view-transition-name: band;
+}
+
+::view-transition-group(band) {
+    animation: none;
+}
+
+::view-transition-old(band) {
+    animation: page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(band) {
+    animation: page-in 340ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
+}
+
+/* ---- The comment button: a spinner while sending, then a check that draws
+   itself; a shake when the comment isn't accepted (see comments.js) ---- */
+
+.comment-form button {
+    position: relative;
+}
+
+.comment-form.is-sending button,
+.comment-form.is-done button {
+    color: transparent;
+    opacity: 1;
+}
+
+.comment-form.is-sending button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1em;
+    height: 1em;
+    border: 2px solid var(--ink, currentColor);
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+.button-check {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.3em;
+    height: 1.3em;
+    fill: none;
+    stroke: var(--ink, currentColor);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.button-check path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: draw-check 0.36s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes draw-check {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes shake {
+    0%, 100% { transform: none; }
+    15% { transform: translateX(-8px); }
+    30% { transform: translateX(7px); }
+    45% { transform: translateX(-5px); }
+    60% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+}
+
+.shake {
+    animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* "Thanks! Your comment…" rises softly into place. */
+.comment-notice {
+    animation: notice-in 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes notice-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}

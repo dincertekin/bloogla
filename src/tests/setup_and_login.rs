@@ -176,3 +176,61 @@ async fn every_admin_screen_opens() {
         .body
         .contains("Get your site ready"));
 }
+
+#[tokio::test]
+async fn a_wrong_password_shakes_the_field_but_waiting_does_not() {
+    let mut site = TestSite::with_owner().await;
+    site.new_visitor();
+    let field = r#"id="password" name="password" class="form-control is-invalid shake""#;
+    let wrong = site.sign_in(ADMIN_EMAIL, "not-the-password").await;
+    assert!(wrong.body.contains(field), "a wrong password shakes");
+
+    // After too many tries the page says so calmly.
+    for _ in 0..5 {
+        site.sign_in(ADMIN_EMAIL, "not-the-password").await;
+    }
+    let waiting = site.sign_in(ADMIN_EMAIL, "not-the-password").await;
+    assert_eq!(waiting.status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(!waiting.body.contains("shake"));
+}
+
+#[tokio::test]
+async fn every_password_field_gets_a_translated_eye_button() {
+    // admin.js adds the eye to each password field and labels it with the
+    // texts on <body>. Every page with a password field must carry them:
+    // either through the admin layout or on its own <body>.
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/admin/templates");
+    let layout = std::fs::read_to_string(format!("{dir}/layout.html")).unwrap();
+    assert!(layout.contains("data-show-password=") && layout.contains("data-hide-password="));
+    for entry in std::fs::read_dir(dir).unwrap().flatten() {
+        let source = std::fs::read_to_string(entry.path()).unwrap();
+        if source.contains(r#"type="password""#)
+            && !source.contains(r#"{% extends "layout.html" %}"#)
+        {
+            assert!(
+                source.contains("data-show-password=") && source.contains("data-hide-password="),
+                "{} has a password field but no eye labels on <body>",
+                entry.path().display()
+            );
+        }
+    }
+
+    // Test sites take turns, so the setup page's site is dropped first.
+    {
+        let mut site = TestSite::new().await;
+        let setup = site.get(&format!("/setup?code={SETUP_CODE}")).await.body;
+        assert!(setup.contains(r#"data-show-password="Show password""#));
+    }
+    let mut site = TestSite::with_owner().await;
+    assert!(site
+        .get("/admin/settings")
+        .await
+        .body
+        .contains(r#"data-hide-password="Hide password""#));
+    site.new_visitor();
+    assert!(site
+        .get("/admin/login")
+        .await
+        .body
+        .contains(r#"data-show-password="Show password""#));
+}

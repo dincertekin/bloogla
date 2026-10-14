@@ -1,0 +1,49 @@
+<!-- Settings → Backup → Restore. Also sent alone after "Check backup" and
+     "Cancel" (handlers/admin/backup.rs). -->
+<section class="card" id="restore" style="margin-top: 1.5rem">
+    <h2 class="section-title">{{ me.t("Restore") }}</h2>
+
+    {% if let Some(error) = restore.error %}
+    <div class="alert alert-error">{{ me.t(error) }}</div>
+    {% endif %}
+
+    {% if let Some(backup) = restore.backup %}
+    <p style="margin-bottom: 0.5rem">
+        {% if let Some((title, date)) = backup.newest_post %}
+        {{ me.tv2("The newest post in this backup is “{title}”, from {date}.", title, date) }}
+        {% else %}
+        {{ me.t("This backup has no posts.") }}
+        {% endif %}
+    </p>
+    <p style="margin-bottom: 1rem">
+        {{ me.count(backup.posts, "{n} post", "{n} posts") }} ·
+        {{ me.count(backup.pages, "{n} page", "{n} pages") }} ·
+        {{ me.count(backup.people, "{n} person", "{n} people") }} ·
+        {{ me.count(backup.images, "{n} image", "{n} images") }}
+    </p>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Everything on your site now (posts, pages, settings, people and images) is replaced by this backup. A backup of your site as it is now is saved first, in the data/backups folder.") }}
+    </p>
+    <div id="restore-status"></div>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+        <button type="button" class="btn btn-primary" hx-post="/admin/backup/restore" hx-target="#restore-status"
+            hx-swap="innerHTML"
+            hx-confirm="{{ me.t("Restore this backup? Everything on your site now is replaced by it, and your site restarts.") }}">{{ me.t("Restore this backup") }}</button>
+        <button type="button" class="btn btn-secondary" hx-post="/admin/backup/restore/cancel" hx-target="#restore"
+            hx-swap="outerHTML">{{ me.t("Cancel") }}</button>
+    </div>
+    {% else %}
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Put your site back the way it was in a backup .zip (the file Download backup gives you). You'll see what's in it before anything changes.") }}
+    </p>
+    <form hx-post="/admin/backup/restore/check" hx-encoding="multipart/form-data" hx-target="#restore"
+        hx-swap="outerHTML">
+        <div class="form-group">
+            <label for="restore-file">{{ me.t("Backup file") }}</label>
+            <input type="file" id="restore-file" name="backup" class="form-control" accept=".zip,application/zip"
+                required />
+        </div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Check backup") }}</button>
+    </form>
+    {% endif %}
+</section>

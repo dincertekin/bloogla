@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+  <!-- Preview for Admin → Appearance: round menu buttons, a welcome card, rounded cards. -->
+  <rect width="640" height="400" fill="#fbf6ee"/>
+  <text x="28" y="38" font-family="Georgia, serif" font-weight="700" font-size="20" fill="#2d2620">Atelier</text>
+  <rect x="388" y="20" width="64" height="26" rx="13" fill="#b4441c"/>
+  <rect x="460" y="20" width="64" height="26" rx="13" fill="#f1e7d8"/>
+  <rect x="532" y="20" width="80" height="26" rx="13" fill="#f1e7d8"/>
+  <rect x="28" y="66" width="584" height="110" rx="22" fill="#f3e6d3"/>
+  <circle cx="98" cy="121" r="38" fill="#d9c2a5"/>
+  <rect x="160" y="100" width="300" height="18" rx="4" fill="#2d2620"/>
+  <rect x="160" y="130" width="360" height="8" rx="2" fill="#6b5a4a"/>
+  <rect x="160" y="144" width="280" height="8" rx="2" fill="#6b5a4a"/>
+  <g>
+    <rect x="28" y="196" width="182" height="184" rx="18" fill="#ffffff"/>
+    <rect x="229" y="196" width="182" height="184" rx="18" fill="#ffffff"/>
+    <rect x="430" y="196" width="182" height="184" rx="18" fill="#ffffff"/>
+    <path d="M28 214a18 18 0 0 1 18-18h146a18 18 0 0 1 18 18v86H28z" fill="#e8cdb0"/>
+    <path d="M229 214a18 18 0 0 1 18-18h146a18 18 0 0 1 18 18v86H229z" fill="#dcc7a3"/>
+    <path d="M430 214a18 18 0 0 1 18-18h146a18 18 0 0 1 18 18v86H430z" fill="#c9d1b0"/>
+    <rect x="44" y="316" width="60" height="7" rx="2" fill="#b4441c"/>
+    <rect x="245" y="316" width="60" height="7" rx="2" fill="#b4441c"/>
+    <rect x="446" y="316" width="60" height="7" rx="2" fill="#b4441c"/>
+    <rect x="44" y="332" width="140" height="12" rx="3" fill="#2d2620"/>
+    <rect x="245" y="332" width="120" height="12" rx="3" fill="#2d2620"/>
+    <rect x="446" y="332" width="130" height="12" rx="3" fill="#2d2620"/>
+  </g>
+</svg>

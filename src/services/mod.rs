@@ -5,5 +5,6 @@
 
 pub mod backup;
 pub mod email;
+pub mod restore;
 pub mod themes;
 pub mod updates;

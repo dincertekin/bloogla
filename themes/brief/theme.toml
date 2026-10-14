@@ -1,0 +1,55 @@
+name = "Brief"
+author = "Bloogla Team"
+version = "1.0.0"
+description = "Clear, professional news for a business or project: a strong logo header, a lead story and a column of short news."
+preview_image = "static/preview.svg"
+
+# Shown in Admin → Appearance; templates read them as theme_options.<name>.
+[[options]]
+name = "logo"
+label = "Logo"
+type = "image"
+default = ""
+hint = "Shown instead of the site title. A wide picture about 80 pixels tall looks sharpest."
+
+[[options]]
+name = "color_scheme"
+label = "Light or dark"
+type = "select"
+choices = ["Follow the visitor's device", "Always light", "Always dark"]
+default = "Follow the visitor's device"
+hint = "Following the device shows your site dark to visitors who use dark mode."
+
+[[options]]
+name = "accent_color"
+label = "Accent color"
+type = "color"
+default = "#0057b8"
+hint = "Used for links, buttons and highlights."
+
+[[options]]
+name = "footer_text"
+label = "Footer text"
+type = "text"
+default = ""
+hint = "Shown at the bottom of every page. Leave empty to show © and the site name."
+
+[[options]]
+name = "show_powered_by"
+label = "Show “Powered by Bloogla”"
+type = "checkbox"
+default = true
+
+[[options]]
+name = "news_title"
+label = "Heading above the posts"
+type = "text"
+default = ""
+hint = "A large heading on the home page, like “News”. Leave empty to show none."
+
+[[options]]
+name = "last_link_as_button"
+label = "Show the last menu link as a button"
+type = "checkbox"
+default = true
+hint = "Good for a “Contact us” link: add it last to the menu in Settings → Site."

@@ -1,36 +1,30 @@
 {% extends "templates/layout.html" %}
 
-{% block title %}{{ t.tag_tag | replace(from="{tag}", to="#" ~ tag_name) }} - {{ blog_name }}{% endblock %}
+{% block title %}{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}{% endblock %}
 
 {% block content %}
-<div class="layout-grid">
-    <section class="posts-list">
-        <header class="page-header">
-            <h1 class="page-title">{% set tag_escaped = tag_name | escape %}{% set tag_html = '<span class="tag-highlight">#' ~ tag_escaped ~ '</span>' %}{{ t.posts_tagged_with_tag | replace(from="{tag}", to=tag_html) | safe }}</h1>
-        </header>
+<header>
+    <h1 class="page-title">{% set tag_escaped = tag_name | escape %}{% set tag_html = '<span class="tag-highlight">' ~ tag_escaped ~ '</span>' %}{{ t.posts_tagged_with_tag | replace(from="{tag}", to=tag_html) | safe }}</h1>
+</header>
 
-        {% for post in posts %}
-        {% include "templates/post_card.html" %}
-        {% else %}
-        <p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
-        {% endfor %}
-
-        {% include "templates/pagination.html" %}
-    </section>
-
-    <aside class="sidebar">
-        {% if tags %}
-        <div class="widget">
-            <h3 class="widget-title">{{ t.all_tags }}</h3>
-            <div class="tag-cloud">
-                {% for tag in tags %}
-                <a href="/tag/{{ tag.slug }}" class="tag-badge {% if tag.name == tag_name %}active{% endif %}">
-                    #{{ tag.name }}
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-    </aside>
+<div class="card-grid">
+    {% for post in posts %}
+    {% include "templates/post_card.html" %}
+    {% else %}
+    <p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>
+    {% endfor %}
 </div>
+
+{% include "templates/pagination.html" %}
+
+{% if tags %}
+<section class="topics" aria-labelledby="topics-title">
+    <h2 id="topics-title">{{ t.all_tags }}</h2>
+    <ul class="tag-list">
+        {% for tag in tags %}
+        <li><a href="/tag/{{ tag.slug }}"{% if tag.name == tag_name %} class="active" aria-current="page"{% endif %}>{{ tag.name }}</a></li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
 {% endblock %}

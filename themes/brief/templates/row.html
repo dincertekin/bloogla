@@ -1,0 +1,11 @@
+{# One older story as a row: date on the left, title and first words on the right. #}
+<article class="row">
+    <div class="kicker">
+        {% if post.tags %}<span class="topic">{{ post.tags[0].name }}</span>{% endif %}
+        <time>{{ post.created_at }}</time>
+    </div>
+    <div>
+        <h2><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <div class="row-excerpt">{{ post.content | safe }}</div>
+    </div>
+</article>

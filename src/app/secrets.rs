@@ -87,6 +87,12 @@ pub fn decrypt(stored: &str) -> Option<String> {
     String::from_utf8(plain).ok()
 }
 
+/// Tests that store a secret use this fixed key instead of `data/secret.key`.
+#[cfg(test)]
+pub fn use_test_key() {
+    use_key(&[7u8; 32]);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -138,3 +138,18 @@ async fn a_correct_password_does_not_clear_failed_two_factor_guesses() {
         StatusCode::TOO_MANY_REQUESTS
     );
 }
+
+#[tokio::test]
+async fn the_password_to_turn_off_two_factor_has_a_visible_label() {
+    let mut site = TestSite::with_owner().await;
+    // Two-factor login on: a stored (encrypted) authenticator key.
+    crate::app::secrets::use_test_key();
+    sqlx::query("UPDATE users SET totp_secret = ?")
+        .bind(crate::app::secrets::encrypt("00112233445566778899"))
+        .execute(&site.pool)
+        .await
+        .unwrap();
+    let profile = site.get("/admin/profile").await.body;
+    assert!(profile.contains(r#"<label for="two-factor-off-password">Current password</label>"#));
+    assert!(profile.contains(r#"id="two-factor-off-password" name="password""#));
+}

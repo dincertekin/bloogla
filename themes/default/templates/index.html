@@ -11,38 +11,63 @@
 {% endblock %}
 
 {% block content %}
-<div class="layout-grid">
-    <section class="posts-list">
-        {% if search_query %}
-        <h1 class="section-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
-        {% elif tag_name %}
-        <h1 class="section-title">{{ t.posts_tagged_with_hashtag | replace(from="{tag}", to=tag_name) }}</h1>
-        {% else %}
-        {# The page's main heading, for search engines and screen readers;
-           the site name is already shown in the header. #}
-        <h1 class="visually-hidden">{{ blog_name }}</h1>
-        {% endif %}
+{# The first page of the home page shows the newest post large. #}
+{% set featured = search_query == "" and tag_name is not defined and pagination.current == 1 %}
 
-        {% for post in posts %}
-        {% include "templates/post_card.html" %}
-        {% else %}
-        <p class="empty-state">{{ t.no_posts_found }}</p>
-        {% endfor %}
+{% if search_query %}
+<h1 class="section-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>
+{% elif tag_name %}
+<h1 class="section-title">{{ t.posts_tagged_with_hashtag | replace(from="{tag}", to=tag_name) }}</h1>
+{% else %}
+{# The page's main heading, for search engines and screen readers;
+   the site name is already shown in the header. #}
+<h1 class="visually-hidden">{{ blog_name }}</h1>
+{% endif %}
 
-        {% include "templates/pagination.html" %}
-    </section>
-
-    <aside class="sidebar">
-        {% if tags %}
-        <div class="widget">
-            <h3 class="widget-title">{{ t.tags }}</h3>
-            <div class="tag-cloud">
-                {% for tag in tags %}
-                <a href="/tag/{{ tag.slug }}" class="tag-badge">#{{ tag.name }}</a>
-                {% endfor %}
-            </div>
+{% for post in posts %}
+{% if featured and loop.first %}
+<article class="featured">
+    {% if post.cover_image %}
+    <a class="featured-cover" href="{{ post.url }}" tabindex="-1" aria-hidden="true">
+        <img src="{{ post.cover_image }}" alt="" decoding="async" fetchpriority="high"
+            {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
+            {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="(max-width: 960px) 100vw, 640px"{% endif %} />
+    </a>
+    {% endif %}
+    <div class="featured-text">
+        {% if post.tags %}<a class="topic" href="/tag/{{ post.tags[0].slug }}">{{ post.tags[0].name }}</a>{% endif %}
+        <h2 class="featured-title"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <div class="featured-excerpt">{{ post.content | safe }}</div>
+        <div class="meta">
+            <time>{{ post.created_at }}</time>
+            <span aria-hidden="true">&middot;</span>
+            <span>{{ t.n_min_read | replace(from="{n}", to=post.reading_time ~ "") }}</span>
         </div>
-        {% endif %}
-    </aside>
+    </div>
+</article>
+{% endif %}
+{% else %}
+<p class="empty-state">{{ t.no_posts_found }}</p>
+{% endfor %}
+
+<div class="card-grid">
+    {% for post in posts %}
+    {% if featured and loop.first %}{# Shown large above. #}{% else %}
+    {% include "templates/post_card.html" %}
+    {% endif %}
+    {% endfor %}
 </div>
+
+{% include "templates/pagination.html" %}
+
+{% if featured and tags %}
+<section class="topics" aria-labelledby="topics-title">
+    <h2 id="topics-title">{{ t.tags }}</h2>
+    <ul class="tag-list">
+        {% for tag in tags %}
+        <li><a href="/tag/{{ tag.slug }}">{{ tag.name }}</a></li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
 {% endblock %}

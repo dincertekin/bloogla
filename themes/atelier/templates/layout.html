@@ -1,0 +1,56 @@
+{%- set scheme = theme_options.color_scheme | default(value="") -%}
+<!DOCTYPE html>
+<html lang="{{ lang }}"{% if scheme == "Always light" %} data-scheme="light"{% elif scheme == "Always dark" %} data-scheme="dark"{% endif %}>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ blog_name }}{% endblock %}</title>
+    {{ seo_head | safe }}
+    <link rel="preload" href="{{ theme_url }}/static/fonts/nunito-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">
+    {% include "templates/colors.html" %}
+</head>
+
+<body>
+    <a class="skip-link" href="#main">{{ t.skip_to_content }}</a>
+    <header class="site-header">
+        <div class="container header-content">
+            <a class="site-title" href="/">{% if theme_options.logo %}<img class="site-logo" src="{{ theme_options.logo }}" alt="{{ blog_name }}">{% else %}{{ blog_name }}{% endif %}</a>
+            {% if menu %}
+            <nav class="site-nav">
+                {% for item in menu %}
+                <a href="{{ item.url }}">{{ item.label }}</a>
+                {% endfor %}
+            </nav>
+            {% endif %}
+        </div>
+    </header>
+
+    <main id="main" class="container main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-content">
+            <form action="/search" method="GET" class="search-form" role="search">
+                <input type="search" name="q" placeholder="{{ t.search_posts }}" aria-label="{{ t.search_posts }}"
+                    value="{{ search_query }}" required />
+            </form>
+            <div class="footer-links">
+                <p>{% if theme_options.footer_text %}{{ theme_options.footer_text }}{% else %}&copy; {{ blog_name }}{% endif %}</p>
+                <a href="/rss.xml">RSS</a>
+                {% if theme_options.show_powered_by %}<span>{{ t.powered_by_name | replace(from="{name}", to='<a href="https://github.com/dincertekin/bloogla">Bloogla</a>') | safe }}</span>{% endif %}
+            </div>
+        </div>
+    </footer>
+
+    {# Syntax highlighting only on pages that contain code. #}
+    {% if content_html is defined and "<pre" in content_html %}
+    <script src="{{ theme_url }}/static/js/prism.js?v={{ asset_version }}" defer></script>
+    <script src="{{ theme_url }}/static/js/code.js?v={{ asset_version }}" defer
+        data-copy="{{ t.copy }}" data-copied="{{ t.copied }}" data-copy-failed="{{ t.copy_failed }}"></script>
+    {% endif %}
+</body>
+
+</html>

@@ -22,6 +22,8 @@ use tower_sessions::Session;
 pub struct LoginTemplate {
     pub lang: Lang,
     pub error: Option<String>,
+    /// The error is about what was typed: the password field shakes.
+    pub wrong_input: bool,
     /// Good news to show above the form (e.g. after a password reset).
     pub notice: Option<String>,
 }
@@ -118,6 +120,7 @@ pub async fn login_page(
     LoginTemplate {
         lang,
         error: None,
+        wrong_input: false,
         notice: query.reset.map(|_| {
             lang.t("Your new password is saved. Sign in with it.")
                 .to_string()
@@ -149,6 +152,7 @@ pub async fn login(
                     )
                     .into(),
                 ),
+                wrong_input: false,
                 notice: None,
             },
         )
@@ -201,6 +205,7 @@ pub async fn login(
     LoginTemplate {
         lang,
         error: Some(lang.t("Invalid email or password.").into()),
+        wrong_input: true,
         notice: None,
     }
     .into_response()
@@ -234,6 +239,8 @@ async fn pending_user(session: &Session) -> Option<i64> {
 pub struct LoginCodeTemplate {
     pub lang: Lang,
     pub error: Option<String>,
+    /// The code was wrong: the field shakes.
+    pub wrong_input: bool,
 }
 
 #[derive(Deserialize)]
@@ -249,6 +256,7 @@ pub async fn code_page(State(state): State<AppState>, session: Session) -> Respo
     LoginCodeTemplate {
         lang: settings::load(&state.pool).await.language,
         error: None,
+        wrong_input: false,
     }
     .into_response()
 }
@@ -282,6 +290,8 @@ pub async fn check_code(
             LoginCodeTemplate {
                 lang,
                 error: Some(lang.t(message).into()),
+                // "Too many tries" is said calmly; a wrong code shakes.
+                wrong_input: status != StatusCode::TOO_MANY_REQUESTS,
             },
         )
             .into_response()

@@ -1,0 +1,12 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{{ t.posts_tagged_with_tag | replace(from="{tag}", to=tag_name) }}</h1>
+
+{% include "templates/entries.html" %}
+{% if not posts %}<p class="empty-state">{{ t.no_posts_found_with_tag_tag | replace(from="{tag}", to=tag_name) }}</p>{% endif %}
+
+{% include "templates/pagination.html" %}
+{% endblock %}

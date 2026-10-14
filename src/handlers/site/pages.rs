@@ -227,6 +227,15 @@ async fn render_post(
     context.insert("seo_head", &seo_head);
     context.insert("content_html", &content_html);
 
+    // The older and newer post, for links at the end (empty on pages).
+    let (previous_post, next_post) = if post.is_page {
+        (None, None)
+    } else {
+        posts::neighbours(&state.pool, &post).await
+    };
+    context.insert("previous_post", &previous_post);
+    context.insert("next_post", &next_post);
+
     // Comments are for posts only. Themes check `comments_enabled`.
     let comments_enabled = !post.is_page && site.comments != CommentMode::Off;
     context.insert("comments_enabled", &comments_enabled);

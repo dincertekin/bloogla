@@ -1,0 +1,88 @@
+{% extends "templates/layout.html" %}
+
+{% block title %}
+{% if search_query %}
+{{ t.search_query | replace(from="{query}", to=search_query) }} - {{ blog_name }}
+{% elif tag_name %}
+{{ t.tag_tag | replace(from="{tag}", to=tag_name) }} - {{ blog_name }}
+{% else %}
+{{ blog_name }}
+{% endif %}
+{% endblock %}
+
+{% block band %}
+{% if search_query %}
+<section class="band"><div class="container"><h1>{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1></div></section>
+{% elif tag_name %}
+<section class="band"><div class="container"><h1>{{ tag_name }}</h1></div></section>
+{% elif theme_options.news_title and pagination.current == 1 %}
+<section class="band">
+    <div class="container">
+        <h1>{{ theme_options.news_title }}</h1>
+        {% if blog_description %}<p>{{ blog_description }}</p>{% endif %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if search_query == "" and tag_name is not defined and theme_options.news_title == "" %}
+<h1 class="visually-hidden">{{ blog_name }}</h1>
+{% endif %}
+
+{# The first page of the home page: the newest story, with the next four beside it. #}
+{% set front = search_query == "" and tag_name is not defined and pagination.current == 1 %}
+
+{% if front and posts %}
+{% set lead = posts | first %}
+{% set briefs = posts | slice(start=1, end=5) %}
+<div class="front">
+    <article class="lead">
+        {% if lead.cover_image %}
+        <a href="{{ lead.url }}" tabindex="-1" aria-hidden="true">
+            <img src="{{ lead.cover_image }}" alt="" decoding="async" fetchpriority="high"
+                {% if lead.cover_width %}width="{{ lead.cover_width }}" height="{{ lead.cover_height }}"{% endif %}
+                {% if lead.cover_small %}srcset="{{ lead.cover_small }} 800w, {{ lead.cover_image }} {{ lead.cover_width }}w" sizes="(max-width: 900px) 100vw, 640px"{% endif %} />
+        </a>
+        {% endif %}
+        <div class="kicker">
+            {% if lead.tags %}<span class="topic">{{ lead.tags[0].name }}</span>{% endif %}
+            <time>{{ lead.created_at }}</time>
+        </div>
+        <h2><a href="{{ lead.url }}">{{ lead.title }}</a></h2>
+        <div class="lead-excerpt">{{ lead.content | safe }}</div>
+    </article>
+    {% if briefs %}
+    <section class="briefs" aria-label="{{ t.latest }}">
+        {% for post in briefs %}
+        <article class="brief">
+            <div class="kicker">
+                {% if post.tags %}<span class="topic">{{ post.tags[0].name }}</span>{% endif %}
+                <time>{{ post.created_at }}</time>
+            </div>
+            <h3><a href="{{ post.url }}">{{ post.title }}</a></h3>
+        </article>
+        {% endfor %}
+    </section>
+    {% endif %}
+</div>
+{% set older = posts | slice(start=5) %}
+{% if older %}
+<section class="rows" aria-label="{{ t.more_stories }}">
+    {% for post in older %}
+    {% include "templates/row.html" %}
+    {% endfor %}
+</section>
+{% endif %}
+{% else %}
+<section class="rows">
+    {% for post in posts %}
+    {% include "templates/row.html" %}
+    {% else %}
+    <p class="empty-state">{{ t.no_posts_found }}</p>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% include "templates/pagination.html" %}
+{% endblock %}

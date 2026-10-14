@@ -36,9 +36,11 @@ tera = "1.19"
 comrak = { version = "0.18", default-features = false }
 ammonia = "4.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
-# Backups you can download: one .zip, stored without compression (photos
-# are already compressed), streamed from disk
-zip = { version = "8.6", default-features = false }
+# Backups you can download and restore: one .zip, stored without compression
+# (photos are already compressed), streamed from disk. Restoring also reads
+# compressed ones (a backup re-zipped on a computer); flate2 is already used
+# for page compression, so this adds nothing new.
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
 tokio-util = { version = "0.7", features = ["io"] }
 
 # Security: password hashing, random tokens, encrypting

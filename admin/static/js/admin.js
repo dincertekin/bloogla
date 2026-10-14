@@ -16,11 +16,17 @@
 //   data-tabs / data-tab-panel="x"     tabs that show one panel at a time
 //   data-live (with an id)             part of the page fetched again after a
 //                                      change, so it never shows old values
+//
+// And, without any attribute: every password field gets an eye button to
+// show what was typed, a refused form shakes its button, a saved one
+// shows a check that draws itself, removed rows close up smoothly and counts
+// in the menu bounce when they change (see "Feel" below and "MOTION" in
+// style.css).
 
 // ---- A message kept across a reload ----
 // Some changes affect the whole page, like its language. The server then
 // answers with HX-Trigger: reload-page and the message to show; the page
-// reloads (smoothly, see @view-transition in style.css) and the message
+// reloads (smoothly, see "MOTION" in style.css) and the message
 // appears again in the same form (found by its hx-post address; Settings has
 // two forms with the same one, so also by which of them it was).
 
@@ -87,6 +93,10 @@ function replaceLiveParts(doc) {
         if (!fresh || fresh.outerHTML === part.outerHTML) return;
         part.replaceWith(fresh);
         htmx.process(fresh);
+        // A count next to a menu item bounces once when it changes.
+        if (fresh.classList.contains("nav-badge") && !fresh.hidden && fresh.textContent !== part.textContent) {
+            fresh.classList.add("pop");
+        }
     });
 }
 
@@ -126,6 +136,113 @@ document.addEventListener("htmx:beforeSwap", (event) => {
         event.detail.shouldSwap = true;
         event.detail.isError = false;
     }
+});
+
+// ---- Password fields: an eye to show or hide what was typed ----
+// Added to every password field, also ones htmx brings in later. The labels
+// come from <body data-show-password data-hide-password> (translated).
+// Browsers' own eyes are hidden in style.css (Edge shows one only sometimes).
+
+const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1"/><path d="M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a10.6 10.6 0 0 0 5.4-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+
+function addPasswordEyes(root) {
+    const labels = document.body.dataset;
+    root.querySelectorAll?.('input[type="password"]:not([data-has-eye])').forEach((input) => {
+        input.dataset.hasEye = "";
+        const field = document.createElement("span");
+        field.className = "password-field";
+        input.before(field);
+        field.append(input);
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "password-eye";
+        const show = (visible) => {
+            input.type = visible ? "text" : "password";
+            button.innerHTML = visible ? EYE_OFF : EYE;
+            button.setAttribute("aria-label", visible ? labels.hidePassword : labels.showPassword);
+            button.setAttribute("aria-pressed", String(visible));
+        };
+        show(false);
+        button.addEventListener("click", () => {
+            show(input.type === "password");
+            // Keep typing where you were.
+            input.focus();
+            const end = input.value.length;
+            input.setSelectionRange(end, end);
+        });
+        field.append(button);
+        // Never send a password as ordinary text: browsers would remember it
+        // like any typed word.
+        input.form?.addEventListener("submit", () => show(false));
+    });
+}
+
+addPasswordEyes(document);
+document.addEventListener("htmx:load", (event) => addPasswordEyes(event.target));
+
+// ---- Feel: "no" shakes, "done" draws a check ----
+
+// Shake an element left and right a few times (see .shake in style.css).
+function shake(element) {
+    element.classList.remove("shake");
+    void element.offsetWidth; // Start again even if it's already shaking.
+    element.classList.add("shake");
+    element.addEventListener("animationend", () => element.classList.remove("shake"), { once: true });
+}
+
+// A check mark drawn as a line, so CSS can draw it stroke by stroke.
+function drawnCheck(className) {
+    const svgNs = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNs, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("class", className);
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(svgNs, "path");
+    path.setAttribute("d", "M5 12.5l4.5 4.5L19 7.5");
+    svg.append(path);
+    return svg;
+}
+
+// After saving: the button shows a check for a moment, then its label again.
+function showDone(button) {
+    if (button.classList.contains("is-done")) return;
+    // The label goes transparent; the check keeps the label's color.
+    button.style.setProperty("--check-color", getComputedStyle(button).color);
+    const check = drawnCheck("btn-check");
+    button.append(check);
+    button.classList.add("is-done");
+    setTimeout(() => {
+        button.classList.remove("is-done");
+        check.remove();
+    }, 1300);
+}
+
+// The button that sent an htmx request, if it's still on the page.
+function sendingButton(elt, target) {
+    for (const root of [elt, target]) {
+        if (!root || !root.isConnected) continue;
+        if (root.matches("button, .btn")) return root;
+        const button = (root.closest("form") || root).querySelector?.('[type="submit"]');
+        if (button) return button;
+    }
+    return null;
+}
+
+document.addEventListener("htmx:afterSettle", (event) => {
+    const { elt, target, xhr, requestConfig } = event.detail;
+    if (!xhr || !requestConfig || requestConfig.verb === "get") return;
+    const button = sendingButton(elt, target);
+    // The delete confirmation closes by itself; reloads and restarts move on.
+    if (!button || button.closest(".modal-overlay")) return;
+    if (xhr.status === 422) {
+        shake(button);
+        return;
+    }
+    const trigger = xhr.getResponseHeader("HX-Trigger");
+    const done = xhr.status >= 200 && xhr.status < 300 && !xhr.responseText.includes("alert-error");
+    if (done && trigger !== "reload-page" && trigger !== "restarting") showDone(button);
 });
 
 // ---- Feedback while waiting ----
@@ -218,7 +335,7 @@ document.addEventListener("click", (event) => {
     if (trigger.dataset.deleteTarget) {
         // The item fades out (see .htmx-swapping in style.css) before it goes.
         confirmButton.setAttribute("hx-target", trigger.dataset.deleteTarget);
-        confirmButton.setAttribute("hx-swap", "delete swap:200ms");
+        confirmButton.setAttribute("hx-swap", "delete swap:280ms");
     } else {
         confirmButton.removeAttribute("hx-target");
         confirmButton.setAttribute("hx-swap", "none");
@@ -230,6 +347,9 @@ document.addEventListener("click", (event) => {
 document.addEventListener("htmx:afterRequest", (event) => {
     if (!confirmButton || event.detail.elt !== confirmButton) return;
     if (event.detail.successful) {
+        const removed = deleteTrigger && deleteTrigger.dataset.deleteTarget
+            && document.querySelector(deleteTrigger.dataset.deleteTarget);
+        if (removed) closeUp(removed);
         const redirect = deleteTrigger && deleteTrigger.dataset.deleteRedirect;
         if (redirect) {
             window.skipUnloadWarning = true;
@@ -241,6 +361,16 @@ document.addEventListener("htmx:afterRequest", (event) => {
         document.getElementById("confirm-error").hidden = false;
     }
 });
+
+// A row being removed shrinks to nothing, so the rows below glide up into its
+// place (htmx removes it once the time in hx-swap="delete swap:…" is over).
+// Cards in a grid just fade: their neighbours move to new spots instead.
+function closeUp(element) {
+    if (getComputedStyle(element.parentElement).display.includes("grid")) return;
+    element.style.height = `${element.offsetHeight}px`;
+    void element.offsetHeight; // Take the height as the starting point.
+    element.classList.add("collapsing");
+}
 
 // ---- htmx forms that empty themselves after saving ----
 // Replies with an error message (class alert-error) keep what was typed.
@@ -264,6 +394,7 @@ document.addEventListener("click", async (event) => {
     try {
         await navigator.clipboard.writeText(button.dataset.copy);
         button.textContent = button.dataset.copied || label;
+        button.prepend(drawnCheck("copy-check"));
     } catch {
         button.textContent = button.dataset.copyFailed || label;
     }

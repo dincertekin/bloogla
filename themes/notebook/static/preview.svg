@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">
+  <!-- Preview for Admin → Appearance: a name, a line about the site, titles by year. -->
+  <rect width="640" height="400" fill="#fcfcfa"/>
+  <text x="160" y="62" font-family="Georgia, serif" font-weight="600" font-size="24" fill="#1c1b19">Notebook</text>
+  <rect x="160" y="80" width="300" height="9" rx="2" fill="#a8a59d"/>
+  <rect x="160" y="104" width="44" height="7" rx="1" fill="#b42318"/>
+  <rect x="216" y="104" width="54" height="7" rx="1" fill="#66635c"/>
+  <rect x="282" y="104" width="40" height="7" rx="1" fill="#66635c"/>
+  <rect x="160" y="146" width="32" height="7" rx="1" fill="#66635c"/>
+  <g fill="#1c1b19">
+    <rect x="160" y="170" width="44" height="7" rx="1" fill="#a8a59d"/>
+    <rect x="224" y="168" width="250" height="11" rx="2"/>
+    <line x1="160" y1="192" x2="480" y2="192" stroke="#ecebe6" stroke-width="2"/>
+    <rect x="160" y="206" width="44" height="7" rx="1" fill="#a8a59d"/>
+    <rect x="224" y="204" width="200" height="11" rx="2"/>
+    <line x1="160" y1="228" x2="480" y2="228" stroke="#ecebe6" stroke-width="2"/>
+    <rect x="160" y="242" width="44" height="7" rx="1" fill="#a8a59d"/>
+    <rect x="224" y="240" width="230" height="11" rx="2"/>
+    <line x1="160" y1="264" x2="480" y2="264" stroke="#ecebe6" stroke-width="2"/>
+  </g>
+  <rect x="160" y="300" width="32" height="7" rx="1" fill="#66635c"/>
+  <g fill="#1c1b19">
+    <rect x="160" y="324" width="44" height="7" rx="1" fill="#a8a59d"/>
+    <rect x="224" y="322" width="180" height="11" rx="2"/>
+    <rect x="160" y="358" width="44" height="7" rx="1" fill="#a8a59d"/>
+    <rect x="224" y="356" width="120" height="11" rx="2"/>
+  </g>
+</svg>

@@ -69,6 +69,9 @@ impl Command {
         // Every other command works on the database in `data/`.
         let config = Config::from_env()?;
         std::fs::create_dir_all("data")?;
+        // A backup confirmed in Settings → Backup is put in place now,
+        // before the database is opened.
+        crate::services::restore::finish_pending(&config.folder)?;
         crate::app::secrets::init()?;
         let pool = crate::db::connect(&config.database_url).await?;
 

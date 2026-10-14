@@ -1,0 +1,62 @@
+name = "Atelier"
+author = "Bloogla Team"
+version = "1.0.0"
+description = "Warm colors, rounded cards and friendly serif headings, with a welcome card on the home page. For hobby, family and cooking blogs."
+preview_image = "static/preview.svg"
+
+# Shown in Admin → Appearance; templates read them as theme_options.<name>.
+[[options]]
+name = "logo"
+label = "Logo"
+type = "image"
+default = ""
+hint = "Shown instead of the site title. A wide picture about 80 pixels tall looks sharpest."
+
+[[options]]
+name = "color_scheme"
+label = "Light or dark"
+type = "select"
+choices = ["Follow the visitor's device", "Always light", "Always dark"]
+default = "Follow the visitor's device"
+hint = "Following the device shows your site dark to visitors who use dark mode."
+
+[[options]]
+name = "accent_color"
+label = "Accent color"
+type = "color"
+default = "#b4441c"
+hint = "Used for links, buttons and highlights."
+
+[[options]]
+name = "footer_text"
+label = "Footer text"
+type = "text"
+default = ""
+hint = "Shown at the bottom of every page. Leave empty to show © and the site name."
+
+[[options]]
+name = "show_powered_by"
+label = "Show “Powered by Bloogla”"
+type = "checkbox"
+default = true
+
+[[options]]
+name = "intro_title"
+label = "Welcome title"
+type = "text"
+default = ""
+hint = "A large greeting at the top of the home page. Leave empty to show no welcome card."
+
+[[options]]
+name = "intro_text"
+label = "Welcome text"
+type = "textarea"
+default = ""
+hint = "A few words about you or your site, under the welcome title."
+
+[[options]]
+name = "intro_image"
+label = "Welcome picture"
+type = "image"
+default = ""
+hint = "A round picture beside the welcome, like a photo of you."

@@ -122,6 +122,18 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route("/admin/backup.zip", get(admin::backup::download))
         .route("/admin/settings/backup", post(admin::backup::save_settings))
         .route(
+            "/admin/backup/restore/check",
+            // A whole site's backup can be large.
+            post(admin::backup::check_restore).layer(DefaultBodyLimit::max(
+                usize::try_from(crate::services::restore::MAX_BACKUP_BYTES).unwrap_or(usize::MAX),
+            )),
+        )
+        .route(
+            "/admin/backup/restore/cancel",
+            post(admin::backup::cancel_restore),
+        )
+        .route("/admin/backup/restore", post(admin::backup::restore))
+        .route(
             "/admin/settings/updates",
             post(admin::updates::save_settings),
         )
