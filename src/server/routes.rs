@@ -75,6 +75,7 @@ fn public_routes() -> Router<AppState> {
     // Uploads have random, never-reused names, so they can be cached forever.
     let uploads = Router::new()
         .fallback_service(ServeDir::new(admin::media::UPLOAD_DIR))
+        .layer(from_fn(middleware::prefer_webp))
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=31536000, immutable"),

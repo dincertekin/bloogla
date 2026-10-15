@@ -144,6 +144,50 @@ pub async fn require_editor(req: Request, next: Next) -> Response {
     }
 }
 
+/// Uploaded JPEG and PNG pictures have a smaller WebP copy next to them
+/// (`photo.jpg.webp`, see `handlers/admin/media.rs`). A browser that accepts
+/// WebP (all current ones) asking for `/uploads/photo.jpg` gets the copy; any
+/// other gets the original. Covers, pictures in posts and copied links all
+/// benefit, in every theme, without changing any template.
+pub async fn prefer_webp(mut req: Request, next: Next) -> Response {
+    // Inside `/uploads`, so the path is just `/<file name>`.
+    let name = req.uri().path().trim_start_matches('/').to_string();
+    let lower = name.to_ascii_lowercase();
+    let has_copy = lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png");
+    if !has_copy {
+        return next.run(req).await;
+    }
+    let accepts_webp = req
+        .headers()
+        .get(header::ACCEPT)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|accept| accept.contains("image/webp"));
+    // Upload names are random letters and digits: anything else is never
+    // looked up on disk.
+    let plain_name = name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+        && !name.contains("..");
+    let copy = format!("{name}.webp");
+    let copy_exists = plain_name
+        && tokio::fs::try_exists(
+            std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR).join(&copy),
+        )
+        .await
+        .unwrap_or(false);
+    if accepts_webp && copy_exists {
+        if let Ok(uri) = format!("/{copy}").parse() {
+            *req.uri_mut() = uri;
+        }
+    }
+    let mut response = next.run(req).await;
+    // Caches keep the WebP and the original apart.
+    response
+        .headers_mut()
+        .insert(header::VARY, HeaderValue::from_static("Accept"));
+    response
+}
+
 /// Theme folders also hold templates; only their `static/` files are public.
 ///
 /// Themes link their files with the theme's version (`style.css?v=2.0.0`), so

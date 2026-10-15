@@ -6,6 +6,7 @@
 //! affect each other. To add a test, copy one from a file next to this one.
 //!
 //! - `badges`: numbers next to menu items, the new-version notice
+//! - `media`: uploaded pictures and their smaller WebP copies
 //! - `setup_and_login`: first-run setup, signing in and out, password reset
 //! - `posts`: writing posts and what visitors see
 //! - `restore`: restoring a backup .zip
@@ -14,6 +15,7 @@
 //! - `themes`: every bundled theme draws every page
 
 mod badges;
+mod media;
 mod posts;
 mod restore;
 mod security;

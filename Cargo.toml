@@ -36,6 +36,10 @@ tera = "1.19"
 comrak = { version = "0.18", default-features = false }
 ammonia = "4.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+# Smaller WebP copies of uploaded photos (Google's libwebp, built from source):
+# lossy for JPEG photos, lossless for PNG. The image crate above can only write
+# lossless WebP, which is bigger than JPEG for photos.
+webp = { version = "0.3", default-features = false }
 # Backups you can download and restore: one .zip, stored without compression
 # (photos are already compressed), streamed from disk. Restoring also reads
 # compressed ones (a backup re-zipped on a computer); flate2 is already used

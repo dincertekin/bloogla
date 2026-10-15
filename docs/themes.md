@@ -42,7 +42,7 @@ Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `t
 Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
 
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
-- Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small`, an 800px-wide copy for `srcset`) and `content_html`.
+- Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small`, an 800px-wide copy for `srcset`) and `content_html`. Pictures from the media library are sent as WebP to browsers that support it, under the same `.jpg`/`.png` address, so themes don't need to do anything for it.
 - Posts also get `previous_post` and `next_post` (each with `title` and `url`, or empty for the oldest and newest post, and on pages): the older and newer post, for links at the end. `{% if previous_post %}` works everywhere.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html`.
 

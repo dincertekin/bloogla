@@ -26,6 +26,8 @@ pub const MAX_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
 /// Larger photos are scaled down to fit this box.
 const MAX_DIMENSION: u32 = 2000;
 const JPEG_QUALITY: u8 = 85;
+/// WebP quality for photos: looks like the JPEG at quality 85, but smaller.
+const WEBP_QUALITY: f32 = 80.0;
 
 /// Media library page template.
 #[derive(Template)]
@@ -115,10 +117,42 @@ struct ProcessedImage {
     /// A copy [`SMALL_WIDTH`] pixels wide, for phones and post cards
     /// (only when the image is wider than that).
     small: Option<Vec<u8>>,
+    /// Smaller WebP copies of the picture and of `small`, saved next to them
+    /// as `<name>.webp` and served to browsers that accept WebP (see
+    /// `server/middleware.rs`). Only for JPEG and PNG, and only when smaller.
+    webp: Option<Vec<u8>>,
+    small_webp: Option<Vec<u8>>,
 }
 
 /// Width of the smaller copy made of wide photos.
 const SMALL_WIDTH: u32 = 800;
+
+/// A WebP copy of `img`, if it's smaller than `original` (its JPEG or PNG).
+/// Photos (JPEG) are compressed like the JPEG is; PNGs (logos, screenshots)
+/// stay pixel-exact, so text and sharp edges don't blur.
+fn webp_copy(img: &DynamicImage, format: ImageFormat, original: &[u8]) -> Option<Vec<u8>> {
+    let lossless = format == ImageFormat::Png;
+    // The image library's own buffers always hold width × height pixels,
+    // which is what the WebP encoder checks.
+    let encoded = if img.color().has_alpha() {
+        let rgba = img.to_rgba8();
+        webp::Encoder::from_rgba(&rgba, img.width(), img.height())
+            .encode_simple(lossless, WEBP_QUALITY)
+    } else {
+        let rgb = img.to_rgb8();
+        webp::Encoder::from_rgb(&rgb, img.width(), img.height())
+            .encode_simple(lossless, WEBP_QUALITY)
+    };
+    match encoded {
+        Ok(webp) if webp.len() < original.len() => Some(webp.to_vec()),
+        Ok(_) => None,
+        Err(e) => {
+            // The original is enough; the upload still works.
+            tracing::warn!("Could not make a WebP copy: {e:?}");
+            None
+        }
+    }
+}
 
 /// Encode `img` in the upload's format (JPEG or PNG).
 fn encode(img: &DynamicImage, format: ImageFormat) -> Result<Vec<u8>, String> {
@@ -326,10 +360,12 @@ pub async fn delete(State(state): State<AppState>, Path(id): Path<i64>) -> Statu
     match files {
         Some((filename, small)) => {
             for name in std::iter::once(filename).chain(small) {
-                if let Err(e) = tokio::fs::remove_file(PathBuf::from(UPLOAD_DIR).join(&name)).await
-                {
+                let path = PathBuf::from(UPLOAD_DIR).join(&name);
+                if let Err(e) = tokio::fs::remove_file(&path).await {
                     tracing::error!("Failed to remove upload {name}: {e}");
                 }
+                // Its WebP copy, if it has one.
+                let _ = tokio::fs::remove_file(path.with_file_name(format!("{name}.webp"))).await;
             }
             StatusCode::OK
         }
@@ -376,6 +412,8 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
                 width,
                 height,
                 small: None,
+                webp: None,
+                small_webp: None,
             })
         }
         ImageFormat::Jpeg | ImageFormat::Png => {
@@ -406,21 +444,27 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
             } else {
                 ("png", "image/png")
             };
-            let small = if img.width() > SMALL_WIDTH {
+            let (small, small_webp) = if img.width() > SMALL_WIDTH {
                 let small =
                     img.resize(SMALL_WIDTH, u32::MAX, image::imageops::FilterType::Lanczos3);
-                Some(encode(&small, format)?)
+                let small_bytes = encode(&small, format)?;
+                let small_webp = webp_copy(&small, format, &small_bytes);
+                (Some(small_bytes), small_webp)
             } else {
-                None
+                (None, None)
             };
+            let bytes = encode(&img, format)?;
+            let webp = webp_copy(&img, format, &bytes);
 
             Ok(ProcessedImage {
-                bytes: encode(&img, format)?,
+                bytes,
                 extension,
                 mime_type,
                 width: img.width(),
                 height: img.height(),
                 small,
+                webp,
+                small_webp,
             })
         }
         _ => Err("not a supported image (JPEG, PNG, GIF or WebP)".to_string()),
@@ -498,8 +542,12 @@ async fn save_image(
         tracing::warn!("Upload failed: {e}");
         "could not create upload folder".to_string()
     })?;
+    let webp_filename = format!("{filename}.webp");
+    let small_webp_filename = small_filename.as_ref().map(|name| format!("{name}.webp"));
     let files = std::iter::once((&filename, &image.bytes))
-        .chain(small_filename.as_ref().zip(image.small.as_ref()));
+        .chain(small_filename.as_ref().zip(image.small.as_ref()))
+        .chain(image.webp.as_ref().map(|bytes| (&webp_filename, bytes)))
+        .chain(small_webp_filename.as_ref().zip(image.small_webp.as_ref()));
     for (name, bytes) in files {
         tokio::fs::write(PathBuf::from(UPLOAD_DIR).join(name), bytes)
             .await
