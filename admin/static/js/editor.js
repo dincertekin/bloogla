@@ -145,7 +145,10 @@
             showAddress();
             address.searchParams.delete("saved");
             history.replaceState(null, "", address.pathname + address.search);
+            // The button's check and the note under it say "Saved.": no box.
+            page.getElementById("save-status")?.replaceChildren();
             replaceLiveParts(page);
+            showDone(saveButton);
             showNote(text.saved);
         } catch {
             showError(`<div class="alert alert-error" role="alert">${text.saveFailed}</div>`);

@@ -10,6 +10,7 @@
 //                                      data-copy-failed: what it says after)
 //   data-reset-on-success              htmx form emptied after a successful save
 //   data-clear-on-success="#id"        element emptied after a successful save
+//   data-clear-on-open                 element in a modal, emptied when it opens
 //   data-navigate="lang"               <select> that reloads with ?lang=<value>
 //   data-empty-text="..."              list that shows this text when empty
 //   data-menu-toggle                   button that opens the menu on phones
@@ -25,10 +26,12 @@
 
 // ---- A message kept across a reload ----
 // Some changes affect the whole page, like its language. The server then
-// answers with HX-Trigger: reload-page and the message to show; the page
-// reloads (smoothly, see "MOTION" in style.css) and the message
-// appears again in the same form (found by its hx-post address; Settings has
-// two forms with the same one, so also by which of them it was).
+// answers with HX-Trigger: reload-page and the message to show. In order:
+// the button draws its check (the message isn't shown on the old page), the
+// same page loads again in place, with no page transition (it would look
+// like a refresh), and the message appears in the same form (found by its
+// hx-post address; Settings has two forms with the same one, so also by
+// which of them it was).
 
 const FLASH_KEY = "bloogla:flash";
 const formsPostingTo = (url) => [...document.querySelectorAll("form[hx-post]")].filter((f) => f.getAttribute("hx-post") === url);
@@ -45,10 +48,18 @@ function reloadWithMessage(form, html) {
     try {
         sessionStorage.setItem(FLASH_KEY, JSON.stringify(flash));
     } catch { }
+    reloadingInPlace = true;
     // Without the #tab this is a real page load, which browsers can cross-fade;
     // the tab is opened again from the flash below.
     location.replace(location.pathname + location.search);
 }
+
+// Reloading the same page: skip the page transition on both sides, so the
+// page is swapped in place instead of fading out and in.
+let reloadingInPlace = false;
+window.addEventListener("pageswap", (event) => {
+    if (reloadingInPlace) event.viewTransition?.skipTransition();
+});
 
 let flash = null;
 try {
@@ -56,7 +67,9 @@ try {
     sessionStorage.removeItem(FLASH_KEY);
 } catch { }
 if (flash && flash.path === location.pathname) {
+    // The tab first, before the page is drawn; then the message.
     if (flash.hash && !location.hash) history.replaceState(null, "", flash.hash);
+    window.addEventListener("pagereveal", (event) => event.viewTransition?.skipTransition(), { once: true });
     const status = formsPostingTo(flash.url)[flash.index]?.querySelector(".form-status");
     if (status) status.innerHTML = flash.html;
 }
@@ -115,7 +128,14 @@ document.addEventListener("htmx:afterRequest", (event) => {
     const { elt, xhr, successful, requestConfig } = event.detail;
     if (!successful || !xhr || requestConfig.verb === "get") return;
     if (xhr.getResponseHeader("HX-Trigger") === "reload-page") {
-        reloadWithMessage(elt.closest("form"), xhr.responseText);
+        // Let the button draw its check first (see "Feel" below). The answer
+        // isn't put on this page, so htmx's "settled" step doesn't come:
+        // start the check here.
+        const button = sendingButton(elt, null);
+        if (button) showDone(button);
+        const form = elt.closest("form");
+        const pause = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 650;
+        setTimeout(() => reloadWithMessage(form, xhr.responseText), pause);
         return;
     }
     if (xhr.getResponseHeader("HX-Trigger") === "restarting") {
@@ -128,8 +148,13 @@ document.addEventListener("htmx:afterRequest", (event) => {
 });
 
 // Validation and account slowdowns can return HTML messages: show them.
+// A message for after a reload is shown on the new page, not this one.
 document.addEventListener("htmx:beforeSwap", (event) => {
     const xhr = event.detail.xhr;
+    if (xhr.getResponseHeader("HX-Trigger") === "reload-page") {
+        event.detail.shouldSwap = false;
+        return;
+    }
     const htmlSlowdown = xhr.status === 429
         && (xhr.getResponseHeader("Content-Type") || "").startsWith("text/html");
     if (xhr.status === 422 || htmlSlowdown) {
@@ -242,7 +267,7 @@ document.addEventListener("htmx:afterSettle", (event) => {
     }
     const trigger = xhr.getResponseHeader("HX-Trigger");
     const done = xhr.status >= 200 && xhr.status < 300 && !xhr.responseText.includes("alert-error");
-    if (done && trigger !== "reload-page" && trigger !== "restarting") showDone(button);
+    if (done && trigger !== "restarting" && trigger !== "reload-page") showDone(button);
 });
 
 // ---- Feedback while waiting ----
@@ -271,6 +296,7 @@ document.addEventListener("htmx:afterSettle", (event) => {
 // ---- Modals ----
 
 function openModal(modal) {
+    modal.querySelectorAll("[data-clear-on-open]").forEach((part) => (part.innerHTML = ""));
     modal.classList.add("active");
     const first = modal.querySelector("[data-modal-close], button, input");
     if (first) first.focus();

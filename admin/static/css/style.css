@@ -114,10 +114,29 @@ body {
     margin-bottom: 1.25rem;
 }
 
-.form-group label {
+.form-group label,
+.form-group legend {
     font-size: 0.85rem;
     font-weight: 600;
     color: #374151;
+}
+
+/* A group of choices (like Role) with its legend as the label. */
+fieldset.form-group {
+    border: 0;
+    padding: 0;
+    margin-inline: 0;
+    min-width: 0;
+}
+
+fieldset.form-group legend {
+    padding: 0;
+    margin-bottom: 0.4rem;
+}
+
+.form-group .check-row {
+    font-weight: 500;
+    color: var(--text-primary);
 }
 
 .form-control {
@@ -217,33 +236,71 @@ input::-ms-clear {
     margin-bottom: 1.25rem;
 }
 
+/* Messages. A notice on a page is a calm white card where only the icon
+   is coloured; the result of a form (inside its .form-status, see below) is
+   just a line with an icon, no box. The kind of message shows in the icon:
+   a check for done, a circled ! for a problem, a circled i for information. */
 .alert {
-    padding: 0.75rem 1rem;
+    position: relative;
+    padding: 0.8rem 1rem 0.8rem 2.6rem;
     font-size: 0.875rem;
     font-weight: 500;
-    border-radius: 8px;
-    border: 1px solid transparent;
+    line-height: 1.45;
+    color: var(--text-primary);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
     margin-bottom: 1.25rem;
-    line-height: 1.4;
     transition: opacity 0.2s ease;
 }
 
+/* The icon: a small picture used as a mask, so it takes the icon colour. */
+.alert::before {
+    content: "";
+    position: absolute;
+    left: 1rem;
+    top: calc(0.8rem + 0.15em);
+    width: 1.1em;
+    height: 1.1em;
+    background-color: var(--icon-color, currentColor);
+    mask: var(--icon) center / contain no-repeat;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+}
+
 .alert-success {
-    background-color: #ecfdf5;
-    color: #065f46;
-    border-color: #a7f3d0;
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+    --icon-color: #059669;
 }
 
 .alert-error {
-    background-color: #fef2f2;
-    color: #991b1b;
-    border-color: #fecaca;
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5'/%3E%3Cpath d='M12 16.5h.01'/%3E%3C/svg%3E");
+    --icon-color: #dc2626;
 }
 
 .alert-info {
-    background-color: #eff6ff;
-    color: #1e40af;
-    border-color: #bfdbfe;
+    --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5.5'/%3E%3Cpath d='M12 7.5h.01'/%3E%3C/svg%3E");
+    --icon-color: var(--text-secondary);
+}
+
+/* A form's result: a quiet line with its icon, right where you clicked. */
+.form-status .alert,
+#save-status .alert {
+    padding: 0.35rem 0 0.35rem 1.6rem;
+    margin-bottom: 0.75rem;
+    background: none;
+    border: 0;
+    border-radius: 0;
+}
+
+.form-status .alert::before,
+#save-status .alert::before {
+    left: 0;
+    top: calc(0.35rem + 0.15em);
+}
+
+.form-status .alert-error,
+#save-status .alert-error {
+    color: #b91c1c;
 }
 
 /* ============================================================
@@ -506,8 +563,13 @@ input::-ms-clear {
 .update-notice {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
+    align-items: center;
     gap: 0.5rem 1rem;
+}
+
+/* The icon and text on the left, the links pushed to the right. */
+.update-notice .update-links {
+    margin-left: auto;
 }
 
 .update-links {
@@ -927,9 +989,40 @@ a.row-title:hover {
 
 .row-actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: 0.25rem;
     flex-shrink: 0;
+}
+
+/* A small drop-down that sits among small buttons (e.g. a person's role). */
+select.form-control.select-sm {
+    width: auto;
+    padding: 0.35rem 1.9rem 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    background-position: right 0.55rem center;
+    background-size: 14px;
+}
+
+/* Your own role, where others have the drop-down: same size, no box. */
+.role-static {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+    .list-row {
+        flex-wrap: wrap;
+    }
+
+    .row-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
 }
 
 .thumb {

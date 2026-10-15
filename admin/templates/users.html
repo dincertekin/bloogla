@@ -44,16 +44,17 @@
                 <input type="email" id="new-email" name="email" class="form-control" required autocomplete="off" />
             </div>
         </div>
-        <div class="form-group">
-            <label>{{ me.t("Role") }}</label>
+        <fieldset class="form-group">
+            <legend>{{ me.t("Role") }}</legend>
             {% for role in roles %}
-            <label class="check-row" style="margin-bottom: 0.4rem">
+            <label class="check-row" style="margin-bottom: 0.5rem">
                 <input type="radio" name="role" value="{{ role.as_str() }}" {% if role.as_str() == "author" %}checked{% endif %} />
                 <span>{{ me.t(role.label()) }} <small>{{ me.t(role.description()) }}</small></span>
             </label>
             {% endfor %}
-        </div>
-        <div id="user-form-status"></div>
+        </fieldset>
+        <!-- Emptied each time the pop-up opens, so an earlier temporary password isn't shown again. -->
+        <div id="user-form-status" data-clear-on-open></div>
         <button type="submit" class="btn btn-primary">{{ me.t("Add Person") }}</button>
     </form>
     </div>

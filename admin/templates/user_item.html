@@ -14,10 +14,9 @@
     </div>
     <div class="row-actions">
         {% if user.id == me.id %}
-        <span class="form-hint" style="padding: 0 0.5rem">{{ me.t(user.role.label()) }}</span>
+        <span class="role-static">{{ me.t(user.role.label()) }}</span>
         {% else %}
-        <select name="role" class="form-control" style="width: auto; padding: 0.3rem 0.5rem; font-size: 0.8rem"
-            aria-label="{{ me.t("Role") }}" hx-post="/admin/users/{{ user.id }}/role" hx-trigger="change"
+        <select name="role" class="form-control select-sm" aria-label="{{ me.t("Role") }}" hx-post="/admin/users/{{ user.id }}/role" hx-trigger="change"
             hx-target="#user-{{ user.id }}-status">
             {% for role in roles %}
             <option value="{{ role.as_str() }}" {% if role.as_str() == user.role.as_str() %}selected{% endif %}>{{ me.t(role.label()) }}</option>
