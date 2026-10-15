@@ -215,3 +215,32 @@ async fn appearance_refuses_a_light_or_dark_choice_not_on_the_list() {
     assert!(saved.body.contains("Pick one of the choices."));
     assert!(site.get("/").await.body.contains(r#"<html lang="en">"#));
 }
+
+#[test]
+fn cover_pictures_keep_their_shape() {
+    // Cover <img> tags carry the photo's own width and height, so the browser
+    // can keep its space while it loads. A rule that gives a picture a shape
+    // (aspect-ratio) must also say `height: auto`, or the height stays at the
+    // photo's pixels (1080 for a 1920×1080 photo) and it becomes a tall strip.
+    let themes = concat!(env!("CARGO_MANIFEST_DIR"), "/themes");
+    for theme in std::fs::read_dir(themes).unwrap().flatten() {
+        let css = theme.path().join("static/css/style.css");
+        let Ok(source) = std::fs::read_to_string(&css) else {
+            continue;
+        };
+        for rule in source.split('}') {
+            let Some((selector, body)) = rule.split_once('{') else {
+                continue;
+            };
+            let selector = selector.rsplit("*/").next().unwrap_or(selector);
+            if selector.contains("img") && body.contains("aspect-ratio") {
+                assert!(
+                    body.contains("height"),
+                    "{}: `{}` sets aspect-ratio without height: auto",
+                    css.display(),
+                    selector.trim()
+                );
+            }
+        }
+    }
+}

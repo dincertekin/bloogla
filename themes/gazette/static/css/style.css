@@ -419,6 +419,7 @@ a {
     display: block;
     width: 100%;
     aspect-ratio: 3 / 2;
+    height: auto;
     object-fit: cover;
     background: var(--bg-soft);
 }
@@ -438,6 +439,7 @@ a {
 
 .lead .cover img {
     aspect-ratio: 16 / 9;
+    height: auto;
 }
 
 .front-side {

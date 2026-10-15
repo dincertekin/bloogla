@@ -247,6 +247,7 @@ h3 {
     display: block;
     width: 100%;
     aspect-ratio: 16 / 9;
+    height: auto;
     object-fit: cover;
     border-radius: var(--radius);
     background: var(--line);
