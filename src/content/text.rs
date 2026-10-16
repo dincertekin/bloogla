@@ -86,6 +86,30 @@ pub fn url_encode(input: &str) -> String {
         .collect()
 }
 
+/// Undo [`url_encode`]: `k%C3%BCnefe` → `künefe`. Broken codes stay as typed.
+pub fn url_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = bytes
+            .get(i + 1..i + 3)
+            .and_then(|pair| std::str::from_utf8(pair).ok())
+            .and_then(|pair| u8::from_str_radix(pair, 16).ok());
+        match (bytes[i], hex) {
+            (b'%', Some(byte)) => {
+                out.push(byte);
+                i += 3;
+            }
+            (byte, _) => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// Escape text for HTML and XML (attributes included).
 pub fn escape_html(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -204,6 +228,13 @@ pub fn to_iso8601(raw_date: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn url_decode_undoes_url_encode() {
+        assert_eq!(url_decode("k%C3%BCnefe"), "künefe");
+        assert_eq!(url_decode(&url_encode("çay & simit")), "çay & simit");
+        assert_eq!(url_decode("100%-sure%2"), "100%-sure%2");
+    }
 
     #[test]
     fn slugify_transliterates_and_keeps_other_scripts() {

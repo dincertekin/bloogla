@@ -7,6 +7,7 @@ pub mod auth;
 pub mod backup;
 pub mod comments;
 pub mod dashboard;
+pub mod import_export;
 pub mod media;
 pub mod password_reset;
 pub mod posts;
@@ -22,6 +23,64 @@ use crate::i18n::Lang;
 
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
+
+/// Why an upload saved with [`save_upload`] didn't arrive.
+#[derive(Debug, PartialEq)]
+pub enum UploadProblem {
+    /// Over the size limit.
+    TooLarge,
+    /// Cut short (the connection dropped).
+    Interrupted,
+    /// Couldn't be written, usually a full disk.
+    NoSpace,
+    /// The form had no file in the field.
+    Missing,
+}
+
+/// Save the file sent in the form field `field` at `path`, a piece at a time,
+/// so a large file never has to fit in memory.
+pub async fn save_upload(
+    mut multipart: axum::extract::Multipart,
+    field: &str,
+    path: &std::path::Path,
+    max_bytes: u64,
+) -> Result<(), UploadProblem> {
+    use tokio::io::AsyncWriteExt;
+
+    let interrupted = |e: axum::extract::multipart::MultipartError| {
+        if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            UploadProblem::TooLarge
+        } else {
+            UploadProblem::Interrupted
+        }
+    };
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|_| UploadProblem::NoSpace)?;
+    }
+    while let Some(mut upload) = multipart.next_field().await.map_err(interrupted)? {
+        if upload.name() != Some(field) {
+            continue;
+        }
+        let mut file = tokio::fs::File::create(path)
+            .await
+            .map_err(|_| UploadProblem::NoSpace)?;
+        let mut size = 0u64;
+        while let Some(chunk) = upload.chunk().await.map_err(interrupted)? {
+            size += chunk.len() as u64;
+            if size > max_bytes {
+                return Err(UploadProblem::TooLarge);
+            }
+            file.write_all(&chunk)
+                .await
+                .map_err(|_| UploadProblem::NoSpace)?;
+        }
+        file.flush().await.map_err(|_| UploadProblem::NoSpace)?;
+        return Ok(());
+    }
+    Err(UploadProblem::Missing)
+}
 
 /// Lets a handler return an admin template as its answer: the template is
 /// turned into HTML, or a plain 500 page if that fails (it only can when a
@@ -56,6 +115,7 @@ templates_answer_requests!(
     backup::RestoreTemplate,
     comments::CommentsTemplate,
     dashboard::DashboardTemplate,
+    import_export::ImportTemplate,
     media::MediaTemplate,
     media::MediaPickerTemplate,
     password_reset::ForgotTemplate,

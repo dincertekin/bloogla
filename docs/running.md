@@ -9,6 +9,7 @@ here? The [README](../README.md#quick-start) has the short version.
 - [Commands](#commands)
 - [Updating](#updating)
 - [Backups](#backups)
+- [Moving from WordPress, and exporting](#moving-from-wordpress-and-exporting)
 
 ## On your computer
 
@@ -123,3 +124,36 @@ The database is upgraded automatically on start.
 - **Keep `data/secret.key` with your backups.** The mail server password and
   two-factor keys are locked with it; without it you enter the mail password
   again and people set up two-factor login again.
+
+## Moving from WordPress, and exporting
+
+Both are in **Settings → Import & export** (admins only).
+
+- **Import from WordPress:** in WordPress, use **Tools → Export**, choose
+  "All content" and download the file. In Bloogla, choose it and click
+  **Check file**: you see how many posts, pages, tags, comments and images
+  it has, who wrote them, and which posts are skipped because a post here
+  already has the same address, before anything changes.
+  - People are matched by email. Posts by someone who isn't on the site go
+    to you; add them in **People** first to keep their name on their posts.
+  - Drafts stay drafts, scheduled posts keep their date, and WordPress
+    categories become tags. Only approved comments come along (if you tick
+    the box); pingbacks, comments waiting for approval and spam stay behind.
+  - **Copy the images into Bloogla** (on at first) downloads the old site's
+    images into **Media** and points the posts at the copies. Only images on
+    the old site's own address are copied, and only from public internet
+    addresses; ones on other sites, or that fail, stay where they were and
+    are listed at the end with the reason.
+  - **Import** first saves a backup of your site as it is now in
+    `data/backups/before-import-….zip`, then runs in the background (you can
+    leave the page). Nothing that's already on the site is changed.
+  - Old addresses keep working once your domain points to Bloogla:
+    `/2024/05/lemon-cake/` and `/lemon-cake/` lead to `/post/lemon-cake`, and
+    `/category/desserts/` to `/tag/desserts`.
+- **Export:** **Download WordPress file** gives a file WordPress (Tools →
+  Import → WordPress) and most blog tools can import, with every post and
+  page (drafts included), their tags, approved comments and images (WordPress
+  copies them from your site while it's online). **Download Markdown files**
+  gives a `.zip` with `posts/<address>.md`, `pages/<address>.md` (each with
+  its title, date, tags and cover at the top) and the images in `uploads/`.
+  To keep a copy of the whole site, use Backup instead.

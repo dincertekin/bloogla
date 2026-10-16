@@ -282,29 +282,31 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
             }
         };
 
-        let processed = tokio::task::spawn_blocking(move || process_image(&data)).await;
-        let image = match processed {
-            Ok(Ok(image)) => image,
-            Ok(Err(e)) => {
-                errors.push(format!("{original_name}: {}", lang.t_owned(&e)));
-                continue;
-            }
-            Err(e) => {
-                tracing::error!("Image processing crashed: {e}");
-                errors.push(format!(
-                    "{original_name}: {}",
-                    lang.t("couldn't process this image")
-                ));
-                continue;
-            }
-        };
-
-        if let Err(e) = save_image(state, &original_name, image).await {
+        if let Err(e) = add_image(state, &original_name, data.to_vec()).await {
             errors.push(format!("{original_name}: {}", lang.t_owned(&e)));
         }
     }
 
     errors
+}
+
+/// Check a picture, make its smaller copies and add it to the media library.
+/// Uploads and imports both come through here. Gives back its file name in
+/// `uploads/`, or why it was refused (English, for `lang.t_owned`).
+pub async fn add_image(
+    state: &AppState,
+    original_name: &str,
+    data: Vec<u8>,
+) -> Result<String, String> {
+    let processed = tokio::task::spawn_blocking(move || process_image(&data)).await;
+    let image = match processed {
+        Ok(result) => result?,
+        Err(e) => {
+            tracing::error!("Image processing crashed: {e}");
+            return Err("couldn't process this image".into());
+        }
+    };
+    save_image(state, original_name, image).await
 }
 
 #[derive(serde::Deserialize)]
@@ -526,11 +528,12 @@ fn without_webp_metadata(data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Write a processed image under a random name and record it in the library.
+/// Gives back the file name.
 async fn save_image(
     state: &AppState,
     original_name: &str,
     image: ProcessedImage,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let name = crate::app::security::random_hex(12);
     let filename = format!("{name}.{}", image.extension);
     let small_filename = image
@@ -577,7 +580,7 @@ async fn save_image(
         "could not save to the media library".to_string()
     })?;
 
-    Ok(())
+    Ok(filename)
 }
 
 #[cfg(test)]

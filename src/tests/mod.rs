@@ -16,6 +16,7 @@
 
 mod account_changes;
 mod badges;
+mod import_export;
 mod media;
 mod posts;
 mod restore;

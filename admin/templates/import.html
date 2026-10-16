@@ -1,0 +1,153 @@
+<!-- Settings → Import & export → Import. Also sent alone after each step,
+     and every second while an import runs (handlers/admin/import_export.rs). -->
+<section class="card" id="import" data-steps {% if import.running.is_some() %}hx-get="/admin/import" hx-trigger="every 1s"
+    hx-swap="outerHTML"{% endif %}>
+    <h2 class="section-title">{{ me.t("Import") }}</h2>
+
+    {% if let Some(summary) = import.checked %}
+    <!-- 2. What the file holds, and what importing it would do here. -->
+    <p style="margin-bottom: 0.5rem">{{ me.tv2("This file is from {title} ({site}).", summary.site_title, summary.site) }}</p>
+    <p style="margin-bottom: 0.25rem">
+        {{ me.count(summary.posts, "{n} post", "{n} posts") }} ·
+        {{ me.count(summary.pages, "{n} page", "{n} pages") }} ·
+        {{ me.count(summary.tags, "{n} tag", "{n} tags") }} ·
+        {{ me.count(summary.comments, "{n} comment", "{n} comments") }} ·
+        {{ me.count(summary.images, "{n} image", "{n} images") }}
+    </p>
+    <p class="form-hint">{{ me.t("Drafts stay drafts, and scheduled posts keep their date. WordPress categories become tags.") }}</p>
+
+    {% if !summary.authors.is_empty() %}
+    <h3 class="import-heading">{{ me.t("Who wrote them") }}</h3>
+    <div class="import-rows">
+        {% for author in summary.authors %}
+        <div class="import-row">
+            <div>{{ author.name }}<small>{{ author.email }} · {{ me.count(author.posts, "{n} post", "{n} posts") }}</small></div>
+            {% if let Some(name) = author.found %}
+            <div><span class="badge badge-published">{{ me.t("Found") }}</span> {{ me.tv("{name}, already on this site", name) }}</div>
+            {% else %}
+            <div><span class="badge badge-draft">{{ me.t("Not here") }}</span> {{ me.t("Their posts will be yours. Add them in People first to keep their name on them.") }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if !summary.taken.is_empty() %}
+    <h3 class="import-heading">{{ me.t("Already on this site") }}</h3>
+    <p class="form-hint">{{ me.tv("These posts have the same address as posts you already have, so they're skipped: {titles}", summary.taken.join(", ")) }}</p>
+    {% endif %}
+
+    <form hx-post="/admin/import/start" hx-target="#import" hx-swap="outerHTML" style="margin-top: 1.25rem">
+        {% if summary.images > 0 %}
+        <label class="check-row" style="margin-bottom: 0.9rem">
+            <input type="checkbox" name="copy_images" value="1" checked />
+            <span>{{ me.t("Copy the images into Bloogla") }}
+                <small>{{ me.tv2("Bloogla downloads the images ({n}) from {site} and puts them in Media. Without this, posts keep showing them from your old site, only while it stays online.", summary.images, summary.site) }}</small></span>
+        </label>
+        {% endif %}
+        {% if summary.comments > 0 %}
+        <label class="check-row" style="margin-bottom: 0.9rem">
+            <input type="checkbox" name="bring_comments" value="1" checked />
+            <span>{{ me.tv("Bring the approved comments ({n})", summary.comments) }}
+                <small>{{ me.t("Comments waiting for approval and spam stay behind.") }}</small></span>
+        </label>
+        {% endif %}
+        <p class="form-hint" style="margin: 1.25rem 0">
+            {% if let Some(address) = summary.example_address %}{{ me.tv("Old addresses like {address} will lead to the new posts once your domain points to Bloogla.", address) }} {% endif %}{{ me.t("A backup of your site as it is now is saved first, in the data/backups folder.") }}
+        </p>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+            <button type="submit" class="btn btn-primary" {% if summary.posts == 0 && summary.pages == 0 %}disabled{% endif %}>{{ me.t("Import") }}</button>
+            <button type="button" class="btn btn-secondary" hx-post="/admin/import/reset" hx-target="#import"
+                hx-swap="outerHTML">{{ me.t("Cancel") }}</button>
+        </div>
+    </form>
+
+    {% else if let Some(progress) = import.running %}
+    <!-- 3. Running in the background; this card asks again every second. -->
+    <p style="font-weight: 600">{{ me.tv("Importing from {title}…", progress.site_title) }}</p>
+    {% if progress.step == crate::services::import::Step::Images %}
+    <progress class="import-progress" max="{{ progress.images_total }}" value="{{ progress.images_done }}"
+        aria-label="{{ me.t("Images copied") }}"></progress>
+    {% endif %}
+    {% let step = progress.step %}
+    <!-- Steps still to come show their name; the one now its progress. -->
+    <ul class="import-steps">
+        {% if step == crate::services::import::Step::Backup %}
+        <li class="now">{{ me.t("Saving a backup of your site") }}</li>
+        {% else %}
+        <li class="done">{{ me.t("Backup saved") }}</li>
+        {% endif %}
+
+        {% if step < crate::services::import::Step::Posts %}
+        <li>{{ me.t("Posts and pages") }}</li>
+        {% else %}
+        <li class="{% if step == crate::services::import::Step::Posts %}now{% else %}done{% endif %}">{{ me.count(progress.posts_and_pages(), "{n} post or page", "{n} posts and pages") }}</li>
+        {% endif %}
+
+        {% if progress.copy_images %}
+        {% if step < crate::services::import::Step::Images %}
+        <li>{{ me.t("Images") }}</li>
+        {% else if step == crate::services::import::Step::Images %}
+        <li class="now">{{ me.tv2("Copying images: {done} of {total}", progress.images_done, progress.images_total) }}</li>
+        {% else %}
+        <li class="done">{{ me.count(progress.images_done, "{n} image", "{n} images") }}</li>
+        {% endif %}
+        {% endif %}
+
+        {% if progress.bring_comments %}
+        <li {% if step == crate::services::import::Step::Comments %}class="now"{% endif %}>{{ me.t("Comments") }}</li>
+        {% endif %}
+    </ul>
+    <p class="form-hint" style="margin-top: 1rem">{{ me.t("You can leave this page. The import keeps going, and the result waits here.") }}</p>
+
+    {% else if let Some(report) = import.done %}
+    <!-- 4. What happened. -->
+    {% if let Some(error) = report.error %}
+    <div class="alert alert-error">{{ me.t(error) }}</div>
+    {% else %}
+    <div class="alert alert-success">
+        {{ me.tv("Imported from {title}:", report.site_title) }}
+        {{ me.count(report.posts, "{n} post", "{n} posts") }} ·
+        {{ me.count(report.pages, "{n} page", "{n} pages") }} ·
+        {{ me.count(report.tags, "{n} tag", "{n} tags") }} ·
+        {{ me.count(report.comments, "{n} comment", "{n} comments") }} ·
+        {{ me.count(report.images, "{n} image", "{n} images") }}
+    </div>
+    {% endif %}
+    {% if !report.failed_images.is_empty() %}
+    <div class="alert alert-error">
+        {{ me.count(report.failed_count(), "{n} image couldn't be copied. Its post still shows it from where it was:", "{n} images couldn't be copied. These posts still show them from where they were:") }}
+        <ul class="import-list">
+            {% for failed in report.failed_images %}
+            <li>“{{ failed.post }}”: <code>{{ failed.address }}</code> ({{ me.t(failed.reason) }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% if !report.skipped.is_empty() %}
+    <div class="alert alert-info">{{ me.tv("These posts were skipped because their address is already used: {titles}", report.skipped.join(", ")) }}</div>
+    {% endif %}
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap">
+        {% if report.error.is_none() %}<a class="btn btn-primary" href="/admin/posts">{{ me.t("See your posts") }}</a>{% endif %}
+        <button type="button" class="btn btn-secondary" hx-post="/admin/import/reset" hx-target="#import"
+            hx-swap="outerHTML">{{ me.t("Import another file") }}</button>
+    </div>
+
+    {% else %}
+    <!-- 1. The upload form. -->
+    {% if let Some(error) = import.error %}
+    <div class="alert alert-error">{{ me.t(error) }}</div>
+    {% endif %}
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Bring your posts, pages, tags, comments and images from WordPress. In WordPress, go to Tools → Export, choose “All content” and download the file. You'll see what's in it before anything changes.") }}
+    </p>
+    <form hx-post="/admin/import/check" hx-encoding="multipart/form-data" hx-target="#import" hx-swap="outerHTML">
+        <div class="form-group" style="max-width: 26rem">
+            <label for="import-file">{{ me.t("WordPress export file (.xml)") }}</label>
+            <input type="file" id="import-file" name="file" class="form-control" accept=".xml,text/xml,application/xml"
+                required />
+        </div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Check file") }}</button>
+    </form>
+    {% endif %}
+</section>

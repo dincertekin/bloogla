@@ -6,7 +6,7 @@ use crate::app::models::{Pagination, Post};
 use crate::app::state::AppState;
 use crate::content::markdown::excerpt;
 use crate::content::seo::{SeoKind, SeoMeta};
-use crate::content::text::{display_date, escape_html, reading_time, url_encode};
+use crate::content::text::{display_date, escape_html, reading_time, url_decode, url_encode};
 use crate::db::posts::{self, LISTED_POST_FILTER, POST_SELECT, PUBLIC_POST_FILTER};
 use crate::db::settings::{self, CommentMode, Settings};
 use crate::db::{or_log, tags};
@@ -14,7 +14,7 @@ use crate::server::routes::post_path;
 use crate::services::themes;
 
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Redirect, Response};
 use serde::Deserialize;
 use tower_sessions::Session;
@@ -171,7 +171,27 @@ pub async fn search(State(state): State<AppState>, Query(query): Query<SearchQue
 }
 
 /// Any other address: the theme's "not found" page.
-pub async fn fallback(State(state): State<AppState>) -> Response {
+///
+/// Old WordPress addresses end with the post's name (`/2024/05/lemon-cake/`,
+/// `/lemon-cake/`) or a category's (`/category/desserts/`). After an import
+/// they lead to the post or tag here instead of "not found", which keeps
+/// visitors and search rankings.
+pub async fn fallback(State(state): State<AppState>, method: Method, uri: Uri) -> Response {
+    if method == Method::GET {
+        let mut parts = uri.path().trim_end_matches('/').rsplit('/');
+        if let Some(last) = parts.next().filter(|part| !part.is_empty()) {
+            let last = url_decode(last);
+            if matches!(parts.next(), Some("category" | "tag")) {
+                if let Some(tag) = tags::find_listed_by_slug(&state.pool, &last).await {
+                    let address = format!("/tag/{}", url_encode(&tag.slug));
+                    return Redirect::permanent(&address).into_response();
+                }
+            }
+            if let Some(redirect) = redirect_to_slug(&state, &last).await {
+                return redirect;
+            }
+        }
+    }
     not_found(&state).await
 }
 

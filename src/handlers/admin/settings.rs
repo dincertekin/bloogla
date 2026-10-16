@@ -40,6 +40,8 @@ pub struct SettingsTemplate {
     pub auto_backup: bool,
     /// Settings → Backup → Restore (always the upload form here).
     pub restore: super::backup::RestoreCard,
+    /// Settings → Import & export → Import.
+    pub import: super::import_export::ImportCard,
     /// Settings → Updates.
     pub update: super::updates::UpdateStatus,
 }
@@ -153,6 +155,7 @@ pub async fn page(
         site_icon: site.site_icon.clone(),
         auto_backup: site.auto_backup,
         restore: Default::default(),
+        import: super::import_export::ImportCard::now(),
         update: super::updates::UpdateStatus::load(&state, &site, &me, None),
         me,
     }

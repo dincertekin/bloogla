@@ -79,6 +79,7 @@ automatically. More in [Running Bloogla](docs/running.md).
 | **Analytics**       | Views and referring sites per day, without cookies or personal data                          |
 | **People**          | Admins, editors and authors, two-factor login, password reset by email, light or dark admin for each person |
 | **Languages**       | English, Deutsch, Français, Lietuvių and Türkçe, for the admin panel, the theme and emails  |
+| **Moving in and out** | Import from WordPress (posts, pages, tags, comments, images, old addresses), export as a WordPress file or Markdown |
 | **Peace of mind**   | Built-in HTTPS, daily backups, one-click `.zip` backup and restore, signed updates you can install from Settings |
 
 ## Themes
@@ -117,7 +118,7 @@ volume. Download a backup first either way (**Settings → Backup**).
 
 ## Documentation
 
-- [Running Bloogla](docs/running.md): servers, configuration, commands, updates, backups
+- [Running Bloogla](docs/running.md): servers, configuration, commands, updates, backups, moving from WordPress
 - [Writing themes](docs/themes.md): templates, options, the security policy
 - [Translating](docs/translating.md): adding your language, no programming needed
 - [Security](docs/security.md): how a Bloogla site is protected

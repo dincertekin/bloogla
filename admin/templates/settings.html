@@ -14,6 +14,7 @@
     <a href="#reading" role="tab" data-tab="reading">{{ me.t("Reading") }}</a>
     <a href="#email" role="tab" data-tab="email">{{ me.t("Email") }}</a>
     <a href="#backup" role="tab" data-tab="backup">{{ me.t("Backup") }}</a>
+    <a href="#import-export" role="tab" data-tab="import-export">{{ me.t("Import & export") }}</a>
     <a href="#updates" role="tab" data-tab="updates">{{ me.t("Updates") }}</a>
 </nav>
 
@@ -282,6 +283,28 @@
     </form>
 </section>
 {% include "restore.html" %}
+</div>
+
+<div data-tab-panel="import-export">
+{% include "import.html" %}
+<section class="card" style="margin-top: 1.5rem">
+    <h2 class="section-title">{{ me.t("Export") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Take your posts and pages with you, drafts included. This is for moving to another blog tool; to keep a copy of everything, use Backup.") }}
+    </p>
+    <div class="export-grid">
+        <div class="export-option">
+            <h3>{{ me.t("WordPress file (.xml)") }}</h3>
+            <p>{{ me.t("Opens in WordPress and most blog tools. Images stay here: WordPress copies them while this site is online.") }}</p>
+            <a class="btn btn-secondary" href="/admin/export/wordpress.xml" download>{{ me.t("Download WordPress file") }}</a>
+        </div>
+        <div class="export-option">
+            <h3>{{ me.t("Markdown files (.zip)") }}</h3>
+            <p>{{ me.t("One text file per post and page, with its images. Good for keeping, or for tools like Hugo and Jekyll.") }}</p>
+            <a class="btn btn-secondary" href="/admin/export/markdown.zip" download>{{ me.t("Download Markdown files") }}</a>
+        </div>
+    </div>
+</section>
 </div>
 
 <div data-tab-panel="updates">

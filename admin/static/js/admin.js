@@ -17,6 +17,8 @@
 //   data-tabs / data-tab-panel="x"     tabs that show one panel at a time
 //   data-live (with an id)             part of the page fetched again after a
 //                                      change, so it never shows old values
+//   data-steps                         card whose answer is its next step
+//                                      (Restore, Import): no "saved" check
 //
 // And, without any attribute: every password field gets an eye button to
 // show what was typed, a refused form shakes its button, a saved one
@@ -283,6 +285,9 @@ function sendingButton(elt, target) {
 document.addEventListener("htmx:afterSettle", (event) => {
     const { elt, target, xhr, requestConfig } = event.detail;
     if (!xhr || !requestConfig || requestConfig.verb === "get") return;
+    // A card that moved on to its next step already shows what happened;
+    // a check on the next step's button would say that button was used.
+    if (target?.matches?.("[data-steps]") && !target.isConnected) return;
     const button = sendingButton(elt, target);
     // The delete confirmation closes by itself; reloads and restarts move on.
     if (!button || button.closest(".modal-overlay")) return;

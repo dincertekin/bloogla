@@ -187,9 +187,15 @@ impl CurrentUser {
         self.lang.t(key)
     }
 
-    /// "1 post" / "3 posts" in this person's language.
-    pub fn count(&self, n: &i64, one: &'static str, many: &'static str) -> String {
-        self.lang.count(*n, one, many)
+    /// "1 post" / "3 posts" in this person's language. Takes a number or a
+    /// reference to one (templates pass both).
+    pub fn count(
+        &self,
+        n: impl std::borrow::Borrow<i64>,
+        one: &'static str,
+        many: &'static str,
+    ) -> String {
+        self.lang.count(*n.borrow(), one, many)
     }
 
     /// Translate with one `{placeholder}` filled in.

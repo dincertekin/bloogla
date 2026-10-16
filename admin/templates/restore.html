@@ -1,6 +1,6 @@
 <!-- Settings → Backup → Restore. Also sent alone after "Check backup" and
      "Cancel" (handlers/admin/backup.rs). -->
-<section class="card" id="restore" style="margin-top: 1.5rem">
+<section class="card" id="restore" data-steps style="margin-top: 1.5rem">
     <h2 class="section-title">{{ me.t("Restore") }}</h2>
 
     {% if let Some(error) = restore.error %}

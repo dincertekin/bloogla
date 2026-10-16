@@ -70,6 +70,9 @@ ring = "0.17"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
+# Reading WordPress export files (Settings → Import & export) and writing them
+# (Export). Its default features are empty: only the XML reader and writer.
+quick-xml = "0.41"
 rust-embed = { version = "8", features = ["include-exclude", "mime-guess"] }
 chrono = { version = "0.4", features = ["serde"] }
 # Time zones, so dates show (and are entered) in the site's local time

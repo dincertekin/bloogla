@@ -2,7 +2,7 @@
 //! copy on the server, and restoring a backup. Admins only. The work is done
 //! in `services/backup.rs` and `services/restore.rs`.
 
-use super::alert;
+use super::{alert, UploadProblem};
 use crate::app::models::CurrentUser;
 use crate::app::security::log_event;
 use crate::app::state::AppState;
@@ -178,48 +178,16 @@ pub async fn check_restore(
     }
 }
 
-/// Save the uploaded file (the form field `backup`) at `path`, a piece at a
-/// time, so a large backup never has to fit in memory.
-async fn receive_backup(
-    mut multipart: Multipart,
-    path: &std::path::Path,
-) -> Result<(), &'static str> {
-    use tokio::io::AsyncWriteExt;
-
-    // An upload cut short or over the size limit ends up here.
-    let interrupted = |e: axum::extract::multipart::MultipartError| {
-        if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
-            restore::TOO_LARGE
-        } else {
-            "The upload didn't finish. Please try again."
-        }
-    };
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|_| restore::NO_SPACE)?;
-    }
-    while let Some(mut field) = multipart.next_field().await.map_err(interrupted)? {
-        if field.name() != Some("backup") {
-            continue;
-        }
-        let mut file = tokio::fs::File::create(path)
-            .await
-            .map_err(|_| restore::NO_SPACE)?;
-        let mut size = 0u64;
-        while let Some(chunk) = field.chunk().await.map_err(interrupted)? {
-            size += chunk.len() as u64;
-            if size > restore::MAX_BACKUP_BYTES {
-                return Err(restore::TOO_LARGE);
-            }
-            file.write_all(&chunk)
-                .await
-                .map_err(|_| restore::NO_SPACE)?;
-        }
-        file.flush().await.map_err(|_| restore::NO_SPACE)?;
-        return Ok(());
-    }
-    Err(restore::NOT_A_BACKUP)
+/// Save the uploaded backup (the form field `backup`) at `path`.
+async fn receive_backup(multipart: Multipart, path: &std::path::Path) -> Result<(), &'static str> {
+    super::save_upload(multipart, "backup", path, restore::MAX_BACKUP_BYTES)
+        .await
+        .map_err(|problem| match problem {
+            UploadProblem::TooLarge => restore::TOO_LARGE,
+            UploadProblem::Interrupted => "The upload didn't finish. Please try again.",
+            UploadProblem::NoSpace => restore::NO_SPACE,
+            UploadProblem::Missing => restore::NOT_A_BACKUP,
+        })
 }
 
 /// POST /admin/backup/restore/cancel -> Forget the checked backup.

@@ -134,6 +134,24 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             post(admin::backup::cancel_restore),
         )
         .route("/admin/backup/restore", post(admin::backup::restore))
+        .route("/admin/import", get(admin::import_export::card))
+        .route(
+            "/admin/import/check",
+            // An export of a big site can be large.
+            post(admin::import_export::check).layer(DefaultBodyLimit::max(
+                usize::try_from(crate::services::import::MAX_FILE_BYTES).unwrap_or(usize::MAX),
+            )),
+        )
+        .route("/admin/import/start", post(admin::import_export::start))
+        .route("/admin/import/reset", post(admin::import_export::reset))
+        .route(
+            "/admin/export/wordpress.xml",
+            get(admin::import_export::export_wordpress),
+        )
+        .route(
+            "/admin/export/markdown.zip",
+            get(admin::import_export::export_markdown),
+        )
         .route(
             "/admin/settings/updates",
             post(admin::updates::save_settings),

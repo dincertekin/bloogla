@@ -2307,6 +2307,135 @@ code {
     text-align: center;
 }
 
+/* Importing from WordPress (admin/templates/import.html) */
+.import-heading {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.6rem;
+}
+
+/* Who wrote the posts: one row per person, them on the old site beside
+   who they are here. */
+.import-rows {
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.import-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 0.4rem 1rem;
+    padding: 0.7rem 0.9rem;
+    font-size: 0.875rem;
+    align-items: center;
+}
+
+.import-row + .import-row {
+    border-top: 1px solid var(--border-light);
+}
+
+.import-row small {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+    .import-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.import-progress {
+    display: block;
+    width: 100%;
+    max-width: 30rem;
+    height: 6px;
+    margin: 0.75rem 0 0.5rem;
+    accent-color: var(--accent-black);
+}
+
+/* The steps of a running import: a check once each is done. */
+.import-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.875rem;
+}
+
+.import-steps li::before {
+    content: "·";
+    display: inline-block;
+    width: 1.1rem;
+    text-align: center;
+}
+
+.import-steps li {
+    color: var(--text-muted);
+}
+
+.import-steps li.now {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.import-steps li.done {
+    color: var(--text-secondary);
+}
+
+.import-steps li.done::before {
+    content: "✓";
+    color: var(--success-icon);
+    font-weight: 700;
+}
+
+.import-list {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.import-list li {
+    margin-top: 0.2rem;
+    overflow-wrap: anywhere;
+}
+
+/* Settings → Import & export → Export: the two kinds of file side by side. */
+.export-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.export-option {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+}
+
+.export-option h3 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.export-option p {
+    flex: 1;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.export-option .btn {
+    align-self: flex-start;
+}
+
 /* ============================================================
    MOTION: moving between pages, saving, items coming and going
    ============================================================ */
