@@ -151,3 +151,45 @@ async fn a_downloaded_backup_restores_the_site() {
     let _ = std::fs::remove_file(&restored);
     assert!(titles.contains(&"Kept in the backup".to_string()));
 }
+
+/// The reset page's own `no-referrer` isn't replaced by the site-wide policy
+/// (from #11, by Rashandd).
+#[tokio::test]
+async fn reset_pages_keep_their_stricter_referrer_policy() {
+    let mut site = TestSite::with_owner().await;
+    for path in [
+        "/admin/reset-password",
+        "/admin/reset-password?token=invalid",
+    ] {
+        let page = site.get(path).await;
+        assert_eq!(page.header("referrer-policy"), "no-referrer", "{path}");
+    }
+    assert_eq!(
+        site.get("/").await.header("referrer-policy"),
+        "strict-origin-when-cross-origin"
+    );
+}
+
+/// `data/` is private to the account running Bloogla, and a folder that
+/// can't be changed doesn't stop the start (from #20, by Rashandd).
+#[cfg(unix)]
+#[test]
+fn the_data_folder_is_private() {
+    use std::os::unix::fs::PermissionsExt;
+    let folder = std::env::temp_dir().join(format!(
+        "bloogla-private-{}",
+        crate::app::security::random_hex(8)
+    ));
+    std::fs::create_dir_all(&folder).expect("folder");
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).expect("open it");
+    crate::commands::keep_private(&folder);
+    let mode = std::fs::metadata(&folder)
+        .expect("folder")
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o700);
+    let _ = std::fs::remove_dir(&folder);
+
+    // A folder that doesn't exist only gets a warning.
+    crate::commands::keep_private(&folder);
+}

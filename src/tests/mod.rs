@@ -14,6 +14,7 @@
 //! - `settings`: saving settings and your profile
 //! - `themes`: every bundled theme draws every page
 
+mod account_changes;
 mod badges;
 mod media;
 mod posts;

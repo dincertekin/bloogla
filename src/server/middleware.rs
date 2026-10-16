@@ -92,7 +92,8 @@ pub async fn require_login(
         Some(id) => crate::db::users::find(&state.pool, id).await,
         None => None,
     };
-    // Sessions from before a password change no longer count.
+    // Sessions from before a change to how the account signs in (password,
+    // email, two-factor login) no longer count.
     let session_version: i64 = session
         .get(SESSION_VERSION)
         .await
@@ -103,7 +104,7 @@ pub async fn require_login(
         Some(user) => {
             crate::app::security::log_event(
                 "session_expired",
-                &[("user", &user.email), ("reason", "password changed")],
+                &[("user", &user.email), ("reason", "account sign-in changed")],
             );
             let _ = session.flush().await;
             None

@@ -51,6 +51,8 @@ pub struct TwoFactorTemplate {
 
 /// Session key holding the new key while two-factor login is being set up.
 const TWO_FACTOR_SETUP: &str = "two_factor_setup";
+/// Session key holding new recovery codes until their page shows them, once.
+const NEW_RECOVERY_CODES: &str = "new_recovery_codes";
 
 fn unix_now() -> u64 {
     std::time::SystemTime::now()
@@ -65,6 +67,9 @@ pub struct ProfileForm {
     /// `en`, `tr`, or empty for the site's language.
     #[serde(default)]
     language: String,
+    /// Asked for only when the email changes.
+    #[serde(default)]
+    current_password: String,
 }
 
 #[derive(Deserialize)]
@@ -85,18 +90,22 @@ async fn confirm_password(
     me: &CurrentUser,
     password: String,
 ) -> Option<Response> {
+    let (status, message) = check_password(state, me, password).await?;
+    Some((status, alert(me.lang, "error", message)).into_response())
+}
+
+/// Like [`confirm_password`], for pages that show the refusal themselves:
+/// gives back its status and (English) message.
+async fn check_password(
+    state: &AppState,
+    me: &CurrentUser,
+    password: String,
+) -> Option<(StatusCode, &'static str)> {
     if super::auth::must_wait(&me.email) {
-        return Some(
-            (
-                StatusCode::TOO_MANY_REQUESTS,
-                alert(
-                    me.lang,
-                    "error",
-                    "Too many failed sign-ins for this account. Wait a minute and try again.",
-                ),
-            )
-                .into_response(),
-        );
+        return Some((
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many failed sign-ins for this account. Wait a minute and try again.",
+        ));
     }
     let stored: Option<String> = or_log(
         sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
@@ -111,13 +120,10 @@ async fn confirm_password(
     if !valid {
         super::auth::record_failure(&me.email);
         log_event("password_confirmation_failed", &[("user", &me.email)]);
-        return Some(
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                alert(me.lang, "error", "Your current password isn't right."),
-            )
-                .into_response(),
-        );
+        return Some((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "Your current password isn't right.",
+        ));
     }
     None
 }
@@ -173,10 +179,13 @@ pub async fn page(
     }
 }
 
-/// POST /admin/profile -> Update your name and email.
+/// POST /admin/profile -> Update your name and email. A new email asks for
+/// the password: reset links go to that address, so whoever changes it could
+/// otherwise take over the account from a computer left signed in.
 pub async fn update(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    session: Session,
     Form(form): Form<ProfileForm>,
 ) -> Response {
     let email = form.email.trim();
@@ -194,6 +203,24 @@ pub async fn update(
     if taken.is_some() {
         return alert(me.lang, "error", "Someone else already uses this email.");
     }
+    let email_changes = !email.eq_ignore_ascii_case(&me.email);
+    if email_changes {
+        // An empty field is a typing mistake like a wrong password: 422.
+        if form.current_password.is_empty() {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                alert(
+                    me.lang,
+                    "error",
+                    "Enter your current password to change your email.",
+                ),
+            )
+                .into_response();
+        }
+        if let Some(refusal) = confirm_password(&state, &me, form.current_password).await {
+            return refusal;
+        }
+    }
 
     let language = Lang::parse(&form.language).map_or("", Lang::code);
     let previous_language: String = or_log(
@@ -203,16 +230,20 @@ pub async fn update(
             .await,
         "load language",
     );
-    match sqlx::query("UPDATE users SET name = ?, email = ?, language = ? WHERE id = ?")
-        .bind(form.name.trim())
-        .bind(email)
-        .bind(language)
-        .bind(me.id)
-        .execute(&state.pool)
+    match crate::db::users::update_profile(&state.pool, &me, form.name.trim(), email, language)
         .await
     {
-        // A new language applies to the whole page, so reload it.
-        Ok(_) if language != previous_language => {
+        // A new language applies to the whole page, so reload it. A new
+        // email too: it empties the password field and shows the new address.
+        Ok(version) if language != previous_language || email_changes => {
+            if email_changes {
+                log_event(
+                    "email_changed",
+                    &[("user", &me.email), ("new_email", email)],
+                );
+                // Other devices are signed out; this one stays signed in.
+                crate::handlers::admin::auth::sign_in(&session, me.id, version).await;
+            }
             let site_language = settings::load(&state.pool).await.language;
             saved_and_reload(Lang::parse(language).unwrap_or(site_language))
         }
@@ -305,12 +336,16 @@ async fn setup_page(
     .into_response()
 }
 
-/// Make new recovery codes for `me`, store their hashes and show them once.
-async fn show_new_codes(
+/// Make new recovery codes for `me` and store their hashes; with `secret`,
+/// also turn two-factor login on. Other devices are signed out, this one
+/// stays signed in, and the codes wait in the session for their page
+/// (`codes_page`). Gives back `None` when saved, or the error to send.
+async fn save_new_codes(
     state: &AppState,
-    me: CurrentUser,
+    me: &CurrentUser,
+    session: &Session,
     secret: Option<(&[u8], u64)>,
-) -> Response {
+) -> Option<Response> {
     let codes = new_recovery_codes();
     let hashes: Vec<String> = codes.iter().map(|c| hash_recovery_code(c)).collect();
     let saved = match secret {
@@ -319,14 +354,41 @@ async fn show_new_codes(
         }
         None => crate::db::users::set_recovery_codes(&state.pool, me.id, &hashes).await,
     };
-    if let Err(e) = saved {
-        tracing::error!("Failed to save two-factor login: {e}");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(me.t("Couldn't save your changes. Please try again.")),
-        )
-            .into_response();
+    let version = match saved {
+        Ok(version) => version,
+        Err(e) => {
+            tracing::error!("Failed to save two-factor login: {e}");
+            return Some(
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    alert(
+                        me.lang,
+                        "error",
+                        "Couldn't save your changes. Please try again.",
+                    ),
+                )
+                    .into_response(),
+            );
+        }
+    };
+    crate::handlers::admin::auth::sign_in(session, me.id, version).await;
+    if let Err(e) = session.insert(NEW_RECOVERY_CODES, codes).await {
+        tracing::error!("Failed to save session: {e}");
     }
+    None
+}
+
+/// GET /admin/profile/two-factor/codes -> The new recovery codes, shown once.
+/// They're shown after a redirect, so reloading the page can't make new ones.
+pub async fn codes_page(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    session: Session,
+) -> Response {
+    let codes: Option<Vec<String>> = session.remove(NEW_RECOVERY_CODES).await.ok().flatten();
+    let Some(codes) = codes else {
+        return Redirect::to("/admin/profile#two-factor").into_response();
+    };
     TwoFactorTemplate {
         blog_name: settings::load(&state.pool).await.blog_name.clone(),
         me,
@@ -361,9 +423,12 @@ pub async fn two_factor_page(
 #[derive(Deserialize)]
 pub struct CodeForm {
     code: String,
+    #[serde(default)]
+    password: String,
 }
 
-/// POST /admin/profile/two-factor -> Confirm with a code from the app and turn it on.
+/// POST /admin/profile/two-factor -> Confirm with the password and a code from
+/// the app, and turn it on.
 pub async fn enable_two_factor(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
@@ -375,30 +440,47 @@ pub async fn enable_two_factor(
     let Some(secret) = secret else {
         return Redirect::to("/admin/profile/two-factor").into_response();
     };
+    if let Some((status, message)) = check_password(&state, &me, form.password).await {
+        let error = me.t(message).to_string();
+        return (status, setup_page(&state, me, &secret, Some(error)).await).into_response();
+    }
     let Some(step) = crate::app::totp::verify(&secret, &form.code, unix_now(), 0) else {
         let error = me
             .t("That code isn't right. Try the newest one from your app.")
             .to_string();
         return setup_page(&state, me, &secret, Some(error)).await;
     };
+    if let Some(error) = save_new_codes(&state, &me, &session, Some((&secret, step))).await {
+        return error;
+    }
     let _ = session.remove::<String>(TWO_FACTOR_SETUP).await;
     log_event("two_factor_enabled", &[("user", &me.email)]);
-    show_new_codes(&state, me, Some((&secret, step))).await
+    Redirect::to("/admin/profile/two-factor/codes").into_response()
 }
 
-/// POST /admin/profile/two-factor/recovery -> Replace the recovery codes.
+/// POST /admin/profile/two-factor/recovery -> Replace the recovery codes
+/// (asks for the password).
 pub async fn new_recovery_codes_page(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    session: Session,
+    Form(form): Form<ConfirmPasswordForm>,
 ) -> Response {
     if crate::db::users::two_factor(&state.pool, me.id)
         .await
         .is_none()
     {
-        return Redirect::to("/admin/profile#two-factor").into_response();
+        return ([("HX-Redirect", "/admin/profile#two-factor")], ()).into_response();
+    }
+    if let Some(refusal) = confirm_password(&state, &me, form.password).await {
+        return refusal;
+    }
+    if let Some(error) = save_new_codes(&state, &me, &session, None).await {
+        return error;
     }
     log_event("recovery_codes_replaced", &[("user", &me.email)]);
-    show_new_codes(&state, me, None).await
+    // The form is sent by htmx, which opens the codes' page from this header.
+    ([("HX-Redirect", "/admin/profile/two-factor/codes")], ()).into_response()
 }
 
 #[derive(Deserialize)]

@@ -34,6 +34,12 @@
             </div>
         </div>
         <div class="form-group" style="max-width: 320px">
+            <label for="email_current_password">{{ me.t("Current password") }}</label>
+            <input type="password" id="email_current_password" name="current_password" class="form-control"
+                autocomplete="current-password" />
+            <span class="form-hint">{{ me.t("Only needed to change your email.") }}</span>
+        </div>
+        <div class="form-group" style="max-width: 320px">
             <label for="language">{{ me.t("Language") }}</label>
             <select id="language" name="language" class="form-control">
                 <option value="" {% if language.is_empty() %}selected{% endif %}>{{ me.t("Same as the site") }}</option>
@@ -91,11 +97,19 @@
     <p class="form-hint" style="margin-bottom: 1rem">
         {{ me.count(recovery_codes_left, "{n} recovery code left.", "{n} recovery codes left.") }}
     </p>
-    <form method="POST" action="/admin/profile/two-factor/recovery" style="margin-bottom: 1.75rem">
+    <!-- New codes and turning it off each ask for the password, in a field
+         of its own. -->
+    <form hx-post="/admin/profile/two-factor/recovery" hx-target="find .form-status" hx-swap="innerHTML"
+        style="margin-bottom: 1.75rem; max-width: 24rem">
+        <div class="form-group">
+            <label for="recovery-codes-password">{{ me.t("Current password") }}</label>
+            <input type="password" id="recovery-codes-password" name="password" class="form-control" required
+                autocomplete="current-password" />
+        </div>
+        <div class="form-status"></div>
         <button type="submit" class="btn btn-secondary">{{ me.t("New recovery codes") }}</button>
     </form>
 
-    <!-- Turning it off asks for the password, in a field of its own. -->
     <form hx-post="/admin/profile/two-factor/off" hx-target="find .form-status" hx-swap="innerHTML"
         data-reset-on-success style="border-top: 1px solid var(--border-light); padding-top: 1.5rem; max-width: 24rem">
         <div class="form-group">

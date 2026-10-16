@@ -216,6 +216,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             post(admin::profile::new_recovery_codes_page),
         )
         .route(
+            "/admin/profile/two-factor/codes",
+            get(admin::profile::codes_page),
+        )
+        .route(
             "/admin/profile/two-factor/off",
             post(admin::profile::disable_two_factor),
         )
@@ -340,7 +344,9 @@ fn with_security_headers(app: Router<AppState>, https: bool) -> Router<AppState>
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
         ))
-        .layer(SetResponseHeaderLayer::overriding(
+        // `if_not_present`: the password reset page sets a stricter
+        // `no-referrer` of its own, so its secret link never leaks.
+        .layer(SetResponseHeaderLayer::if_not_present(
             header::REFERRER_POLICY,
             HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))

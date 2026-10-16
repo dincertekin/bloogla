@@ -69,6 +69,7 @@ impl Command {
         // Every other command works on the database in `data/`.
         let config = Config::from_env()?;
         std::fs::create_dir_all("data")?;
+        keep_private(std::path::Path::new("data"));
         // A backup confirmed in Settings → Backup is put in place now,
         // before the database is opened.
         crate::services::restore::finish_pending(&config.folder)?;
@@ -83,4 +84,26 @@ impl Command {
             Command::Help | Command::Version => Ok(()),
         }
     }
+}
+
+/// `data/` holds the database, the secret key and the backups, so on Linux
+/// only the account running Bloogla may open it (folder mode 700). Some
+/// folders can't be changed (a Docker volume, a shared NAS folder): then
+/// Bloogla says so and starts anyway, so an update never stops a site.
+pub fn keep_private(folder: &std::path::Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let private = std::fs::Permissions::from_mode(0o700);
+        if let Err(e) = std::fs::set_permissions(folder, private) {
+            tracing::warn!(
+                "Couldn't make {} private ({e}). Other accounts on this server may be able to read it.",
+                folder.display()
+            );
+        }
+    }
+    // Windows keeps a folder private through the permissions of the folder
+    // it's in, so there's nothing to do here.
+    #[cfg(not(unix))]
+    let _ = folder;
 }

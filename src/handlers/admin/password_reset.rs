@@ -242,8 +242,9 @@ pub async fn reset_page(
 /// POST /admin/reset-password -> Save the new password.
 pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -> Response {
     let lang = settings::load(&state.pool).await.language;
-    let Some(user_id) = user_for(&state.pool, &form.token).await else {
-        return private(
+    // The "this link doesn't work any more" page.
+    let used_up = || {
+        private(
             ResetTemplate {
                 lang,
                 token: None,
@@ -251,8 +252,11 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
                 error: None,
             }
             .into_response(),
-        );
+        )
     };
+    if user_for(&state.pool, &form.token).await.is_none() {
+        return used_up();
+    }
     let error = |message: String| {
         private(
             ResetTemplate {
@@ -280,19 +284,25 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
                 .to_string(),
         );
     };
-    if crate::db::users::set_password(&state.pool, user_id, &hash)
-        .await
-        .is_err()
+    // The link is checked again as it's used up: another request may have
+    // used it while the password was being hashed.
+    let user_id = match crate::db::users::reset_password(
+        &state.pool,
+        &hash_token(&form.token),
+        &hash,
+    )
+    .await
     {
-        return error(
-            lang.t("Couldn't save the password. Please try again.")
-                .to_string(),
-        );
-    }
-    let _ = sqlx::query("DELETE FROM password_resets WHERE user_id = ?")
-        .bind(user_id)
-        .execute(&state.pool)
-        .await;
+        Ok(Some(id)) => id,
+        Ok(None) => return used_up(),
+        Err(e) => {
+            tracing::error!("Failed to reset password: {e}");
+            return error(
+                lang.t("Couldn't save the password. Please try again.")
+                    .to_string(),
+            );
+        }
+    };
     let email: String = or_log(
         sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
             .bind(user_id)

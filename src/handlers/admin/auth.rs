@@ -185,6 +185,7 @@ pub async fn login(
             let waiting = async {
                 session.cycle_id().await?;
                 session.insert(PENDING_USER_ID, user_id).await?;
+                session.insert(PENDING_VERSION, version).await?;
                 session.insert(PENDING_SINCE, unix_now()).await
             }
             .await;
@@ -215,6 +216,9 @@ pub async fn login(
 
 /// Session keys while the password was right but the code isn't entered yet.
 const PENDING_USER_ID: &str = "pending_user_id";
+/// The account's session version when the password was checked. If the
+/// password changes before the code is entered, that check no longer counts.
+const PENDING_VERSION: &str = "pending_version";
 const PENDING_SINCE: &str = "pending_since";
 /// How long the code page stays valid after the password.
 const PENDING_SECONDS: u64 = 5 * 60;
@@ -232,6 +236,12 @@ async fn pending_user(session: &Session) -> Option<i64> {
         return None;
     }
     session.get(PENDING_USER_ID).await.ok().flatten()
+}
+
+async fn clear_pending(session: &Session) {
+    let _ = session.remove::<i64>(PENDING_USER_ID).await;
+    let _ = session.remove::<i64>(PENDING_VERSION).await;
+    let _ = session.remove::<u64>(PENDING_SINCE).await;
 }
 
 #[derive(Template)]
@@ -283,6 +293,11 @@ pub async fn check_code(
     let Some((email, version)) = user else {
         return Redirect::to("/admin/login").into_response();
     };
+    let checked_version: Option<i64> = session.get(PENDING_VERSION).await.ok().flatten();
+    if checked_version != Some(version) {
+        clear_pending(&session).await;
+        return Redirect::to("/admin/login").into_response();
+    }
     let email = email.to_lowercase();
     let show_error = |status: StatusCode, message: &'static str| {
         (
@@ -309,8 +324,9 @@ pub async fn check_code(
     let mut accepted = false;
     if let Some((secret, last_step)) = crate::db::users::two_factor(&state.pool, user_id).await {
         if let Some(step) = crate::app::totp::verify(&secret, typed, unix_now(), last_step) {
-            crate::db::users::set_two_factor_step(&state.pool, user_id, step).await;
-            accepted = true;
+            // Two sign-ins with the same code at the same moment: only the
+            // first one gets in.
+            accepted = crate::db::users::set_two_factor_step(&state.pool, user_id, step).await;
         }
     }
     // A recovery code is longer than the six digits from the app.
@@ -332,8 +348,7 @@ pub async fn check_code(
     }
 
     failed_logins(|f| f.clear(&email));
-    let _ = session.remove::<i64>(PENDING_USER_ID).await;
-    let _ = session.remove::<u64>(PENDING_SINCE).await;
+    clear_pending(&session).await;
     log_event(
         "login",
         &[("user", &email), ("ip", &ip), ("two_factor", "yes")],

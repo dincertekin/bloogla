@@ -38,6 +38,13 @@ fn code_at(secret: &[u8], step: u64) -> u32 {
     number % 10u32.pow(DIGITS)
 }
 
+/// The code an authenticator app shows right now (for tests).
+#[cfg(test)]
+pub fn code_now(secret: &[u8]) -> String {
+    let now = chrono::Utc::now().timestamp() as u64;
+    format!("{:06}", code_at(secret, now / STEP_SECONDS))
+}
+
 /// Check a typed code against the current time (`unix_seconds`).
 ///
 /// Returns the time step it matched, so the caller can refuse to accept that

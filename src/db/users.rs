@@ -62,21 +62,102 @@ pub async fn set_color_scheme(
         .map(|_| ())
 }
 
-/// Set a new password and sign the account out on every device.
+/// Save someone's name, email and language. A new email signs the account
+/// out on every device and cancels emailed reset links, which went to the
+/// old address. Returns the account's session version (new if it changed).
+pub async fn update_profile(
+    pool: &SqlitePool,
+    me: &CurrentUser,
+    name: &str,
+    email: &str,
+    language: &str,
+) -> Result<i64, sqlx::Error> {
+    let email_changes = !email.eq_ignore_ascii_case(&me.email);
+    // A transaction: the change and the cancelled links are saved together,
+    // or not at all.
+    let mut tx = pool.begin().await?;
+    let version = sqlx::query_scalar(
+        "UPDATE users SET name = ?, email = ?, language = ?, session_version = session_version + ?
+         WHERE id = ? RETURNING session_version",
+    )
+    .bind(name)
+    .bind(email)
+    .bind(language)
+    .bind(i64::from(email_changes))
+    .bind(me.id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if email_changes {
+        cancel_reset_links(&mut tx, me.id).await?;
+    }
+    tx.commit().await?;
+    Ok(version)
+}
+
+/// Set a new password and sign the account out on every device. Older reset
+/// links stop working too, so one can't undo the change.
 /// Returns the account's new session version.
 pub async fn set_password(
     pool: &SqlitePool,
     id: i64,
     password_hash: &str,
 ) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar(
+    let mut tx = pool.begin().await?;
+    let version = new_password(&mut tx, id, password_hash).await?;
+    tx.commit().await?;
+    Ok(version)
+}
+
+/// Use up a reset link and set the new password in one step, so the same
+/// link can't be used twice, even by two requests at the same moment.
+/// Returns the account's id, or `None` when the link is unknown or expired.
+pub async fn reset_password(
+    pool: &SqlitePool,
+    token_hash: &str,
+    password_hash: &str,
+) -> Result<Option<i64>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let user_id: Option<i64> = sqlx::query_scalar(
+        "DELETE FROM password_resets WHERE token_hash = ? AND expires_at > datetime('now')
+         RETURNING user_id",
+    )
+    .bind(token_hash)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(id) = user_id else {
+        return Ok(None);
+    };
+    new_password(&mut tx, id, password_hash).await?;
+    tx.commit().await?;
+    Ok(Some(id))
+}
+
+async fn new_password(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: i64,
+    password_hash: &str,
+) -> Result<i64, sqlx::Error> {
+    let version = sqlx::query_scalar(
         "UPDATE users SET password_hash = ?, session_version = session_version + 1
          WHERE id = ? RETURNING session_version",
     )
     .bind(password_hash)
     .bind(id)
-    .fetch_one(pool)
-    .await
+    .fetch_one(&mut **tx)
+    .await?;
+    cancel_reset_links(tx, id).await?;
+    Ok(version)
+}
+
+async fn cancel_reset_links(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM password_resets WHERE user_id = ?")
+        .bind(id)
+        .execute(&mut **tx)
+        .await
+        .map(|_| ())
 }
 
 // ---- Two-factor login ----
@@ -96,45 +177,64 @@ pub async fn two_factor(pool: &SqlitePool, id: i64) -> Option<(Vec<u8>, u64)> {
 }
 
 /// Remember the time step a code was used in, so it can't be used again.
-pub async fn set_two_factor_step(pool: &SqlitePool, id: i64, step: u64) {
-    let _ = sqlx::query("UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?")
-        .bind(step as i64)
-        .bind(id)
-        .bind(step as i64)
-        .execute(pool)
-        .await;
+/// False when another sign-in already used it (two at the same moment).
+pub async fn set_two_factor_step(pool: &SqlitePool, id: i64, step: u64) -> bool {
+    let saved =
+        sqlx::query("UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?")
+            .bind(step as i64)
+            .bind(id)
+            .bind(step as i64)
+            .execute(pool)
+            .await;
+    matches!(saved, Ok(r) if r.rows_affected() > 0)
 }
 
 /// Turn two-factor login on with `secret` (already confirmed with a code from
-/// `step`), replacing any recovery codes with `recovery_hashes`.
+/// `step`), replacing any recovery codes with `recovery_hashes`. Other
+/// devices are signed out: they signed in without a code.
+/// Returns the account's new session version.
 pub async fn enable_two_factor(
     pool: &SqlitePool,
     id: i64,
     secret: &[u8],
     step: u64,
     recovery_hashes: &[String],
-) -> Result<(), sqlx::Error> {
+) -> Result<i64, sqlx::Error> {
     let hex = crate::app::security::to_hex(secret);
     let mut tx = pool.begin().await?;
-    sqlx::query("UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?")
-        .bind(crate::app::secrets::encrypt(&hex))
-        .bind(step as i64)
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    let version = sqlx::query_scalar(
+        "UPDATE users SET totp_secret = ?, totp_last_step = ?, session_version = session_version + 1
+         WHERE id = ? RETURNING session_version",
+    )
+    .bind(crate::app::secrets::encrypt(&hex))
+    .bind(step as i64)
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
     replace_recovery_codes(&mut tx, id, recovery_hashes).await?;
-    tx.commit().await
+    tx.commit().await?;
+    Ok(version)
 }
 
-/// New recovery codes for someone who has two-factor login on.
+/// New recovery codes for someone who has two-factor login on. Other devices
+/// are signed out, in case one of them signed in with an old code.
+/// Returns the account's new session version.
 pub async fn set_recovery_codes(
     pool: &SqlitePool,
     id: i64,
     hashes: &[String],
-) -> Result<(), sqlx::Error> {
+) -> Result<i64, sqlx::Error> {
     let mut tx = pool.begin().await?;
+    let version = sqlx::query_scalar(
+        "UPDATE users SET session_version = session_version + 1 WHERE id = ?
+         RETURNING session_version",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
     replace_recovery_codes(&mut tx, id, hashes).await?;
-    tx.commit().await
+    tx.commit().await?;
+    Ok(version)
 }
 
 async fn replace_recovery_codes(
