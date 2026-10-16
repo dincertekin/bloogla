@@ -1,6 +1,7 @@
 //! Saving settings and your profile without reloading the page by hand.
 
 use super::{TestSite, ADMIN_EMAIL};
+use axum::http::StatusCode;
 
 #[tokio::test]
 async fn a_new_site_language_reloads_the_admin_in_that_language() {
@@ -102,4 +103,44 @@ async fn backups_stay_on_without_the_old_variable() {
     assert!(page
         .body
         .contains(r#"name="auto_backup" value="1" checked"#));
+}
+
+#[tokio::test]
+async fn each_person_chooses_light_or_dark_for_the_admin() {
+    let mut site = TestSite::with_owner().await;
+    // Like the device at first: no choice on <html>.
+    assert!(site
+        .get("/admin")
+        .await
+        .body
+        .contains(r#"<html lang="en">"#));
+
+    for (scheme, expected) in [
+        ("dark", r#" data-scheme="dark""#),
+        ("light", r#" data-scheme="light""#),
+    ] {
+        let saved = site
+            .post("/admin/profile/color-scheme", &[("scheme", scheme)])
+            .await;
+        assert_eq!(saved.status, StatusCode::NO_CONTENT);
+        let page = site.get("/admin").await.body;
+        assert!(
+            page.contains(&format!(r#"<html lang="en"{expected}>"#)),
+            "{scheme}"
+        );
+        assert!(page.contains(&format!(r#"data-scheme-switch data-state="{scheme}""#)));
+    }
+
+    // Back to the device; something else is refused.
+    site.post("/admin/profile/color-scheme", &[("scheme", "device")])
+        .await;
+    assert!(site
+        .get("/admin")
+        .await
+        .body
+        .contains(r#"<html lang="en">"#));
+    let refused = site
+        .post("/admin/profile/color-scheme", &[("scheme", "purple")])
+        .await;
+    assert_eq!(refused.status, StatusCode::UNPROCESSABLE_ENTITY);
 }

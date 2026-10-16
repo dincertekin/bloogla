@@ -1094,3 +1094,70 @@ button:active,
         transform: translateY(10px);
     }
 }
+
+/* ---- The visitor's light/dark button (scheme_button.html, scheme.js) ---- */
+
+.scheme-toggle {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.75;
+    cursor: pointer;
+}
+
+.scheme-toggle:hover {
+    opacity: 1;
+}
+
+.scheme-toggle svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* The moon on a light page, the sun on a dark one. */
+.scheme-sun {
+    display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-scheme="light"]) .scheme-sun {
+        display: block;
+    }
+
+    :root:not([data-scheme="light"]) .scheme-moon {
+        display: none;
+    }
+}
+
+:root[data-scheme="dark"] .scheme-sun {
+    display: block;
+}
+
+:root[data-scheme="dark"] .scheme-moon {
+    display: none;
+}
+
+/* While switching, colors glide instead of flipping. */
+@media (prefers-reduced-motion: no-preference) {
+    .scheme-changing,
+    .scheme-changing * {
+        transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease,
+            fill 0.3s ease, stroke 0.3s ease !important;
+    }
+}
+
+.header-content .site-nav {
+    margin-left: auto;
+}

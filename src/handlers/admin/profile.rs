@@ -122,6 +122,32 @@ async fn confirm_password(
     None
 }
 
+#[derive(Deserialize)]
+pub struct ColorSchemeForm {
+    scheme: String,
+}
+
+/// POST /admin/profile/color-scheme -> Remember light, dark or "like my
+/// device" for this person's admin panel (the switch at the bottom of the
+/// sidebar). admin.js has already changed the page; this keeps it for next
+/// time, on every device they sign in from.
+pub async fn set_color_scheme(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Form(form): Form<ColorSchemeForm>,
+) -> StatusCode {
+    let Some(scheme) = crate::app::models::ColorScheme::parse(&form.scheme) else {
+        return StatusCode::UNPROCESSABLE_ENTITY;
+    };
+    match crate::db::users::set_color_scheme(&state.pool, me.id, scheme).await {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(e) => {
+            tracing::error!("Failed to save the light or dark choice: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
 /// GET /admin/profile -> Your own name, email and password.
 pub async fn page(
     State(state): State<AppState>,

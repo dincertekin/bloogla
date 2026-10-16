@@ -16,6 +16,7 @@
     <a class="skip-link" href="#main">{{ t.skip_to_content }}</a>
     <header class="site-header">
         <div class="column">
+            {% include "templates/scheme_button.html" %}
             <a class="site-title" href="/">{% if theme_options.logo %}<img class="site-logo" src="{{ theme_options.logo }}" alt="{{ blog_name }}">{% else %}{{ blog_name }}{% endif %}</a>
             {% if blog_description %}<p class="site-description">{{ blog_description }}</p>{% endif %}
             {% if menu %}

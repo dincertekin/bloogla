@@ -1,6 +1,6 @@
 name = "Default Theme"
 author = "Bloogla Team"
-version = "3.0.4"
+version = "3.0.5"
 description = "A clean, bright blog: the newest post large at the top, then a grid of cards. With dark mode."
 preview_image = "static/preview.svg"
 
@@ -19,6 +19,13 @@ type = "select"
 choices = ["Follow the visitor's device", "Always light", "Always dark"]
 default = "Follow the visitor's device"
 hint = "Following the device shows your site dark to visitors who use dark mode."
+
+[[options]]
+name = "scheme_button"
+label = "Let visitors switch between light and dark"
+type = "checkbox"
+default = true
+hint = "A sun and moon button in the header. It shows when the site follows the visitor's device, and their choice is remembered in their own browser."
 
 [[options]]
 name = "accent_color"

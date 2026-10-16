@@ -28,6 +28,7 @@
                     <input type="search" name="q" placeholder="{{ t.search_posts }}" aria-label="{{ t.search_posts }}"
                         value="{{ search_query }}" required />
                 </form>
+                {% include "templates/scheme_button.html" %}
             </div>
             <a class="masthead" href="/">{% if theme_options.logo %}<img class="site-logo" src="{{ theme_options.logo }}" alt="{{ blog_name }}">{% else %}{{ blog_name }}{% endif %}</a>
             {% if blog_description %}<p class="tagline">{{ blog_description }}</p>{% endif %}

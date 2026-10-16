@@ -163,6 +163,31 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     }
 });
 
+// ---- Light or dark: the switch at the bottom of the sidebar ----
+// Each click goes device → light → dark → device. The page changes at once
+// (data-scheme on <html>, see the colors at the top of style.css), and the
+// choice is saved for this person, so it's the same on their other devices.
+
+document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-scheme-switch]");
+    if (!button) return;
+    const next = { "": "light", light: "dark", dark: "" }[button.dataset.state] ?? "";
+    const root = document.documentElement;
+    root.classList.add("scheme-changing");
+    setTimeout(() => root.classList.remove("scheme-changing"), 350);
+    if (next) root.dataset.scheme = next;
+    else delete root.dataset.scheme;
+    button.dataset.state = next;
+    const label = button.dataset[{ "": "labelDevice", light: "labelLight", dark: "labelDark" }[next]];
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    fetch("/admin/profile/color-scheme", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ scheme: next || "device" }),
+    });
+});
+
 // ---- Password fields: an eye to show or hide what was typed ----
 // Added to every password field, also ones htmx brings in later. The labels
 // come from <body data-show-password data-hide-password> (translated).

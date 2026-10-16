@@ -1,17 +1,17 @@
 //! People who can sign in: loading the person making a request (from their
 //! session) and changing passwords.
 
-use crate::app::models::{CurrentUser, Role};
+use crate::app::models::{ColorScheme, CurrentUser, Role};
 use crate::db::{or_log, settings};
 use crate::i18n::Lang;
 
 use sqlx::SqlitePool;
 
-type UserRow = (i64, String, String, String, String, i64);
+type UserRow = (i64, String, String, String, String, i64, String);
 
 async fn from_row(
     pool: &SqlitePool,
-    (id, name, email, role, language, session_version): UserRow,
+    (id, name, email, role, language, session_version, color_scheme): UserRow,
 ) -> CurrentUser {
     CurrentUser {
         id,
@@ -20,6 +20,7 @@ async fn from_row(
         role: Role::parse(&role).unwrap_or(Role::Author),
         lang: language_or_site(pool, &language).await,
         session_version,
+        color_scheme: ColorScheme::parse(&color_scheme).unwrap_or_default(),
         badges: Default::default(),
     }
 }
@@ -36,7 +37,8 @@ async fn language_or_site(pool: &SqlitePool, code: &str) -> Lang {
 pub async fn find(pool: &SqlitePool, id: i64) -> Option<CurrentUser> {
     let row: Option<UserRow> = or_log(
         sqlx::query_as(
-            "SELECT id, name, email, role, language, session_version FROM users WHERE id = ?",
+            "SELECT id, name, email, role, language, session_version, color_scheme
+             FROM users WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -44,6 +46,20 @@ pub async fn find(pool: &SqlitePool, id: i64) -> Option<CurrentUser> {
         "load user",
     );
     Some(from_row(pool, row?).await)
+}
+
+/// Save someone's light or dark choice for the admin panel.
+pub async fn set_color_scheme(
+    pool: &SqlitePool,
+    id: i64,
+    scheme: ColorScheme,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET color_scheme = ? WHERE id = ?")
+        .bind(scheme.as_str())
+        .bind(id)
+        .execute(pool)
+        .await
+        .map(|_| ())
 }
 
 /// Set a new password and sign the account out on every device.

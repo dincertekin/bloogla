@@ -66,7 +66,7 @@ hint = "Used for links, buttons and highlights."
 
 Values are checked before they're saved (colors must look like `#2563eb`, images must be from the media library or `https://`, a select only accepts its choices), so they're safe to use in styles.
 
-Every bundled theme offers the same five, so changing theme keeps the same kind of choices: **Logo** (`logo`, an image shown instead of the site title), **Light or dark** (`color_scheme`, a select: "Follow the visitor's device", "Always light" or "Always dark"), **Accent color**, **Footer text** and **Show "Powered by Bloogla"**. Atelier adds a welcome card and Brief a heading and a menu button. Labels, hints and choices are English and are translated in the admin like any other text, so a bundled theme's new option needs a line in each language file (`cargo test` lists missing ones).
+Every bundled theme offers the same six, so changing theme keeps the same kind of choices: **Logo** (`logo`, an image shown instead of the site title), **Light or dark** (`color_scheme`, a select: "Follow the visitor's device", "Always light" or "Always dark"), **Let visitors switch between light and dark** (`scheme_button`, a checkbox, on at first), **Accent color**, **Footer text** and **Show "Powered by Bloogla"**. Atelier adds a welcome card and Brief a heading and a menu button. Labels, hints and choices are English and are translated in the admin like any other text, so a bundled theme's new option needs a line in each language file (`cargo test` lists missing ones).
 
 ### Light and dark
 
@@ -80,6 +80,8 @@ The bundled themes put `data-scheme="light"` or `data-scheme="dark"` on `<html>`
 ```
 
 Their `templates/colors.html` sets the accent color, and a lighter shade of it for dark mode (`color-mix(in srgb, <accent> 55%, white)`), so links stay readable on a dark background whatever color an admin picks. Copy it into your theme and include it in `<head>`.
+
+Visitors can also choose for themselves with a sun/moon button: include `templates/scheme_button.html` in your header and copy `static/js/scheme.js` from a bundled theme (`colors.html` loads it). The button shows only when the site follows the visitor's device and `scheme_button` is on. The script runs in `<head>` and puts the visitor's saved choice on `<html>` as `data-scheme` before the page is drawn, so your dark colors written as above just work. The choice stays in the visitor's browser (`localStorage`), never in a cookie.
 
 ### Moving between pages
 

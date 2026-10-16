@@ -9,3 +9,9 @@
 @media (prefers-color-scheme:dark){:root:not([data-scheme="light"]){--accent:color-mix(in srgb,{{ accent }} 55%,white);--accent-hover:color-mix(in srgb,{{ accent }} 35%,white);--on-accent:#111111;--soft:color-mix(in srgb,{{ accent }} 16%,var(--surface))}}
 :root[data-scheme="dark"]{--accent:color-mix(in srgb,{{ accent }} 55%,white);--accent-hover:color-mix(in srgb,{{ accent }} 35%,white);--on-accent:#111111;--soft:color-mix(in srgb,{{ accent }} 16%,var(--surface))}
 </style>
+
+{#- The visitor's own light/dark choice, applied before the page is drawn
+    (only with the button, see scheme_button.html). -#}
+{%- if theme_options.scheme_button | default(value=false) and scheme != "Always light" and scheme != "Always dark" %}
+<script src="{{ theme_url }}/static/js/scheme.js?v={{ asset_version }}"></script>
+{%- endif %}

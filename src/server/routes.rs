@@ -204,6 +204,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             post(admin::profile::update_password),
         )
         .route(
+            "/admin/profile/color-scheme",
+            post(admin::profile::set_color_scheme),
+        )
+        .route(
             "/admin/profile/two-factor",
             get(admin::profile::two_factor_page).post(admin::profile::enable_two_factor),
         )

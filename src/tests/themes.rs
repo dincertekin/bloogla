@@ -104,6 +104,9 @@ async fn every_bundled_theme_shows_every_page() {
                 page.body
             );
             if path == "/" {
+                // Visitors can switch light and dark (on by default).
+                assert!(page.body.contains("data-scheme-toggle"), "{theme}: button");
+                assert!(page.body.contains("static/js/scheme.js"), "{theme}: script");
                 for part in front_page {
                     assert!(page.body.contains(part), "{theme}: front page has {part}");
                 }
@@ -243,4 +246,40 @@ fn cover_pictures_keep_their_shape() {
             }
         }
     }
+}
+
+#[tokio::test]
+async fn the_light_dark_button_shows_only_when_visitors_can_choose() {
+    let mut site = TestSite::with_owner().await;
+    let save = |scheme: &'static str, button: bool| {
+        let mut fields = vec![
+            ("logo", ""),
+            ("color_scheme", scheme),
+            ("accent_color", "#2563eb"),
+            ("footer_text", ""),
+        ];
+        if button {
+            fields.push(("scheme_button", "true"));
+        }
+        fields
+    };
+
+    // The owner chose dark for everyone: nothing to switch.
+    let fields = save("Always dark", true);
+    site.post("/admin/themes/default/options", &fields).await;
+    let home = site.get("/").await.body;
+    assert!(!home.contains("data-scheme-toggle"));
+    assert!(!home.contains("scheme.js"));
+
+    // Following the device, with the button turned off in Appearance.
+    let fields = save("Follow the visitor's device", false);
+    site.post("/admin/themes/default/options", &fields).await;
+    assert!(!site.get("/").await.body.contains("data-scheme-toggle"));
+
+    // And turned on again.
+    let fields = save("Follow the visitor's device", true);
+    site.post("/admin/themes/default/options", &fields).await;
+    let home = site.get("/").await.body;
+    assert!(home.contains("data-scheme-toggle"));
+    assert!(home.contains(r#"aria-label="Switch to dark mode""#));
 }

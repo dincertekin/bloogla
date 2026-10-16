@@ -253,6 +253,8 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("search_query", "Search: {query}"),
     ("search_results_for_query", "Search results for “{query}”"),
     ("skip_to_content", "Skip to content"),
+    ("switch_to_dark", "Switch to dark mode"),
+    ("switch_to_light", "Switch to light mode"),
     ("tag_tag", "Tag: {tag}"),
     ("tags", "Tags"),
     (

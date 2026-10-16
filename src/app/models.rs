@@ -106,8 +106,40 @@ pub struct CurrentUser {
     pub lang: Lang,
     /// See [`SESSION_VERSION`].
     pub session_version: i64,
+    /// Light or dark admin panel (the switch at the bottom of the sidebar).
+    pub color_scheme: ColorScheme,
     /// Numbers next to menu items. Filled in for page loads only.
     pub badges: Badges,
+}
+
+/// Light or dark, for one person's admin panel.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum ColorScheme {
+    /// Whatever their device uses.
+    #[default]
+    Device,
+    Light,
+    Dark,
+}
+
+impl ColorScheme {
+    /// As stored in `users.color_scheme`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ColorScheme::Device => "",
+            ColorScheme::Light => "light",
+            ColorScheme::Dark => "dark",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "" | "device" => Some(ColorScheme::Device),
+            "light" => Some(ColorScheme::Light),
+            "dark" => Some(ColorScheme::Dark),
+            _ => None,
+        }
+    }
 }
 
 /// Small numbers next to menu items, like WordPress's bubbles, telling

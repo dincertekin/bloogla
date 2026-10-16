@@ -1,6 +1,6 @@
 name = "Folio"
 author = "Bloogla Team"
-version = "1.0.0"
+version = "1.0.1"
 description = "Photographs first: the newest story as one large picture, then a grid of pictures. For photography, travel and food."
 preview_image = "static/preview.svg"
 
@@ -19,6 +19,13 @@ type = "select"
 choices = ["Follow the visitor's device", "Always light", "Always dark"]
 default = "Follow the visitor's device"
 hint = "Following the device shows your site dark to visitors who use dark mode."
+
+[[options]]
+name = "scheme_button"
+label = "Let visitors switch between light and dark"
+type = "checkbox"
+default = true
+hint = "A sun and moon button in the header. It shows when the site follows the visitor's device, and their choice is remembered in their own browser."
 
 [[options]]
 name = "accent_color"
