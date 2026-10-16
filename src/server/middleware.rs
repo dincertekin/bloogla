@@ -193,7 +193,9 @@ pub async fn prefer_webp(mut req: Request, next: Next) -> Response {
 ///
 /// Themes link their files with the theme's version (`style.css?v=2.0.0`), so
 /// those URLs change on every theme update and browsers may keep them for a
-/// year. Without a version, browsers check for changes each time.
+/// year. Files without a version are mostly ones a stylesheet points to
+/// (fonts, small pictures), which rarely change: browsers keep them for a day
+/// instead of asking the server about them again on every page.
 pub async fn theme_static_only(req: Request, next: Next) -> Response {
     // Inside `/theme-assets`, so the path looks like `/<theme>/static/...`.
     let mut segments = req.uri().path().trim_start_matches('/').split('/');
@@ -212,7 +214,7 @@ pub async fn theme_static_only(req: Request, next: Next) -> Response {
         let cache = if versioned {
             "public, max-age=31536000, immutable"
         } else {
-            "no-cache"
+            "public, max-age=86400"
         };
         response
             .headers_mut()

@@ -21,6 +21,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::time::SystemTime;
 use tera::Tera;
 
 mod install;
@@ -157,6 +158,8 @@ struct LoadedTheme {
     info: ThemeInfo,
     /// `None` when the theme is broken.
     tera: Option<Tera>,
+    /// When its newest file changed, as it was loaded (see `reload_if_changed`).
+    changed: Option<SystemTime>,
 }
 
 /// Every installed theme with its templates, kept in `AppState`.
@@ -198,6 +201,16 @@ impl Themes {
         }
     }
 
+    /// Read one theme again, but only if one of its files changed since it was
+    /// loaded. Checking costs a few file dates; loading costs much more.
+    pub fn reload_if_changed(&mut self, id: &str) {
+        let dir = Path::new(THEMES_DIR).join(id);
+        let loaded = self.themes.get(id).and_then(|theme| theme.changed);
+        if loaded.is_none() || newest_change(&dir) != loaded {
+            self.reload(id);
+        }
+    }
+
     /// Every installed theme, the bundled ones first.
     pub fn list(&self) -> Vec<ThemeInfo> {
         let mut list: Vec<ThemeInfo> = self.themes.values().map(|t| t.info.clone()).collect();
@@ -232,7 +245,27 @@ fn is_valid_id(id: &str) -> bool {
 }
 
 /// Read a theme's `theme.toml` and templates from `dir`.
+/// When the newest file in a theme's folder changed. Its `static/` files are
+/// served as they are, so only the templates and `theme.toml` count.
+fn newest_change(dir: &Path) -> Option<SystemTime> {
+    let mut newest = None;
+    for entry in fs::read_dir(dir).ok()?.flatten() {
+        let path = entry.path();
+        let changed = if path.is_dir() {
+            if entry.file_name() == "static" {
+                continue;
+            }
+            newest_change(&path)
+        } else {
+            entry.metadata().and_then(|m| m.modified()).ok()
+        };
+        newest = newest.max(changed);
+    }
+    newest
+}
+
 fn load_theme(id: &str, dir: &Path) -> LoadedTheme {
+    let changed = newest_change(dir);
     let broken = |meta: ThemeMeta, error: String| LoadedTheme {
         info: ThemeInfo {
             id: id.to_string(),
@@ -240,6 +273,7 @@ fn load_theme(id: &str, dir: &Path) -> LoadedTheme {
             error: Some(error),
         },
         tera: None,
+        changed,
     };
     let unnamed = || ThemeMeta {
         name: id.to_string(),
@@ -293,6 +327,7 @@ fn load_theme(id: &str, dir: &Path) -> LoadedTheme {
             error: None,
         },
         tera: Some(tera),
+        changed,
     }
 }
 
@@ -318,8 +353,8 @@ fn describe_error(error: &tera::Error) -> String {
 /// e.g. `/theme-assets/default`) and `theme_options`. Sends the theme's
 /// Content Security Policy.
 ///
-/// In debug builds the active theme is reloaded on every request, so theme
-/// edits show up without restarting.
+/// In debug builds the active theme is read again when its files change, so
+/// theme edits show up without restarting.
 pub async fn render(
     state: &AppState,
     candidates: &[&str],
@@ -331,7 +366,7 @@ pub async fn render(
 
     if cfg!(debug_assertions) {
         if let Ok(mut themes) = state.themes.write() {
-            themes.reload(&chosen);
+            themes.reload_if_changed(&chosen);
         }
     }
 

@@ -9,7 +9,7 @@
     </header>
 
     {% if post.cover_image %}
-    <img src="{{ post.cover_image }}" alt="" class="single-cover" decoding="async" fetchpriority="high"
+    <img src="{{ post.cover_image }}" alt="" class="single-cover" decoding="sync" fetchpriority="high"
         {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %}
         {% if post.cover_small %}srcset="{{ post.cover_small }} 800w, {{ post.cover_image }} {{ post.cover_width }}w" sizes="(max-width: 760px) 100vw, 704px"{% endif %} />
     {% endif %}

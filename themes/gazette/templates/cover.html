@@ -3,6 +3,6 @@
 {% if post.cover_image %}
 <a href="{{ post.url }}" class="cover" tabindex="-1" aria-hidden="true">
     <img src="{% if post.cover_small %}{{ post.cover_small }}{% else %}{{ post.cover_image }}{% endif %}" alt=""
-        decoding="async" {% if eager is defined %}fetchpriority="high"{% else %}loading="lazy"{% endif %} />
+        {% if eager is defined %}decoding="sync" fetchpriority="high"{% else %}decoding="async" loading="lazy"{% endif %} />
 </a>
 {% endif %}

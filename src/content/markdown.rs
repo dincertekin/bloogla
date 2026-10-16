@@ -91,6 +91,12 @@ pub fn to_plain_text(markdown: &str) -> String {
         match &node.data.borrow().value {
             NodeValue::Text(t) => text.push_str(t),
             NodeValue::Code(c) => text.push_str(&c.literal),
+            // A post written in HTML (pasted, or imported from WordPress):
+            // its text, without the tags, is still the post's text.
+            NodeValue::HtmlBlock(block) => {
+                text.push_str(&html_text(&block.literal));
+                text.push(' ');
+            }
             NodeValue::SoftBreak | NodeValue::LineBreak => text.push(' '),
             // A new block: end the one before as a sentence, so headings and
             // list items don't run into the next text ("The plan. Keep it small.").
@@ -107,6 +113,20 @@ pub fn to_plain_text(markdown: &str) -> String {
         }
     }
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The text inside a piece of HTML, without tags, scripts or styles.
+fn html_text(html: &str) -> String {
+    // ammonia removes every tag (and what's inside <script> and <style>) and
+    // gives back HTML-escaped text; the excerpt wants it plain again.
+    let escaped = ammonia::Builder::empty().clean(html).to_string();
+    escaped
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
 }
 
 /// Plain-text excerpt of a Markdown document, cut at a word boundary.
@@ -161,6 +181,12 @@ mod tests {
             )
         });
         assert_eq!(beginning("short", 100), "short");
+    }
+
+    #[test]
+    fn excerpts_of_posts_written_in_html_keep_their_text() {
+        let html = "<p>Fish &amp; chips <em>by</em> the sea.</p>\n<script>alert(1)</script>";
+        assert_eq!(excerpt(html, 200), "Fish & chips by the sea.");
     }
 
     #[test]

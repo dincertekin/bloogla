@@ -128,6 +128,12 @@ async fn every_bundled_theme_shows_every_page() {
             "font/woff2",
             "{theme}: font type"
         );
+        // Kept for a day, so moving between pages doesn't ask for it again.
+        assert_eq!(
+            font.header("cache-control"),
+            "public, max-age=86400",
+            "{theme}: font cache"
+        );
         // A post links to the posts before and after it; a page doesn't.
         let post = site.get("/post/post-number-3").await.body;
         assert!(
@@ -281,5 +287,7 @@ async fn the_light_dark_button_shows_only_when_visitors_can_choose() {
     site.post("/admin/themes/default/options", &fields).await;
     let home = site.get("/").await.body;
     assert!(home.contains("data-scheme-toggle"));
-    assert!(home.contains(r#"aria-label="Switch to dark mode""#));
+    // It starts by following the device, the first of its three choices.
+    assert!(home.contains(r#"aria-label="Light or dark: same as your device""#));
+    assert!(home.contains(r#"data-dark="Light or dark: always dark""#));
 }

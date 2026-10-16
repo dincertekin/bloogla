@@ -956,54 +956,9 @@ h3 {
 }
 
 /* ---- Moving between pages ----
-   The header and footer stay still; only the page's content changes. The old
-   content steps back and fades out quickly, then the new content rises softly
-   into place. The two barely overlap, so text never shows twice (a plain
-   crossfade does, and looks blurry), and nothing is scaled, so text stays
-   sharp. Browsers without view transitions simply show the new page. */
-@view-transition {
-    navigation: auto;
-}
-
-#main {
-    view-transition-name: page;
-}
-
-/* Everything outside the content changes at once: it's the same on every page. */
-::view-transition-old(root) {
-    display: none;
-}
-
-::view-transition-new(root) {
-    animation: none;
-}
-
-/* The content area takes its new size at once instead of stretching. */
-::view-transition-group(page) {
-    animation: none;
-}
-
-::view-transition-old(page) {
-    animation: page-out 120ms cubic-bezier(0.4, 0, 1, 1) both;
-}
-
-::view-transition-new(page) {
-    animation: page-in 340ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
-}
-
-@keyframes page-out {
-    to {
-        opacity: 0;
-        transform: translateY(-6px);
-    }
-}
-
-@keyframes page-in {
-    from {
-        opacity: 0;
-        transform: translateY(14px);
-    }
-}
+   No animation: speed comes first. The browser keeps showing the old page
+   until the new one is ready, then shows it whole, so a click never waits
+   on motion. */
 
 /* ---- Small things that answer the hand ---- */
 
@@ -1040,12 +995,6 @@ button:active,
     *::after {
         animation-duration: 0.01ms !important;
         transition-duration: 0.01ms !important;
-    }
-
-    ::view-transition-group(*),
-    ::view-transition-old(*),
-    ::view-transition-new(*) {
-        animation: none !important;
     }
 }
 
@@ -1162,27 +1111,17 @@ button:active,
     stroke-linejoin: round;
 }
 
-/* The moon on a light page, the sun on a dark one. */
-.scheme-sun {
+/* The icon shows the choice that's on: a screen while following the device,
+   a sun for always light, a moon for always dark. */
+.scheme-sun,
+.scheme-moon,
+:root[data-scheme] .scheme-device {
     display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root:not([data-scheme="light"]) .scheme-sun {
-        display: block;
-    }
-
-    :root:not([data-scheme="light"]) .scheme-moon {
-        display: none;
-    }
-}
-
-:root[data-scheme="dark"] .scheme-sun {
-    display: block;
-}
-
+:root[data-scheme="light"] .scheme-sun,
 :root[data-scheme="dark"] .scheme-moon {
-    display: none;
+    display: block;
 }
 
 /* While switching, colors glide instead of flipping. */

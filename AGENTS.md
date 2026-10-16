@@ -138,7 +138,8 @@ People update with one click and can't fix things by hand. After any update:
   a writer adds to a post are their choice.)
 - **Keep pages light.** No database query per item in a list, no new
   JavaScript on public pages without a clear reason, images lazy-loaded with
-  sizes. The bundled themes score 100 on Lighthouse; keep it that way.
+  sizes (except the first big picture, which loads first and is drawn with
+  the page: `fetchpriority="high" decoding="sync"`). The bundled themes score 100 on Lighthouse; keep it that way.
 - **The server reaches the internet only for things the owner turned on**
   (update checks, sending email, HTTPS certificates). Anything new that calls
   out is opt-in and explained where it's switched on.
@@ -193,7 +194,9 @@ People update with one click and can't fix things by hand. After any update:
 - **Accessibility:** every field has a label, everything works with the
   keyboard, pop-ups keep focus inside and give it back, images have alt text,
   text keeps enough contrast in light and dark mode.
-- **Motion:** smooth, premium-feeling motion is part of Bloogla: page changes,
+- **Motion:** speed comes first: motion never delays, hides or dims content
+  someone is waiting for. Public pages (themes) don't animate page changes.
+  In the admin, smooth, premium-feeling motion is part of Bloogla: page changes,
   tabs, new items and hovers should glide, never jump. Moving between pages,
   the frame (header, sidebar) stays still and only the content changes: the
   old content fades out quickly, then the new one rises in (see "MOTION" in

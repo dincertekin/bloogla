@@ -1,6 +1,6 @@
 name = "Atelier"
 author = "Bloogla Team"
-version = "1.0.1"
+version = "1.0.3"
 description = "Warm colors, rounded cards and friendly serif headings, with a welcome card on the home page. For hobby, family and cooking blogs."
 preview_image = "static/preview.svg"
 
@@ -25,7 +25,7 @@ name = "scheme_button"
 label = "Let visitors switch between light and dark"
 type = "checkbox"
 default = true
-hint = "A sun and moon button in the header. It shows when the site follows the visitor's device, and their choice is remembered in their own browser."
+hint = "A button in the header: same as the device, always light or always dark. It shows when the site follows the visitor's device, and their choice is remembered in their own browser."
 
 [[options]]
 name = "accent_color"

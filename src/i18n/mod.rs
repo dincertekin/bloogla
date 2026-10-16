@@ -251,10 +251,11 @@ pub const THEME_STRINGS: &[(&str, &str)] = &[
     ("previous_post", "Previous post"),
     ("search_posts", "Search posts..."),
     ("search_query", "Search: {query}"),
+    ("scheme_dark", "Light or dark: always dark"),
+    ("scheme_device", "Light or dark: same as your device"),
+    ("scheme_light", "Light or dark: always light"),
     ("search_results_for_query", "Search results for “{query}”"),
     ("skip_to_content", "Skip to content"),
-    ("switch_to_dark", "Switch to dark mode"),
-    ("switch_to_light", "Switch to light mode"),
     ("tag_tag", "Tag: {tag}"),
     ("tags", "Tags"),
     (

@@ -40,7 +40,7 @@
     <article class="lead">
         {% if lead.cover_image %}
         <a href="{{ lead.url }}" tabindex="-1" aria-hidden="true">
-            <img src="{{ lead.cover_image }}" alt="" decoding="async" fetchpriority="high"
+            <img src="{{ lead.cover_image }}" alt="" decoding="sync" fetchpriority="high"
                 {% if lead.cover_width %}width="{{ lead.cover_width }}" height="{{ lead.cover_height }}"{% endif %}
                 {% if lead.cover_small %}srcset="{{ lead.cover_small }} 800w, {{ lead.cover_image }} {{ lead.cover_width }}w" sizes="(max-width: 900px) 100vw, 640px"{% endif %} />
         </a>

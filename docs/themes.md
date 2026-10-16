@@ -81,11 +81,13 @@ The bundled themes put `data-scheme="light"` or `data-scheme="dark"` on `<html>`
 
 Their `templates/colors.html` sets the accent color, and a lighter shade of it for dark mode (`color-mix(in srgb, <accent> 55%, white)`), so links stay readable on a dark background whatever color an admin picks. Copy it into your theme and include it in `<head>`.
 
-Visitors can also choose for themselves with a sun/moon button: include `templates/scheme_button.html` in your header and copy `static/js/scheme.js` from a bundled theme (`colors.html` loads it). The button shows only when the site follows the visitor's device and `scheme_button` is on. The script runs in `<head>` and puts the visitor's saved choice on `<html>` as `data-scheme` before the page is drawn, so your dark colors written as above just work. The choice stays in the visitor's browser (`localStorage`), never in a cookie.
+Visitors can also choose for themselves with a button that goes from "same as the device" to "always light" to "always dark" and back: include `templates/scheme_button.html` in your header and copy `static/js/scheme.js` from a bundled theme (`colors.html` loads it). The button shows only when the site follows the visitor's device and `scheme_button` is on. The script runs in `<head>` and puts the visitor's saved choice on `<html>` as `data-scheme` before the page is drawn, so your dark colors written as above just work. The choice stays in the visitor's browser (`localStorage`), never in a cookie. The button's labels are `t.scheme_device`, `t.scheme_light` and `t.scheme_dark`.
 
 ### Moving between pages
 
-The bundled themes animate page changes with CSS view transitions: the header stays still, the old content (`<main id="main">`, named `page`) fades out quickly and the new content rises into place. Copy the "Moving between pages" block from a bundled theme's `style.css` to do the same. Keep the old and new content from showing at the same time (a plain crossfade looks blurry), don't scale text, and turn it off under `prefers-reduced-motion`. Browsers without view transitions simply show the new page.
+The bundled themes don't animate page changes: speed comes first. Browsers keep showing the old page until the new one is ready and then show it whole, so a click never waits on motion. If your theme adds a transition, keep it short and never hide or dim the new content while it plays.
+
+The first big picture on a page (a post's cover, the newest post on the home page) uses `fetchpriority="high"` and `decoding="sync"`, so it's drawn together with the page instead of leaving an empty space for a moment. Pictures further down use `loading="lazy"` and `decoding="async"`.
 
 ## Scripts and the security policy
 
