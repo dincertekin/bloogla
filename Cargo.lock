@@ -499,7 +499,7 @@ dependencies = [
  "lettre",
  "qrcode",
  "quick-xml",
- "rand 0.8.8",
+ "rand 0.9.5",
  "ring",
  "rust-embed",
  "rustls-acme",
