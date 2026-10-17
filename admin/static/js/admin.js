@@ -135,7 +135,7 @@ document.addEventListener("htmx:afterRequest", (event) => {
         // Let the button draw its check first (see "Feel" below). The answer
         // isn't put on this page, so htmx's "settled" step doesn't come:
         // start the check here.
-        const button = sendingButton(elt, null);
+        const button = sendingButton(elt, null, requestConfig);
         if (button) showDone(button);
         const form = elt.closest("form");
         const pause = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 650;
@@ -273,8 +273,12 @@ function showDone(button) {
     }, 1300);
 }
 
-// The button that sent an htmx request, if it's still on the page.
-function sendingButton(elt, target) {
+// The button that sent an htmx request, if it's still on the page. A form
+// with several buttons (like the bar for ticked posts) says which one was
+// clicked in its submit event; otherwise it's the form's submit button.
+function sendingButton(elt, target, requestConfig) {
+    const clicked = requestConfig?.triggeringEvent?.submitter;
+    if (clicked?.isConnected) return clicked;
     for (const root of [elt, target]) {
         if (!root || !root.isConnected) continue;
         if (root.matches("button, .btn")) return root;
@@ -290,7 +294,7 @@ document.addEventListener("htmx:afterSettle", (event) => {
     // A card that moved on to its next step already shows what happened;
     // a check on the next step's button would say that button was used.
     if (target?.matches?.("[data-steps]") && !target.isConnected) return;
-    const button = sendingButton(elt, target);
+    const button = sendingButton(elt, target, requestConfig);
     // The delete confirmation closes by itself; reloads and restarts move on.
     if (!button || button.closest(".modal-overlay")) return;
     if (xhr.status === 422) {
