@@ -146,7 +146,8 @@ pub fn listen(addr: SocketAddr) -> Result<std::net::TcpListener, String> {
 }
 
 /// Hourly housekeeping: the daily database backup (when it's on in
-/// Settings → Backup) and removing expired sign-in sessions.
+/// Settings → Backup), emptying trash older than 30 days and removing
+/// expired sign-in sessions.
 fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
     tokio::spawn(async move {
         // The first round runs a few seconds after starting, once the start
@@ -160,6 +161,7 @@ fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
             if crate::db::settings::load(&pool).await.auto_backup {
                 crate::services::backup::run_daily_backup(&pool).await;
             }
+            crate::db::posts::delete_old_trash(&pool).await;
             if let Err(e) = session_store.delete_expired().await {
                 tracing::error!("Could not remove expired sessions: {e}");
             }

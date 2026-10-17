@@ -45,7 +45,7 @@ async fn all_posts(state: &AppState) -> Vec<Exported> {
         sqlx::query_as(
             "SELECT id, title, slug, content, cover_image, status, published_at, is_page,
                     author_id
-             FROM posts ORDER BY published_at",
+             FROM posts WHERE trashed_at IS NULL ORDER BY published_at",
         )
         .fetch_all(&state.pool)
         .await,

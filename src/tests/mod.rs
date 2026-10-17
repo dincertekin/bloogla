@@ -25,6 +25,7 @@ mod settings;
 mod setup_and_login;
 mod shared_failures;
 mod themes;
+mod trash;
 
 use crate::app::config::Config;
 use crate::app::state::AppState;

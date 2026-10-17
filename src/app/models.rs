@@ -24,6 +24,10 @@ pub struct Post {
     pub author_id: Option<i64>,
     /// Display name of the author, when they've set one.
     pub author_name: Option<String>,
+    /// When it was moved to the trash (`None` when it isn't there). Not
+    /// given to themes: they never see trashed posts.
+    #[serde(skip)]
+    pub trashed_at: Option<String>,
     #[sqlx(skip)]
     pub reading_time: u32,
     #[sqlx(skip)]
@@ -157,9 +161,12 @@ impl Badges {
     pub async fn load(state: &crate::app::state::AppState, user: &CurrentUser) -> Self {
         let pending_comments = if user.can_edit_all() {
             crate::db::or_log(
-                sqlx::query_scalar("SELECT COUNT(*) FROM comments WHERE status = 'pending'")
-                    .fetch_one(&state.pool)
-                    .await,
+                sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM comments WHERE status = 'pending'
+                     AND post_id NOT IN (SELECT id FROM posts WHERE trashed_at IS NOT NULL)",
+                )
+                .fetch_one(&state.pool)
+                .await,
                 "count waiting comments",
             )
         } else {
@@ -312,6 +319,7 @@ impl PostForm {
             is_page,
             author_id,
             author_name: None,
+            trashed_at: None,
             reading_time: 0,
             tags: Vec::new(),
             url: String::new(),

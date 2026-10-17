@@ -144,3 +144,60 @@ async fn each_person_chooses_light_or_dark_for_the_admin() {
         .await;
     assert_eq!(refused.status, StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[tokio::test]
+async fn verification_tags_go_on_every_page_and_scripts_dont() {
+    let mut site = TestSite::with_owner().await;
+    let page = site.get("/admin/settings").await.body;
+    assert!(
+        page.contains(r#"<label for="head_code">Code for search engines and other sites</label>"#)
+    );
+
+    let saved = site
+        .post(
+            "/admin/settings/general",
+            &[
+                ("blog_name", "Test Blog"),
+                ("language", "en"),
+                (
+                    "head_code",
+                    "<meta name=\"google-site-verification\" content=\"x7Gm\" />",
+                ),
+            ],
+        )
+        .await;
+    assert!(saved.body.contains("Saved."), "{}", saved.body);
+    let address = site.publish("Hello", "published").await;
+    site.new_visitor();
+    for path in ["/", address.as_str(), "/no-such-page"] {
+        let page = site.get(path).await.body;
+        assert!(
+            page.contains(r#"<meta name="google-site-verification" content="x7Gm">"#),
+            "{path}"
+        );
+    }
+
+    site.sign_in(ADMIN_EMAIL, super::ADMIN_PASSWORD).await;
+    let refused = site
+        .post(
+            "/admin/settings/general",
+            &[
+                ("blog_name", "Test Blog"),
+                ("language", "en"),
+                (
+                    "head_code",
+                    "<script src=\"https://tracker.example/t.js\"></script>",
+                ),
+            ],
+        )
+        .await;
+    assert_eq!(refused.status, axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(refused
+        .body
+        .contains("Only meta and link tags can go here."));
+    // The tags saved before stay.
+    site.new_visitor();
+    let home = site.get("/").await.body;
+    assert!(home.contains("google-site-verification"));
+    assert!(!home.contains("tracker.example"));
+}

@@ -70,9 +70,14 @@ pub async fn page(
         .unwrap_or("pending");
 
     let counts: HashMap<String, i64> = or_log(
-        sqlx::query_as("SELECT status, COUNT(*) FROM comments GROUP BY status")
-            .fetch_all(&state.pool)
-            .await,
+        sqlx::query_as(
+            // Comments on posts in the trash aren't listed, so not counted.
+            "SELECT status, COUNT(*) FROM comments
+             WHERE post_id NOT IN (SELECT id FROM posts WHERE trashed_at IS NOT NULL)
+             GROUP BY status",
+        )
+        .fetch_all(&state.pool)
+        .await,
         "count comments",
     )
     .into_iter()
@@ -89,7 +94,7 @@ pub async fn page(
             "SELECT c.id, c.author_name, c.author_email, c.content, c.created_at,
                     p.title AS post_title, p.slug
              FROM comments c JOIN posts p ON p.id = c.post_id
-             WHERE c.status = ? ORDER BY c.id DESC LIMIT 200",
+             WHERE c.status = ? AND p.trashed_at IS NULL ORDER BY c.id DESC LIMIT 200",
         )
         .bind(active)
         .fetch_all(&state.pool)

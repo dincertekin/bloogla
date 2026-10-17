@@ -196,6 +196,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             get(admin::posts::edit).post(admin::posts::update),
         )
         .route("/admin/pages/{id}", delete(admin::posts::delete))
+        .route("/admin/pages/{id}/trash", post(admin::posts::move_to_trash))
+        .route("/admin/pages/{id}/restore", post(admin::posts::restore))
+        .route("/admin/pages/bulk", post(admin::posts::bulk))
+        .route("/admin/pages/trash", delete(admin::posts::empty_page_trash))
         .route("/admin/tags", get(admin::tags::page))
         .route("/admin/tags/new", post(admin::tags::create))
         .route("/admin/tags/{id}", delete(admin::tags::delete))
@@ -251,6 +255,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             get(admin::posts::edit).post(admin::posts::update),
         )
         .route("/admin/posts/{id}", delete(admin::posts::delete))
+        .route("/admin/posts/{id}/trash", post(admin::posts::move_to_trash))
+        .route("/admin/posts/{id}/restore", post(admin::posts::restore))
+        .route("/admin/posts/bulk", post(admin::posts::bulk))
+        .route("/admin/posts/trash", delete(admin::posts::empty_post_trash))
         .route(
             "/admin/posts/{id}/revisions/{rev}",
             get(admin::posts::revision),

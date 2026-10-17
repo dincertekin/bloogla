@@ -55,7 +55,7 @@ async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
 
 /// The SEO `<head>` block for a page.
 fn seo_head(state: &AppState, site: &Settings, meta: &SeoMeta) -> String {
-    render_head(
+    let mut head = render_head(
         meta,
         &SiteInfo {
             name: &site.blog_name,
@@ -64,7 +64,16 @@ fn seo_head(state: &AppState, site: &Settings, meta: &SeoMeta) -> String {
             publisher_name: site.publisher(),
             icon: (!site.site_icon.is_empty()).then_some(site.site_icon.as_str()),
         },
-    )
+    );
+    // The owner's own tags (Settings → Site), checked again in case the
+    // database was edited by hand.
+    if let Ok(code) = crate::content::seo::check_head_code(&site.head_code) {
+        if !code.is_empty() {
+            head.push('\n');
+            head.push_str(&code);
+        }
+    }
+    head
 }
 
 /// SEO tags for pages search engines should skip (search results, 404s, notices).

@@ -196,3 +196,165 @@ pub fn absolute_url(url: &str, base_url: &str) -> String {
         url.to_string()
     }
 }
+
+// ---- Code the owner adds to every page (Settings → Site) ----
+
+/// The longest head code kept.
+const MAX_HEAD_CODE: usize = 5000;
+
+/// Shown when the head code has something other than allowed tags.
+pub const HEAD_CODE_ONLY_TAGS: &str = "Only meta and link tags can go here. Scripts and other code would slow your site down and could track your visitors.";
+/// Shown for a link that would load something from another site.
+pub const HEAD_CODE_LINK: &str = "This link tag would load something from another site, so it can't be added. Links with rel=\"me\", \"author\" or \"alternate\" and an https:// address are fine.";
+/// Shown for a meta tag that changes how pages behave.
+pub const HEAD_CODE_HTTP_EQUIV: &str =
+    "A meta tag with http-equiv changes how your site works, so it can't be added.";
+
+/// Check the tags someone pasted for every page, and give them back written
+/// out cleanly, one per line. Only `<meta>` and some `<link>` tags are kept:
+/// the ones services ask for to prove a site is yours (Google, Bing,
+/// Pinterest, Mastodon). Nothing that runs code or loads from other sites.
+pub fn check_head_code(input: &str) -> Result<String, &'static str> {
+    let mut rest = input.trim();
+    if rest.len() > MAX_HEAD_CODE {
+        return Err(HEAD_CODE_ONLY_TAGS);
+    }
+    let mut tags = Vec::new();
+    while !rest.is_empty() {
+        let (name, attributes, after) = read_tag(rest).ok_or(HEAD_CODE_ONLY_TAGS)?;
+        let value = |wanted: &str| {
+            attributes
+                .iter()
+                .find(|(name, _)| name == wanted)
+                .map(|(_, value)| value.as_str())
+        };
+        match name.as_str() {
+            "meta" if value("http-equiv").is_some() => return Err(HEAD_CODE_HTTP_EQUIV),
+            "meta" => {}
+            "link" => {
+                let rel = value("rel").unwrap_or_default().to_lowercase();
+                let fine_rel = rel
+                    .split_whitespace()
+                    .all(|r| matches!(r, "me" | "author" | "alternate"));
+                let href = value("href").unwrap_or_default();
+                if rel.is_empty() || !fine_rel || !href.starts_with("https://") {
+                    return Err(HEAD_CODE_LINK);
+                }
+            }
+            _ => return Err(HEAD_CODE_ONLY_TAGS),
+        }
+        // Events like onload="..." would run code.
+        if attributes.iter().any(|(name, _)| name.starts_with("on")) {
+            return Err(HEAD_CODE_ONLY_TAGS);
+        }
+        let written: String = attributes
+            .iter()
+            .map(|(name, value)| format!(" {name}=\"{}\"", escape_html(value)))
+            .collect();
+        tags.push(format!("<{name}{written}>"));
+        rest = after.trim_start();
+    }
+    Ok(tags.join("\n"))
+}
+
+/// A tag's attributes: `(name, value)`, names in lowercase.
+type Attributes = Vec<(String, String)>;
+
+/// Read one tag at the start of `text`: its name, its attributes and the
+/// text after it. `None` if it isn't a tag.
+fn read_tag(text: &str) -> Option<(String, Attributes, &str)> {
+    let inside = text.strip_prefix('<')?;
+    let name_end = inside
+        .find(|c: char| !c.is_ascii_alphanumeric())
+        .unwrap_or(inside.len());
+    let name = inside[..name_end].to_ascii_lowercase();
+    if name.is_empty() {
+        return None;
+    }
+    let mut rest = &inside[name_end..];
+    let mut attributes = Vec::new();
+    loop {
+        rest = rest.trim_start();
+        if let Some(after) = rest.strip_prefix("/>").or_else(|| rest.strip_prefix('>')) {
+            return Some((name, attributes, after));
+        }
+        let attribute_end =
+            rest.find(|c: char| c.is_whitespace() || matches!(c, '=' | '>' | '/'))?;
+        let attribute = rest[..attribute_end].to_ascii_lowercase();
+        if attribute.is_empty()
+            || !attribute
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | ':' | '_'))
+        {
+            return None;
+        }
+        rest = rest[attribute_end..].trim_start();
+        let mut value = String::new();
+        if let Some(after_equals) = rest.strip_prefix('=') {
+            let after_equals = after_equals.trim_start();
+            let quote = after_equals.chars().next()?;
+            if quote == '"' || quote == '\'' {
+                let end = after_equals[1..].find(quote)?;
+                value = after_equals[1..=end].to_string();
+                rest = &after_equals[end + 2..];
+            } else {
+                let end = after_equals
+                    .find(|c: char| c.is_whitespace() || c == '>')
+                    .unwrap_or(after_equals.len());
+                value = after_equals[..end].to_string();
+                rest = &after_equals[end..];
+            }
+        }
+        attributes.push((attribute, value));
+    }
+}
+
+#[cfg(test)]
+mod head_code_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_verification_tags_written_cleanly() {
+        let pasted = "  <meta name=\"google-site-verification\" content=\"x7Gm\" />\n<META name='msvalidate.01' content=ABC>\n<link rel=\"me\" href=\"https://mastodon.social/@ayse\">  ";
+        assert_eq!(
+            check_head_code(pasted).unwrap(),
+            "<meta name=\"google-site-verification\" content=\"x7Gm\">\n<meta name=\"msvalidate.01\" content=\"ABC\">\n<link rel=\"me\" href=\"https://mastodon.social/@ayse\">"
+        );
+        assert_eq!(check_head_code("   ").unwrap(), "");
+    }
+
+    #[test]
+    fn refuses_anything_that_runs_or_loads() {
+        for pasted in [
+            "<script>alert(1)</script>",
+            "<script src=\"https://tracker.example/t.js\"></script>",
+            "<style>body{display:none}</style>",
+            "Some text",
+            "<meta name=\"a\" content=\"b\" onload=\"alert(1)\">",
+            "<meta name=\"a\" content=\"b\"><img src=x onerror=alert(1)>",
+            "<meta name=\"a\" content=\"unclosed",
+        ] {
+            assert_eq!(
+                check_head_code(pasted),
+                Err(HEAD_CODE_ONLY_TAGS),
+                "{pasted}"
+            );
+        }
+        for pasted in [
+            "<link rel=\"stylesheet\" href=\"https://cdn.example/a.css\">",
+            "<link rel=\"me\" href=\"javascript:alert(1)\">",
+            "<link rel=\"preload\" href=\"https://a.example/font.woff2\">",
+        ] {
+            assert_eq!(check_head_code(pasted), Err(HEAD_CODE_LINK), "{pasted}");
+        }
+        assert_eq!(
+            check_head_code("<meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\">"),
+            Err(HEAD_CODE_HTTP_EQUIV)
+        );
+        // A quote in a value can't break out of the attribute.
+        assert_eq!(
+            check_head_code("<meta name='a' content='x\"><script>'>").unwrap(),
+            "<meta name=\"a\" content=\"x&quot;&gt;&lt;script&gt;\">"
+        );
+    }
+}

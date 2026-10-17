@@ -1883,6 +1883,40 @@ code {
     font-size: 0.8rem;
 }
 
+/* Setup: "How do you want to start?", two choices as boxes. */
+.setup-choice label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.setup-choice label + label {
+    margin-top: 0.6rem;
+}
+
+.setup-choice label:has(input:checked) {
+    border-color: var(--accent-black);
+}
+
+.setup-choice input {
+    margin-top: 0.2rem;
+    accent-color: var(--accent-black);
+}
+
+.setup-choice small {
+    display: block;
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
 /* Setup: the steps, with the progress above the form. */
 .setup-progress {
     display: flex;
@@ -2282,6 +2316,13 @@ code {
     user-select: all;
 }
 
+/* A box for pasted code, like the tags in Settings → Site. */
+.code-field {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
 .code-input {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     letter-spacing: 0.15em;
@@ -2305,6 +2346,66 @@ code {
     border-radius: 6px;
     font-size: 0.95rem;
     text-align: center;
+}
+
+/* Changing several posts at once: the bar above the list, a box per row. */
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 0.75rem 0.6rem 1.1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    box-shadow: var(--shadow-card);
+}
+
+.bulk-bar b {
+    margin-right: auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    /* In line with the boxes in the rows below (their padding + border). */
+    margin: 0 0 0.6rem calc(1.25rem + 1px);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.select-all input,
+.row-pick {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    flex: none;
+    accent-color: var(--accent-black);
+    cursor: pointer;
+}
+
+.list-row.selected {
+    background: var(--chip-bg);
+}
+
+/* "Moved to the trash", with Undo, above the post list. */
+.trash-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 0.75rem 0.6rem 1.1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
 }
 
 /* Importing from WordPress (admin/templates/import.html) */

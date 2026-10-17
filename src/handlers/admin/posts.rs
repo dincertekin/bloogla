@@ -4,7 +4,7 @@
 use super::{forbidden, StatusFilter};
 use crate::app::models::{CurrentUser, Post, PostForm, Tag};
 use crate::app::state::AppState;
-use crate::content::text::{display_date, display_datetime, to_datetime_local};
+use crate::content::text::{display_date, display_datetime, escape_html, to_datetime_local};
 use crate::db::posts::{self, SaveError, POST_SELECT};
 use crate::db::{or_log, settings, tags};
 use crate::i18n::Lang;
@@ -24,6 +24,15 @@ pub struct PostRow {
     pub date: String,
     /// Public URL path when the item is visible to visitors.
     pub public_path: Option<String>,
+    /// In the trash: how many days ago it was moved there.
+    pub days_in_trash: Option<i64>,
+}
+
+impl PostRow {
+    /// Days since it went to the trash (0 when it isn't there).
+    pub fn trash_days(&self) -> i64 {
+        self.days_in_trash.unwrap_or(0)
+    }
 }
 
 /// Admin post or page list.
@@ -37,6 +46,12 @@ pub struct PostsTemplate {
     pub rows: Vec<PostRow>,
     pub filters: Vec<StatusFilter>,
     pub active_filter: String,
+    /// Showing the trash (`?status=trash`).
+    pub in_trash: bool,
+    /// How many items are in the trash (for "Empty trash").
+    pub trash_count: i64,
+    /// Days before trashed posts are deleted by themselves.
+    pub trash_days: i64,
 }
 
 /// Full-page editor for posts and pages (`post.id == 0` when new).
@@ -145,16 +160,28 @@ async fn list(
         "list posts",
     );
 
+    // The trash is a list of its own; every other list leaves it out.
+    let trashed: Vec<Post>;
+    (trashed, posts) = posts.into_iter().partition(|p| p.trashed_at.is_some());
+    let active = query.status.unwrap_or_default();
+    let in_trash = active == "trash";
+
     let count = |status: &str| posts.iter().filter(|p| p.status == status).count();
-    let filters = vec![
+    let mut filters = vec![
         StatusFilter::new("", "All", posts.len()),
         StatusFilter::new("published", "Published", count("published")),
         StatusFilter::new("scheduled", "Scheduled", count("scheduled")),
         StatusFilter::new("draft", "Drafts", count("draft")),
     ];
+    // The Trash tab shows only when something is in it (or it's open).
+    if !trashed.is_empty() || in_trash {
+        filters.push(StatusFilter::new("trash", "Trash", trashed.len()));
+    }
+    let trash_count = trashed.len() as i64;
 
-    let active = query.status.unwrap_or_default();
-    if !active.is_empty() {
+    if in_trash {
+        posts = trashed;
+    } else if !active.is_empty() {
         posts.retain(|p| p.status == active);
     }
 
@@ -169,6 +196,7 @@ async fn list(
             PostRow {
                 date: display_date(me.lang, tz, &post.published_at),
                 public_path: posts::is_live(&post).then(|| post_path(&post.slug, post.is_page)),
+                days_in_trash: post.trashed_at.as_deref().map(days_ago),
                 post,
             }
         })
@@ -182,8 +210,18 @@ async fn list(
         rows,
         filters,
         active_filter: active,
+        in_trash,
+        trash_count,
+        trash_days: posts::TRASH_DAYS,
     }
     .into_response()
+}
+
+/// Whole days since a stored date (`2026-10-16 09:30:00`).
+fn days_ago(date: &str) -> i64 {
+    chrono::NaiveDateTime::parse_from_str(date, "%Y-%m-%d %H:%M:%S")
+        .map(|then| (chrono::Utc::now().naive_utc() - then).num_days().max(0))
+        .unwrap_or(0)
 }
 
 pub async fn new_post(state: State<AppState>, me: Extension<CurrentUser>) -> Response {
@@ -216,6 +254,7 @@ async fn new_page_for(
         is_page: kind.is_page(),
         author_id: Some(me.id),
         author_name: Some(me.display_name().to_string()),
+        trashed_at: None,
         reading_time: 0,
         tags: Vec::new(),
         url: String::new(),
@@ -415,17 +454,168 @@ pub async fn revision(
     }
 }
 
-/// DELETE /admin/posts/:id -> Remove a post or page.
+/// What a trash action answers: nothing to show (the row closes up), or
+/// why it didn't work.
+fn trash_answer(result: Result<u64, SaveError>) -> StatusCode {
+    match result {
+        // Nothing changed: it isn't (or is no longer) where the button
+        // expects, like deleting a post that isn't in the trash.
+        Ok(0) => StatusCode::NOT_FOUND,
+        Ok(_) => StatusCode::OK,
+        Err(SaveError::NotFound) => StatusCode::NOT_FOUND,
+        Err(SaveError::Forbidden) => StatusCode::FORBIDDEN,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TrashQuery {
+    /// Sent from the editor: go back to the list afterwards.
+    #[serde(default)]
+    back: Option<String>,
+}
+
+/// POST /admin/posts/:id/trash -> Move to the trash. No question first: it
+/// can be undone, and the answer is a note with "Undo" above the list.
+pub async fn move_to_trash(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<i64>,
+    Query(query): Query<TrashQuery>,
+) -> Response {
+    let result = posts::move_to_trash(&state.pool, &me, &[id]).await;
+    let status = trash_answer(result);
+    if status != StatusCode::OK {
+        return status.into_response();
+    }
+    let Some(post) = posts::find(&state.pool, id).await else {
+        return StatusCode::OK.into_response();
+    };
+    let kind = Kind::of(&post);
+    if query.back.is_some() {
+        return ([("HX-Redirect", kind.admin_path())], ()).into_response();
+    }
+    // Swapped into the note above the list, beside the row closing up.
+    Html(format!(
+        r#"<div id="trash-notice" class="trash-notice" role="status" hx-swap-oob="true"><span>{}</span><button type="button" class="btn btn-secondary btn-sm" hx-post="{}/{id}/restore?undo=1" hx-swap="none">{}</button></div>"#,
+        escape_html(&me.tv("“{title}” moved to the trash.", &post.title)),
+        kind.admin_path(),
+        me.t("Undo"),
+    ))
+    .into_response()
+}
+
+#[derive(Deserialize)]
+pub struct RestoreQuery {
+    /// "Undo" right after moving it: show the list again with it back.
+    #[serde(default)]
+    undo: Option<String>,
+}
+
+/// POST /admin/posts/:id/restore -> Take out of the trash.
+pub async fn restore(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<i64>,
+    Query(query): Query<RestoreQuery>,
+) -> Response {
+    let status = trash_answer(posts::restore(&state.pool, &me, &[id]).await);
+    if status == StatusCode::OK && query.undo.is_some() {
+        return ([("HX-Refresh", "true")], ()).into_response();
+    }
+    status.into_response()
+}
+
+/// DELETE /admin/posts/:id -> Delete a post or page in the trash for good.
 pub async fn delete(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
     Path(id): Path<i64>,
 ) -> StatusCode {
-    match posts::delete(&state.pool, &me, id).await {
-        Ok(()) => StatusCode::OK,
-        Err(SaveError::NotFound) => StatusCode::NOT_FOUND,
-        Err(SaveError::Forbidden) => StatusCode::FORBIDDEN,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    trash_answer(posts::delete_forever(&state.pool, &me, &[id]).await)
+}
+
+pub async fn empty_post_trash(state: State<AppState>, me: Extension<CurrentUser>) -> StatusCode {
+    empty_trash(state, me, Kind::Post).await
+}
+
+pub async fn empty_page_trash(state: State<AppState>, me: Extension<CurrentUser>) -> StatusCode {
+    empty_trash(state, me, Kind::Page).await
+}
+
+/// DELETE /admin/posts/trash, /admin/pages/trash -> Empty the trash, after
+/// saving a backup of the site (it can't be undone).
+async fn empty_trash(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    kind: Kind,
+) -> StatusCode {
+    let folder = &state.config.folder;
+    let backup = folder
+        .join(crate::services::backup::BACKUP_DIR)
+        .join(format!(
+            "before-empty-trash-{}.zip",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S")
+        ));
+    let saved = match backup.parent().map(std::fs::create_dir_all) {
+        Some(Err(e)) => Err(e.to_string()),
+        _ => {
+            crate::services::backup::write_backup(&state.pool, &folder.join("uploads"), &backup)
+                .await
+        }
+    };
+    if let Err(e) = saved {
+        tracing::error!("Trash not emptied, the backup failed: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    trash_answer(posts::empty_trash(&state.pool, &me, kind.is_page()).await)
+}
+
+#[derive(Deserialize)]
+pub struct BulkForm {
+    /// Which button was clicked: publish, draft, trash, restore or delete.
+    action: String,
+    /// The ticked posts.
+    #[serde(default)]
+    ids: Vec<i64>,
+}
+
+/// POST /admin/posts/bulk, /admin/pages/bulk -> Change the ticked posts at
+/// once. Only the ones this person may edit change. The page reloads to
+/// show the result.
+pub async fn bulk(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Form(form): Form<BulkForm>,
+) -> Response {
+    if form.ids.is_empty() {
+        return super::alert(me.lang, "error", "Tick the posts to change first.");
+    }
+    let pool = &state.pool;
+    let result = match form.action.as_str() {
+        "publish" => posts::publish(pool, &me, &form.ids).await,
+        "draft" => posts::make_draft(pool, &me, &form.ids).await,
+        "trash" => posts::move_to_trash(pool, &me, &form.ids).await,
+        "restore" => posts::restore(pool, &me, &form.ids).await,
+        "delete" => posts::delete_forever(pool, &me, &form.ids).await,
+        _ => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    match result {
+        Ok(_) => (
+            [("HX-Trigger", "reload-page")],
+            super::alert(me.lang, "success", "Done."),
+        )
+            .into_response(),
+        Err(SaveError::Forbidden | SaveError::NotFound) => super::alert(
+            me.lang,
+            "error",
+            "These posts can't be changed by you. Ask an admin if they need changing.",
+        ),
+        Err(_) => super::alert(
+            me.lang,
+            "error",
+            "Something went wrong while saving. Please try again.",
+        ),
     }
 }
 

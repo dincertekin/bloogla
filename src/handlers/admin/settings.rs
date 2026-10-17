@@ -11,6 +11,7 @@ use crate::i18n::Lang;
 
 use askama::Template;
 use axum::extract::{Extension, State};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum_extra::extract::Form;
 use serde::Deserialize;
@@ -36,6 +37,7 @@ pub struct SettingsTemplate {
     pub timezone: String,
     pub timezones: Vec<&'static str>,
     pub site_icon: String,
+    pub head_code: String,
     /// Settings → Backup: the daily copy on the server.
     pub auto_backup: bool,
     /// Settings → Backup → Restore (always the upload form here).
@@ -79,6 +81,8 @@ pub struct GeneralSettingsForm {
     pub publisher_type: Option<String>,
     /// URL of the favicon, usually from the media library.
     pub site_icon: Option<String>,
+    /// Tags for every page (only meta and some link tags are kept).
+    pub head_code: Option<String>,
     /// Site language code (`en`, `tr`).
     pub language: Option<String>,
     /// Time zone name, e.g. `Europe/Istanbul`.
@@ -153,6 +157,7 @@ pub async fn page(
         timezone: site.timezone.name().to_string(),
         timezones: timezone_names(),
         site_icon: site.site_icon.clone(),
+        head_code: site.head_code.clone(),
         auto_backup: site.auto_backup,
         restore: Default::default(),
         import: super::import_export::ImportCard::now(),
@@ -186,6 +191,17 @@ pub async fn update_general(
         {
             return settings_error(me.lang, "Choose the site icon from your media library.");
         }
+        let head_code =
+            match crate::content::seo::check_head_code(&form.head_code.unwrap_or_default()) {
+                Ok(code) => code,
+                Err(message) => {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        settings_error(me.lang, message),
+                    )
+                        .into_response()
+                }
+            };
         values.extend([
             ("blog_name", blog_name),
             (
@@ -207,6 +223,7 @@ pub async fn update_general(
                     .to_string(),
             ),
             ("site_icon", site_icon),
+            ("head_code", head_code),
         ]);
         if let Some(zone) = form.timezone.as_deref() {
             if zone.parse::<chrono_tz::Tz>().is_err() {

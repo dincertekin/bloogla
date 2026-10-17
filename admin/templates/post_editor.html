@@ -168,11 +168,7 @@
             <div id="delete-post" data-live>
             {% if post.id != 0 %}
             <button type="button" class="btn btn-ghost-danger btn-sm" style="width: 100%"
-                data-delete-url="{{ admin_path }}/{{ post.id }}" data-delete-redirect="{{ admin_path }}"
-                data-confirm-title="{% if post.is_page %}{{ me.t("Delete this page?") }}{% else %}{{ me.t("Delete this post?") }}{% endif %}"
-                data-confirm-text="{{ me.tv("“{title}” will be removed permanently.", post.title) }}">
-                {% if post.is_page %}{{ me.t("Delete page") }}{% else %}{{ me.t("Delete post") }}{% endif %}
-            </button>
+                hx-post="{{ admin_path }}/{{ post.id }}/trash?back=1" hx-swap="none">{{ me.t("Move to trash") }}</button>
             {% endif %}
             </div>
         </aside>

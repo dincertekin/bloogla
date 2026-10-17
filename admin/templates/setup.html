@@ -70,6 +70,18 @@
                             value="{{ blog_name }}" placeholder="{{ lang.t("My Blog") }}" />
                     </div>
 
+                    <fieldset class="form-group setup-choice">
+                        <legend>{{ lang.t("How do you want to start?") }}</legend>
+                        <label>
+                            <input type="radio" name="start" value="empty" {% if !bring_posts %}checked{% endif %} />
+                            <span>{{ lang.t("With an empty site") }}<small>{{ lang.t("Write your first post right away.") }}</small></span>
+                        </label>
+                        <label>
+                            <input type="radio" name="start" value="import" {% if bring_posts %}checked{% endif %} />
+                            <span>{{ lang.t("Bring my posts from another site") }}<small>{{ lang.t("After the next step, Bloogla opens Import, where you can bring in a WordPress site.") }}</small></span>
+                        </label>
+                    </fieldset>
+
                     <div class="setup-buttons" hidden>
                         <button type="button" class="btn btn-primary" data-next>{{ lang.t("Next") }} &rarr;</button>
                     </div>

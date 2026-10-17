@@ -17,6 +17,8 @@
 //   data-tabs / data-tab-panel="x"     tabs that show one panel at a time
 //   data-live (with an id)             part of the page fetched again after a
 //                                      change, so it never shows old values
+//   data-bulk                          form that changes the ticked rows at
+//                                      once (data-bulk-bar, -count, -all, -clear)
 //   data-steps                         card whose answer is its next step
 //                                      (Restore, Import): no "saved" check
 //
@@ -422,11 +424,56 @@ document.addEventListener("htmx:afterRequest", (event) => {
 // place (htmx removes it once the time in hx-swap="delete swap:…" is over).
 // Cards in a grid just fade: their neighbours move to new spots instead.
 function closeUp(element) {
+    if (element.classList.contains("collapsing")) return;
     if (getComputedStyle(element.parentElement).display.includes("grid")) return;
     element.style.height = `${element.offsetHeight}px`;
     void element.offsetHeight; // Take the height as the starting point.
     element.classList.add("collapsing");
 }
+
+// Any row an htmx button removes (hx-swap="delete swap:…", like Approve in
+// Comments or Move to trash in Posts) closes up the same way.
+document.addEventListener("htmx:beforeSwap", (event) => {
+    const { requestConfig, target, shouldSwap } = event.detail;
+    const swap = requestConfig?.elt?.getAttribute?.("hx-swap") || "";
+    if (shouldSwap && swap.startsWith("delete") && target?.matches?.("[data-item]")) closeUp(target);
+});
+
+// ---- Changing several posts at once ----
+// <form data-bulk id="bulk-form"> holds a bar (data-bulk-bar) that shows while
+// rows are ticked; each row's checkbox has form="bulk-form". The count says
+// "1 selected" / "{n} selected" (data-one / data-many, translated).
+
+function syncBulk(form) {
+    const picks = [...document.querySelectorAll(`input[form="${form.id}"]`)];
+    const ticked = picks.filter((pick) => pick.checked);
+    picks.forEach((pick) => pick.closest("[data-item]")?.classList.toggle("selected", pick.checked));
+    form.querySelector("[data-bulk-bar]").hidden = ticked.length === 0;
+    const count = form.querySelector("[data-bulk-count]");
+    count.textContent = ticked.length === 1
+        ? count.dataset.one
+        : count.dataset.many.replace("{n}", ticked.length);
+    const all = form.querySelector("[data-bulk-all]");
+    all.checked = picks.length > 0 && ticked.length === picks.length;
+    all.indeterminate = ticked.length > 0 && ticked.length < picks.length;
+}
+
+document.addEventListener("change", (event) => {
+    const input = event.target;
+    const form = input.form?.matches("[data-bulk]") ? input.form : null;
+    if (!form) return;
+    if (input.matches("[data-bulk-all]")) {
+        document.querySelectorAll(`input[form="${form.id}"]`).forEach((pick) => (pick.checked = input.checked));
+    }
+    syncBulk(form);
+});
+
+document.addEventListener("click", (event) => {
+    const clear = event.target.closest("[data-bulk-clear]");
+    if (!clear) return;
+    document.querySelectorAll(`input[form="${clear.form.id}"]`).forEach((pick) => (pick.checked = false));
+    syncBulk(clear.form);
+});
 
 // ---- htmx forms that empty themselves after saving ----
 // Replies with an error message (class alert-error) keep what was typed.

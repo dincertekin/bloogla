@@ -234,3 +234,30 @@ async fn every_password_field_gets_a_translated_eye_button() {
         .body
         .contains(r#"data-show-password="Show password""#));
 }
+
+#[tokio::test]
+async fn moving_from_another_site_lands_on_import() {
+    let mut site = TestSite::new().await;
+    let form = site.get(&format!("/setup?code={SETUP_CODE}")).await.body;
+    assert!(form.contains("How do you want to start?"));
+    assert!(form.contains(r#"value="empty" checked"#));
+
+    let fields = |password: &'static str| {
+        [
+            ("code", SETUP_CODE),
+            ("language", "en"),
+            ("blog_name", "Test Blog"),
+            ("name", "Owner"),
+            ("email", ADMIN_EMAIL),
+            ("password", password),
+            ("confirm_password", password),
+            ("start", "import"),
+        ]
+    };
+    // A refused try keeps the choice.
+    let again = site.post("/setup", &fields("short")).await.body;
+    assert!(again.contains(r#"value="import" checked"#), "{again}");
+
+    let done = site.post("/setup", &fields(ADMIN_PASSWORD)).await;
+    assert_eq!(done.location(), "/admin/settings#import-export");
+}

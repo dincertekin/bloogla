@@ -42,6 +42,8 @@ pub struct SetupTemplate {
     /// The step to show first (1 the site, 2 the account): after a
     /// refused try, the one with the problem.
     pub step: u8,
+    /// "Bring my posts from another site" was chosen.
+    pub bring_posts: bool,
 }
 
 impl SetupTemplate {
@@ -59,6 +61,7 @@ impl SetupTemplate {
             password_rules: PASSWORD_RULES,
             password_missing: Vec::new(),
             step: 1,
+            bring_posts: false,
         }
     }
 }
@@ -210,6 +213,9 @@ pub struct SetupForm {
     /// The browser's time zone, e.g. `Europe/Istanbul` (may be empty).
     #[serde(default)]
     timezone: String,
+    /// How to start: `empty`, or `import` to land on Import afterwards.
+    #[serde(default)]
+    start: String,
 }
 
 /// GET /setup -> Browser setup form.
@@ -266,6 +272,7 @@ pub async fn submit(
         email: form.email.clone(),
         code: form.code.trim().to_string(),
         code_from_link: code_ok,
+        bring_posts: form.start == "import",
         ..SetupTemplate::new(lang)
     };
     let render_error = |message: &str| {
@@ -332,5 +339,9 @@ pub async fn submit(
         .insert(super::dashboard::SESSION_WELCOME, true)
         .await;
 
+    // Moving from another site: straight to Settings → Import & export.
+    if form.start == "import" {
+        return Redirect::to("/admin/settings#import-export").into_response();
+    }
     Redirect::to("/admin").into_response()
 }

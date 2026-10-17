@@ -24,16 +24,17 @@ pub const POST_SELECT: &str = "SELECT id, title, slug, content, cover_image,
         COALESCE(views, 0) AS views, status, is_page, author_id,
         (SELECT NULLIF(name, '') FROM users WHERE users.id = posts.author_id) AS author_name,
         COALESCE(published_at, CURRENT_TIMESTAMP) AS published_at,
-        COALESCE(created_at, CURRENT_TIMESTAMP) AS created_at
+        COALESCE(created_at, CURRENT_TIMESTAMP) AS created_at, trashed_at
     FROM posts";
 
-/// Posts visitors may see: published or scheduled, with a publish date in the past.
-pub const PUBLIC_POST_FILTER: &str =
-    "status IN ('published', 'scheduled') AND datetime(published_at) <= datetime('now')";
+/// Posts visitors may see: published or scheduled, with a publish date in the
+/// past, and not in the trash.
+pub const PUBLIC_POST_FILTER: &str = "status IN ('published', 'scheduled') \
+    AND datetime(published_at) <= datetime('now') AND trashed_at IS NULL";
 
 /// Public posts that appear in listings and feeds (standalone pages are excluded).
 pub const LISTED_POST_FILTER: &str = "status IN ('published', 'scheduled') \
-    AND datetime(published_at) <= datetime('now') AND is_page = 0";
+    AND datetime(published_at) <= datetime('now') AND trashed_at IS NULL AND is_page = 0";
 
 /// Revisions kept per post; older ones are deleted.
 const MAX_REVISIONS: i64 = 25;
@@ -143,7 +144,9 @@ pub async fn load_tags(pool: &SqlitePool, posts: &mut [Post]) {
 /// True when a post is visible to visitors right now.
 pub fn is_live(post: &Post) -> bool {
     let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    post.status != "draft" && post.published_at.replace('T', " ") <= now
+    post.status != "draft"
+        && post.trashed_at.is_none()
+        && post.published_at.replace('T', " ") <= now
 }
 
 /// Why saving a post failed.
@@ -303,20 +306,135 @@ pub async fn update(
     Ok(())
 }
 
-/// Delete a post `me` may edit.
-pub async fn delete(pool: &SqlitePool, me: &CurrentUser, id: i64) -> Result<(), SaveError> {
-    let (author_id, is_page) = owner(pool, id).await.ok_or(SaveError::NotFound)?;
-    if !me.can_edit(author_id, is_page) {
-        return Err(SaveError::Forbidden);
+// ---- The trash, and changing many posts at once ----
+// Each of these takes a list of posts (one, or the ones ticked in the list)
+// and changes only those `me` may edit; it gives back how many changed.
+
+/// Of `ids`, the posts and pages `me` may change.
+async fn editable(pool: &SqlitePool, me: &CurrentUser, ids: &[i64]) -> Vec<i64> {
+    let mut allowed = Vec::new();
+    for &id in ids {
+        if may_edit(pool, me, id).await && !allowed.contains(&id) {
+            allowed.push(id);
+        }
     }
-    match sqlx::query("DELETE FROM posts WHERE id = ?")
-        .bind(id)
+    allowed
+}
+
+/// Run `sql` (with one `?` for the id) for each post `me` may change.
+async fn change_each(
+    pool: &SqlitePool,
+    me: &CurrentUser,
+    ids: &[i64],
+    sql: &str,
+    context: &str,
+) -> Result<u64, SaveError> {
+    let allowed = editable(pool, me, ids).await;
+    if allowed.is_empty() {
+        // One post asked for: say whether it's missing or someone else's.
+        return match ids {
+            [id] if owner(pool, *id).await.is_some() => Err(SaveError::Forbidden),
+            _ => Err(SaveError::NotFound),
+        };
+    }
+    let mut changed = 0;
+    for id in allowed {
+        changed += sqlx::query(sql)
+            .bind(id)
+            .execute(pool)
+            .await
+            .map_err(|e| database_error(context, e))?
+            .rows_affected();
+    }
+    Ok(changed)
+}
+
+/// Move posts to the trash: off the site, and back with [`restore`].
+pub async fn move_to_trash(
+    pool: &SqlitePool,
+    me: &CurrentUser,
+    ids: &[i64],
+) -> Result<u64, SaveError> {
+    let sql = "UPDATE posts SET trashed_at = CURRENT_TIMESTAMP WHERE id = ? AND trashed_at IS NULL";
+    change_each(pool, me, ids, sql, "move to trash").await
+}
+
+/// Take posts out of the trash, as they were before.
+pub async fn restore(pool: &SqlitePool, me: &CurrentUser, ids: &[i64]) -> Result<u64, SaveError> {
+    let sql = "UPDATE posts SET trashed_at = NULL WHERE id = ? AND trashed_at IS NOT NULL";
+    change_each(pool, me, ids, sql, "restore from trash").await
+}
+
+/// Delete posts in the trash for good (posts not in the trash stay).
+pub async fn delete_forever(
+    pool: &SqlitePool,
+    me: &CurrentUser,
+    ids: &[i64],
+) -> Result<u64, SaveError> {
+    let sql = "DELETE FROM posts WHERE id = ? AND trashed_at IS NOT NULL";
+    change_each(pool, me, ids, sql, "delete post").await
+}
+
+/// Publish posts. A draft dated in the past gets today's date, so it shows
+/// up as new instead of hidden among old posts; one dated in the future is
+/// scheduled for then.
+pub async fn publish(pool: &SqlitePool, me: &CurrentUser, ids: &[i64]) -> Result<u64, SaveError> {
+    let sql = "UPDATE posts SET
+           published_at = CASE WHEN status = 'draft' AND datetime(published_at) <= datetime('now')
+                               THEN datetime('now') ELSE published_at END,
+           status = CASE WHEN datetime(published_at) > datetime('now')
+                         THEN 'scheduled' ELSE 'published' END
+         WHERE id = ? AND trashed_at IS NULL";
+    change_each(pool, me, ids, sql, "publish").await
+}
+
+/// Make posts drafts (off the site until published again).
+pub async fn make_draft(
+    pool: &SqlitePool,
+    me: &CurrentUser,
+    ids: &[i64],
+) -> Result<u64, SaveError> {
+    let sql = "UPDATE posts SET status = 'draft' WHERE id = ? AND trashed_at IS NULL";
+    change_each(pool, me, ids, sql, "make draft").await
+}
+
+/// Delete everything in the posts' (or pages') trash that `me` may change.
+pub async fn empty_trash(
+    pool: &SqlitePool,
+    me: &CurrentUser,
+    is_page: bool,
+) -> Result<u64, SaveError> {
+    sqlx::query(
+        "DELETE FROM posts WHERE trashed_at IS NOT NULL AND is_page = ? AND (? OR author_id = ?)",
+    )
+    .bind(is_page)
+    .bind(me.can_edit_all())
+    .bind(me.id)
+    .execute(pool)
+    .await
+    .map(|done| done.rows_affected())
+    .map_err(|e| database_error("empty trash", e))
+}
+
+/// How long posts stay in the trash before they're deleted by themselves.
+pub const TRASH_DAYS: i64 = 30;
+
+/// Delete posts that have been in the trash longer than [`TRASH_DAYS`]
+/// (run by the hourly housekeeping).
+pub async fn delete_old_trash(pool: &SqlitePool) {
+    let deleted = sqlx::query("DELETE FROM posts WHERE trashed_at <= datetime('now', ?)")
+        .bind(format!("-{TRASH_DAYS} days"))
         .execute(pool)
-        .await
-    {
-        Ok(r) if r.rows_affected() > 0 => Ok(()),
-        Ok(_) => Err(SaveError::NotFound),
-        Err(e) => Err(database_error("delete post", e)),
+        .await;
+    match deleted {
+        Ok(done) if done.rows_affected() > 0 => {
+            tracing::info!(
+                "Deleted {} posts that were in the trash for {TRASH_DAYS} days",
+                done.rows_affected()
+            );
+        }
+        Ok(_) => {}
+        Err(e) => tracing::error!("Couldn't empty old trash: {e}"),
     }
 }
 

@@ -148,7 +148,7 @@ pub async fn page(
             "SELECT COUNT(*) FILTER (WHERE status != 'draft'),
                     COUNT(*) FILTER (WHERE status = 'draft'),
                     COALESCE(SUM(views), 0)
-             FROM posts WHERE is_page = 0",
+             FROM posts WHERE is_page = 0 AND trashed_at IS NULL",
         )
         .fetch_one(&state.pool)
         .await,
@@ -157,7 +157,8 @@ pub async fn page(
     let top_posts: Vec<TopPost> = or_log(
         sqlx::query_as(
             "SELECT id, title, views FROM posts
-             WHERE is_page = 0 AND views > 0 ORDER BY views DESC LIMIT 5",
+             WHERE is_page = 0 AND trashed_at IS NULL AND views > 0
+             ORDER BY views DESC LIMIT 5",
         )
         .fetch_all(&state.pool)
         .await,

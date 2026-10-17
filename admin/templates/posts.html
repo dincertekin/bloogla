@@ -11,6 +11,13 @@
         <p>{{ me.t("Everything you've written, newest first.") }}</p>
         {% endif %}
     </div>
+    {% if in_trash %}
+    {% if trash_count > 0 %}
+    <button type="button" class="btn btn-secondary" data-delete-url="{{ admin_path }}/trash"
+        data-delete-redirect="{{ admin_path }}?status=trash" data-confirm-title="{{ me.t("Empty the trash?") }}"
+        data-confirm-text="{% if is_page %}{{ me.count(trash_count, "The page in the trash will be deleted permanently. A backup of your site is saved first, in the data/backups folder.", "The {n} pages in the trash will be deleted permanently. A backup of your site is saved first, in the data/backups folder.") }}{% else %}{{ me.count(trash_count, "The post in the trash will be deleted permanently, with its comments. A backup of your site is saved first, in the data/backups folder.", "The {n} posts in the trash will be deleted permanently, with their comments. A backup of your site is saved first, in the data/backups folder.") }}{% endif %}">{{ me.t("Empty trash") }}</button>
+    {% endif %}
+    {% else %}
     <a href="{{ admin_path }}/new" class="btn btn-primary">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -19,6 +26,7 @@
         </svg>
         {% if is_page %}{{ me.t("New Page") }}{% else %}{{ me.t("New Post") }}{% endif %}
     </a>
+    {% endif %}
 </div>
 
 <nav class="filter-tabs" id="filter-tabs" data-live aria-label="{{ me.t("Filter by status") }}">
@@ -30,10 +38,40 @@
     {% endfor %}
 </nav>
 
+{% if in_trash %}
+<p class="form-hint" style="margin-bottom: 0.75rem">{% if is_page %}{{ me.tv("Pages in the trash aren't on your site. They're deleted for good after {n} days.", trash_days) }}{% else %}{{ me.tv("Posts in the trash aren't on your site. They're deleted for good after {n} days.", trash_days) }}{% endif %}</p>
+{% else %}
+<!-- "Moved to the trash", with Undo (sent by the server, see posts.rs). -->
+<div id="trash-notice" aria-live="polite"></div>
+{% endif %}
+
+<!-- Changing several at once: the bar shows while something is ticked
+     (data-bulk in admin.js). The ticks below belong to this form. -->
+{% if !rows.is_empty() %}
+<form id="bulk-form" hx-post="{{ admin_path }}/bulk" hx-target="find .form-status" hx-swap="innerHTML" data-bulk>
+    <div class="bulk-bar" data-bulk-bar hidden>
+        <b data-bulk-count data-one="{{ me.t("1 selected") }}" data-many="{{ me.t("{n} selected") }}"></b>
+        {% if in_trash %}
+        <button type="submit" name="action" value="restore" class="btn btn-secondary btn-sm">{{ me.t("Restore") }}</button>
+        <button type="submit" name="action" value="delete" class="btn btn-ghost-danger btn-sm"
+            hx-confirm="{{ me.t("Delete the selected items permanently? This can't be undone.") }}">{{ me.t("Delete permanently") }}</button>
+        {% else %}
+        <button type="submit" name="action" value="publish" class="btn btn-secondary btn-sm">{{ me.t("Publish") }}</button>
+        <button type="submit" name="action" value="draft" class="btn btn-secondary btn-sm">{{ me.t("Make draft") }}</button>
+        <button type="submit" name="action" value="trash" class="btn btn-ghost-danger btn-sm">{{ me.t("Move to trash") }}</button>
+        {% endif %}
+        <button type="button" class="btn btn-ghost btn-sm" data-bulk-clear>{{ me.t("Clear") }}</button>
+    </div>
+    <div class="form-status"></div>
+    <label class="select-all"><input type="checkbox" data-bulk-all /> {{ me.t("Select all on this page") }}</label>
+</form>
+{% endif %}
 
 <div id="post-list" class="item-list" data-empty-text="{{ me.t("Nothing here yet.") }}" {% if rows.is_empty() %}hidden{% endif %}>
     {% for row in rows %}
     <div class="list-row" id="post-{{ row.post.id }}" data-item>
+        <input type="checkbox" class="row-pick" name="ids" value="{{ row.post.id }}" form="bulk-form"
+            aria-label="{{ me.tv("Select “{title}”", row.post.title) }}" />
         {% if let Some(cover) = row.post.cover_image %}
         <img src="{{ cover }}" alt="" class="thumb" loading="lazy" />
         {% else %}
@@ -50,11 +88,14 @@
             <a href="{{ admin_path }}/{{ row.post.id }}/edit" class="row-title">{{ row.post.title }}</a>
             {% if row.post.status == "draft" %}
             <span class="badge badge-draft">{{ me.t("Draft") }}</span>
-            {% else if row.public_path.is_none() %}
+            {% else if row.public_path.is_none() && row.days_in_trash.is_none() %}
             <span class="badge badge-scheduled">{{ me.t("Scheduled") }}</span>
             {% endif %}
 
             <div class="row-meta">
+                {% if row.days_in_trash.is_some() %}
+                <span class="meta">{% if row.trash_days() == 0 %}{{ me.t("Moved to the trash today") }}{% else %}{{ me.count(row.trash_days(), "Moved to the trash {n} day ago", "Moved to the trash {n} days ago") }}{% endif %}</span>
+                {% else %}
                 <span class="meta">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -80,6 +121,7 @@
                     {{ me.count(row.post.views, "{n} view", "{n} views") }}
                 </span>
                 {% endif %}
+                {% endif %}
                 {% if !row.post.tags.is_empty() %}
                 <span class="tag-list">
                     {% for tag in row.post.tags %}
@@ -91,22 +133,31 @@
         </div>
 
         <div class="row-actions">
+            {% if row.days_in_trash.is_some() %}
+            <button type="button" class="btn btn-secondary btn-sm" hx-post="{{ admin_path }}/{{ row.post.id }}/restore"
+                hx-target="#post-{{ row.post.id }}" hx-swap="delete swap:280ms">{{ me.t("Restore") }}</button>
+            <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="{{ admin_path }}/{{ row.post.id }}"
+                data-delete-target="#post-{{ row.post.id }}" data-confirm-title="{% if is_page %}{{ me.t("Delete this page?") }}{% else %}{{ me.t("Delete this post?") }}{% endif %}"
+                data-confirm-text="{{ me.tv("“{title}” will be removed permanently.", row.post.title) }}">
+                {{ me.t("Delete permanently") }}
+            </button>
+            {% else %}
             {% if let Some(path) = row.public_path %}
             <a href="{{ path }}" target="_blank" class="btn btn-ghost btn-sm">{{ me.t("View") }}</a>
             {% endif %}
             <a href="{{ admin_path }}/{{ row.post.id }}/edit" class="btn btn-secondary btn-sm">{{ me.t("Edit") }}</a>
-            <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="{{ admin_path }}/{{ row.post.id }}"
-                data-delete-target="#post-{{ row.post.id }}" data-confirm-title="{% if is_page %}{{ me.t("Delete this page?") }}{% else %}{{ me.t("Delete this post?") }}{% endif %}"
-                data-confirm-text="{{ me.tv("“{title}” will be removed permanently.", row.post.title) }}">
-                {{ me.t("Delete") }}
-            </button>
+            <button type="button" class="btn btn-ghost-danger btn-sm" hx-post="{{ admin_path }}/{{ row.post.id }}/trash"
+                hx-target="#post-{{ row.post.id }}" hx-swap="delete swap:280ms">{{ me.t("Move to trash") }}</button>
+            {% endif %}
         </div>
     </div>
     {% endfor %}
 </div>
 
 <div class="empty-state" data-empty-for="post-list" {% if !rows.is_empty() %}hidden{% endif %}>
-    {% if active_filter.is_empty() %}
+    {% if in_trash %}
+    <p>{{ me.t("The trash is empty.") }}</p>
+    {% else if active_filter.is_empty() %}
     {% if is_page %}
     <p>{{ me.t("No pages yet. An About page is a good place to start.") }}</p>
     <a href="{{ admin_path }}/new" class="btn btn-primary">{{ me.t("New Page") }}</a>

@@ -60,7 +60,8 @@ async fn user_rows(state: &AppState) -> Vec<UserRow> {
     let rows: Vec<(i64, String, String, String, i64, bool)> = or_log(
         sqlx::query_as(
             "SELECT u.id, u.name, u.email, u.role,
-                    (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.is_page = 0),
+                    (SELECT COUNT(*) FROM posts p
+                     WHERE p.author_id = u.id AND p.is_page = 0 AND p.trashed_at IS NULL),
                     u.totp_secret IS NOT NULL
              FROM users u ORDER BY u.id",
         )

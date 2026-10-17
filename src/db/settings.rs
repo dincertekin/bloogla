@@ -53,6 +53,9 @@ pub struct Settings {
     pub publisher_type: String,
     /// Favicon URL, usually from the media library.
     pub site_icon: String,
+    /// Tags added to every public page, like a search engine's verification
+    /// tag. Checked by `content::seo::check_head_code` when saved.
+    pub head_code: String,
     /// Language of the public site and emails.
     pub language: Lang,
     /// The site's time zone: dates are shown and entered in it. They're
@@ -115,6 +118,7 @@ impl Settings {
             publisher_name: text("publisher_name", ""),
             publisher_type: text("publisher_type", "Person"),
             site_icon: text("site_icon", ""),
+            head_code: text("head_code", ""),
             language: Lang::parse(&text("language", "en")).unwrap_or_default(),
             timezone: text("timezone", "UTC").parse().unwrap_or(chrono_tz::UTC),
             active_theme: text("active_theme", "default"),
