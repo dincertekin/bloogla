@@ -33,7 +33,7 @@ askama = "0.12"
 tera = "1.19"
 
 # Content: Markdown, HTML sanitizing, images
-comrak = { version = "0.18", default-features = false }
+comrak = { version = "0.56", default-features = false }
 ammonia = "4.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 # Smaller WebP copies of uploaded photos (Google's libwebp, built from source):
