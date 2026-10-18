@@ -5,7 +5,7 @@
 //! code from the key and the current time; if they match, the person has the
 //! phone (or app) that holds the key.
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 
 /// Seconds each code is valid for.
@@ -18,7 +18,7 @@ const ALLOWED_DRIFT: i64 = 1;
 pub fn new_secret() -> Vec<u8> {
     use rand::RngCore;
     let mut key = vec![0u8; 20];
-    rand::thread_rng().fill_bytes(&mut key);
+    rand::rng().fill_bytes(&mut key);
     key
 }
 

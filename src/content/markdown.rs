@@ -1,6 +1,6 @@
 //! Markdown → safe HTML, and Markdown → plain text.
 
-use comrak::{markdown_to_html, ComrakOptions};
+use comrak::{markdown_to_html, Options};
 use std::sync::OnceLock;
 
 /// Convert Markdown into HTML that is safe to show to visitors.
@@ -8,53 +8,43 @@ use std::sync::OnceLock;
 /// `comrak` renders the Markdown (raw HTML allowed), then `ammonia` removes
 /// anything that could run scripts or break the page (XSS protection).
 pub fn to_safe_html(markdown: &str) -> String {
-    let mut options = ComrakOptions::default();
+    let mut options = Options::default();
     options.extension.strikethrough = true;
     options.extension.table = true;
     options.extension.autolink = true;
     options.extension.tasklist = true;
-    options.extension.header_ids = Some(String::new());
+    options.extension.header_id_prefix = Some(String::new());
     // ammonia sanitizes the result, so raw HTML can be let through here.
-    options.render.unsafe_ = true;
+    options.render.r#unsafe = true;
 
     let html = sanitizer()
         .clean(&markdown_to_html(markdown, &options))
         .to_string();
     // Images in posts load when they're about to scroll into view.
     let html = html.replace("<img ", r#"<img loading="lazy" decoding="async" "#);
-    move_heading_ids(&html)
+    without_heading_links(&html)
 }
 
-/// comrak marks each heading with an empty link (`<h2><a href="#costs"
-/// class="anchor" id="costs"></a>Costs</h2>`). Put the id on the heading
-/// instead, so `#costs` links still work but there's no empty link, which
-/// screen readers can't name.
-fn move_heading_ids(html: &str) -> String {
+/// comrak gives each heading an id and adds an empty link to it at the end
+/// (`<h2 id="costs">Costs<a href="#costs" class="anchor"></a></h2>`). The
+/// id stays, so `#costs` links still work; the empty link goes, because
+/// screen readers can't name it.
+fn without_heading_links(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut rest = html;
     while let Some(start) = rest.find("<a href=\"#") {
-        let before = &rest[..start];
         let Some(tag_end) = rest[start..].find('>') else {
             break;
         };
         let tag = &rest[start..start + tag_end + 1];
         let after = &rest[start + tag.len()..];
-        let id = tag.split("id=\"").nth(1).and_then(|s| s.split('"').next());
-        let in_heading = (1..=6).any(|n| before.ends_with(&format!("<h{n}>")));
-
-        match id {
-            Some(id)
-                if in_heading && tag.contains("class=\"anchor\"") && after.starts_with("</a>") =>
-            {
-                // `before` ends with `<hN>`: reopen it with the id.
-                out.push_str(&before[..before.len() - 1]);
-                out.push_str(&format!(" id=\"{id}\">"));
-                rest = &after["</a>".len()..];
-            }
-            _ => {
-                out.push_str(&rest[..start + tag.len()]);
-                rest = after;
-            }
+        let closes_heading = (1..=6).any(|n| after.starts_with(&format!("</a></h{n}>")));
+        out.push_str(&rest[..start]);
+        if tag.contains("class=\"anchor\"") && closes_heading {
+            rest = &after["</a>".len()..];
+        } else {
+            out.push_str(tag);
+            rest = after;
         }
     }
     out.push_str(rest);
@@ -80,7 +70,7 @@ pub fn to_plain_text(markdown: &str) -> String {
     use comrak::nodes::NodeValue;
 
     let arena = comrak::Arena::new();
-    let mut options = ComrakOptions::default();
+    let mut options = Options::default();
     options.extension.strikethrough = true;
     options.extension.table = true;
     options.extension.autolink = true;

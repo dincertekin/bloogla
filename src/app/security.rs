@@ -103,7 +103,11 @@ pub fn log_event(event: &str, details: &[(&str, &str)]) {
 
 /// Hash a password with Argon2id for storing in the database.
 pub fn hash_password(password: &str) -> Result<String, String> {
-    let salt = SaltString::generate(&mut rand::thread_rng());
+    // A fresh random salt (16 bytes, as Argon2 recommends) for each password.
+    let mut salt_bytes = [0u8; 16];
+    rand::rng().fill_bytes(&mut salt_bytes);
+    let salt =
+        SaltString::encode_b64(&salt_bytes).map_err(|e| format!("Password salt failed: {e}"))?;
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
@@ -144,7 +148,7 @@ pub fn from_hex(hex: &str) -> Option<Vec<u8>> {
 /// `bytes` random bytes as lowercase hex (twice as many characters).
 pub fn random_hex(bytes: usize) -> String {
     let mut buffer = vec![0u8; bytes];
-    rand::thread_rng().fill_bytes(&mut buffer);
+    rand::rng().fill_bytes(&mut buffer);
     to_hex(&buffer)
 }
 
@@ -152,10 +156,10 @@ pub fn random_hex(bytes: usize) -> String {
 /// look-alike characters (0/O, 1/l/I) and only easy-to-type symbols.
 pub fn temporary_password() -> String {
     const CHARS: &[u8] = b"abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#%+=?@";
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     loop {
         let password: String = (0..14)
-            .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+            .map(|_| CHARS[rng.random_range(0..CHARS.len())] as char)
             .collect();
         // Random picks occasionally miss a kind of character; just try again.
         if missing_password_rules(&password).is_empty() {
@@ -168,10 +172,10 @@ pub fn temporary_password() -> String {
 /// Only their [`hash_recovery_code`] is stored.
 pub fn new_recovery_codes() -> Vec<String> {
     const CHARS: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut part = || -> String {
         (0..5)
-            .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+            .map(|_| CHARS[rng.random_range(0..CHARS.len())] as char)
             .collect()
     };
     (0..10).map(|_| format!("{}-{}", part(), part())).collect()
@@ -196,6 +200,29 @@ pub fn hash_token(token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reset links and recovery codes are stored as these hashes. They must
+    /// never change between versions, or saved ones stop working (worked out
+    /// independently: Python's hashlib.sha256).
+    #[test]
+    fn stored_hashes_stay_the_same() {
+        assert_eq!(
+            hash_token("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            hash_recovery_code("AB12-cd34"),
+            "034941017c353b1e5e89c7c3fae330a632e5f1517fef17bfa33d8dfa2418a94d"
+        );
+    }
+
+    /// A password saved by Bloogla 1.1.0 still signs in.
+    #[test]
+    fn passwords_saved_by_earlier_versions_still_work() {
+        let saved_by_1_1_0 = "$argon2id$v=19$m=19456,t=2,p=1$37S0U/svdfytl7xKh1r5gQ$4HzrWsHqRSyLC9fm9ycrYCxNMjcu9mGt4J3ej/OEppU";
+        assert!(verify_password("Very-Long-Pass1!", Some(saved_by_1_1_0)));
+        assert!(!verify_password("Very-Long-Pass2!", Some(saved_by_1_1_0)));
+    }
 
     #[test]
     fn passwords_round_trip() {
