@@ -91,6 +91,9 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
     let sessions = SessionManagerLayer::new(session_store.clone()).with_secure(config.production);
 
     spawn_maintenance(pool.clone(), session_store);
+    tokio::spawn(crate::handlers::admin::media::make_missing_thumbs(
+        pool.clone(),
+    ));
     // Post views are counted in memory and saved every few seconds.
     crate::handlers::site::analytics::spawn_view_saver(pool.clone());
 

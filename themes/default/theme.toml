@@ -1,6 +1,6 @@
 name = "Default Theme"
 author = "Bloogla Team"
-version = "3.0.7"
+version = "3.0.8"
 description = "A clean, bright blog: the newest post large at the top, then a grid of cards. With dark mode."
 preview_image = "static/preview.svg"
 

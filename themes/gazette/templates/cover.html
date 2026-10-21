@@ -3,6 +3,8 @@
 {% if post.cover_image %}
 <a href="{{ post.url }}" class="cover" tabindex="-1" aria-hidden="true">
     <img src="{% if post.cover_small %}{{ post.cover_small }}{% else %}{{ post.cover_image }}{% endif %}" alt=""
-        {% if eager is defined %}decoding="sync" fetchpriority="high"{% else %}decoding="async" loading="lazy"{% endif %} />
+        {% if eager is defined %}decoding="sync" fetchpriority="high"
+        {% if post.cover_thumb %}srcset="{{ post.cover_thumb }} 400w, {% if post.cover_small %}{{ post.cover_small }} 800w{% else %}{{ post.cover_image }} {{ post.cover_width }}w{% endif %}" sizes="(max-width: 720px) calc(100vw - 2.5rem), 748px"{% endif %}{% else %}decoding="async" loading="lazy"
+        {% if post.cover_thumb %}srcset="{{ post.cover_thumb }} 400w, {% if post.cover_small %}{{ post.cover_small }} 800w{% else %}{{ post.cover_image }} {{ post.cover_width }}w{% endif %}" sizes="(max-width: 720px) calc(100vw - 2.5rem), 370px"{% endif %}{% endif %} />
 </a>
 {% endif %}

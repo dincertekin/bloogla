@@ -60,8 +60,34 @@ pub async fn home(State(state): State<AppState>, Query(query): Query<ListingQuer
     let mut context = base_context(&state, &site).await;
     context.insert("posts", &posts);
     context.insert("pagination", &pagination);
+    // Page 1 is the site itself; later pages have their own address.
+    if query.page.unwrap_or(1) > 1 {
+        let address = with_page("/", query.page.unwrap_or(1));
+        let head = listing_head(&state, &site, &site.blog_name, &address);
+        context.insert("seo_head", &head);
+    }
 
     themes::render(&state, &["templates/index.html"], context, StatusCode::OK).await
+}
+
+/// The SEO tags for a list of posts at `address` (a tag, or a later page of
+/// the home page). Its canonical link is its own address, page included;
+/// pointing at the home page would tell search engines it's a copy of the
+/// home page, and they'd leave it out.
+fn listing_head(state: &AppState, site: &Settings, title: &str, address: &str) -> String {
+    let canonical_url = format!("{}{address}", state.config.base_url);
+    seo_head(
+        state,
+        site,
+        &SeoMeta {
+            title,
+            description: &site.blog_description,
+            canonical_url: &canonical_url,
+            image: None,
+            kind: SeoKind::Website,
+            noindex: false,
+        },
+    )
 }
 
 /// GET /post/:slug -> One post.
@@ -128,6 +154,11 @@ pub async fn tag(
     };
 
     let mut context = base_context(&state, &site).await;
+    let address = with_page(&base_path, query.page.unwrap_or(1));
+    context.insert(
+        "seo_head",
+        &listing_head(&state, &site, &tag.name, &address),
+    );
     context.insert("tag_name", &tag.name);
     context.insert("posts", &posts);
     context.insert("pagination", &pagination);
@@ -212,6 +243,7 @@ async fn render_post(
     let site = settings::load(&state.pool).await;
     let lang = site.language;
     let content_html = crate::content::render(state, &post.content).await;
+    let content_html = crate::content::with_image_copies(&state.pool, &content_html).await;
     let description = excerpt(&post.content, META_DESCRIPTION_CHARS);
     post.reading_time = reading_time(&post.content);
     posts::load_tags(&state.pool, std::slice::from_mut(&mut post)).await;

@@ -77,11 +77,58 @@ const PUBLIC_CSP: &[(&str, &str)] = &[
     ("frame-ancestors", "'none'"),
 ];
 
+/// The few lines a page runs before it's drawn: the visitor's own light or
+/// dark choice (saved by the button, see a bundled theme's `scheme.js`), so
+/// the page shows in it from the first moment instead of flashing the other
+/// colors. Themes put `{{ scheme_script | safe }}` in `<head>`. It's in the
+/// page itself because a separate file would make phones wait for one more
+/// download before drawing anything.
+const SCHEME_SCRIPT: &str = r#"try{var s=localStorage.getItem("bloogla:scheme");if(s==="light"||s==="dark")document.documentElement.dataset.scheme=s}catch(e){}"#;
+
+/// The page policy allows exactly [`SCHEME_SCRIPT`] by its hash
+/// (`'sha256-…'`): no other script in a page can run.
+fn scheme_script_hash() -> &'static str {
+    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HASH.get_or_init(|| {
+        use sha2::{Digest, Sha256};
+        format!(
+            "'sha256-{}'",
+            base64(&Sha256::digest(SCHEME_SCRIPT.as_bytes()))
+        )
+    })
+}
+
+/// Bytes as standard Base64 (with `=` padding), as hashes in a security
+/// policy are written.
+fn base64(bytes: &[u8]) -> String {
+    const LETTERS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(LETTERS[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 /// The page policy for a theme: [`PUBLIC_CSP`] plus the theme's own sources.
 fn content_security_policy(meta: Option<&ThemeMeta>) -> String {
     let mut policy: Vec<(String, String)> = PUBLIC_CSP
         .iter()
-        .map(|(d, s)| (d.to_string(), s.to_string()))
+        .map(|(d, s)| match *d {
+            "script-src" => (d.to_string(), format!("{s} {}", scheme_script_hash())),
+            _ => (d.to_string(), s.to_string()),
+        })
         .collect();
     for (directive, sources) in meta.map(|m| &m.csp).into_iter().flatten() {
         // Only plain names and sources; nothing that could end the header early.
@@ -393,6 +440,10 @@ pub async fn render(
     };
 
     context.insert("asset_version", &theme.meta.version);
+    context.insert(
+        "scheme_script",
+        &format!("<script>{SCHEME_SCRIPT}</script>"),
+    );
     context.insert("theme_url", &format!("/theme-assets/{}", theme.id));
     context.insert(
         "theme_options",
@@ -449,8 +500,24 @@ mod tests {
         assert!(policy.contains("worker-src 'self'"));
         assert!(!policy.contains("script-src *"));
         meta.csp.clear();
-        assert!(content_security_policy(Some(&meta))
-            .starts_with("default-src 'self'; script-src 'self';"));
+        // Scripts: the site's own files, and the light/dark snippet only.
+        assert!(content_security_policy(Some(&meta)).starts_with(
+            "default-src 'self'; script-src 'self' 'sha256-lbOXuy1Yz2mnOWYsI1TVNyJ2l81Abj/75ql8edOQuYY=';"
+        ));
+    }
+
+    /// The hash was worked out independently (Python's hashlib and base64),
+    /// so a typo in the snippet or the encoding can't slip through.
+    #[test]
+    fn the_light_dark_snippet_is_allowed_by_its_hash() {
+        assert_eq!(
+            scheme_script_hash(),
+            "'sha256-lbOXuy1Yz2mnOWYsI1TVNyJ2l81Abj/75ql8edOQuYY='"
+        );
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
     }
 
     #[test]

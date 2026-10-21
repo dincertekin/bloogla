@@ -1,6 +1,6 @@
 name = "Folio"
 author = "Bloogla Team"
-version = "1.0.3"
+version = "1.0.4"
 description = "Photographs first: the newest story as one large picture, then a grid of pictures. For photography, travel and food."
 preview_image = "static/preview.svg"
 

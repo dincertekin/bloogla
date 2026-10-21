@@ -37,12 +37,12 @@ A theme with a mistake (a template that doesn't parse, a missing required templa
 
 Lists of posts give each one a `post.url` (search results include pages too).
 
-Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `seo_head`, `asset_version`, `theme_url` and `theme_options`. Put `{{ seo_head | safe }}` inside `<head>`: besides the SEO tags, it carries the verification tags the owner adds in **Settings → Site**.
+Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `seo_head`, `scheme_script`, `asset_version`, `theme_url` and `theme_options`. Put `{{ seo_head | safe }}` inside `<head>`: besides the SEO tags, it carries the verification tags the owner adds in **Settings → Site**.
 
 Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
 
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
-- Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small`, an 800px-wide copy for `srcset`) and `content_html`. Pictures from the media library are sent as WebP to browsers that support it, under the same `.jpg`/`.png` address, so themes don't need to do anything for it.
+- Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small` and `post.cover_thumb`, 800px- and 400px-wide copies for `srcset`; give cards a `sizes` with their real width so phones download the small one) and `content_html`. Pictures from the media library are sent as WebP to browsers that support it, under the same `.jpg`/`.png` address, so themes don't need to do anything for it.
 - Posts also get `previous_post` and `next_post` (each with `title` and `url`, or empty for the oldest and newest post, and on pages): the older and newer post, for links at the end. `{% if previous_post %}` works everywhere.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html`.
 
@@ -81,7 +81,7 @@ The bundled themes put `data-scheme="light"` or `data-scheme="dark"` on `<html>`
 
 Their `templates/colors.html` sets the accent color, and a lighter shade of it for dark mode (`color-mix(in srgb, <accent> 55%, white)`), so links stay readable on a dark background whatever color an admin picks. Copy it into your theme and include it in `<head>`.
 
-Visitors can also choose for themselves with a button that goes from "same as the device" to "always light" to "always dark" and back: include `templates/scheme_button.html` in your header and copy `static/js/scheme.js` from a bundled theme (`colors.html` loads it). The button shows only when the site follows the visitor's device and `scheme_button` is on. The script runs in `<head>` and puts the visitor's saved choice on `<html>` as `data-scheme` before the page is drawn, so your dark colors written as above just work. The choice stays in the visitor's browser (`localStorage`), never in a cookie. The button's labels are `t.scheme_device`, `t.scheme_light` and `t.scheme_dark`.
+Visitors can also choose for themselves with a button that goes from "same as the device" to "always light" to "always dark" and back: include `templates/scheme_button.html` in your header and copy `static/js/scheme.js` from a bundled theme (`colors.html` loads it, with `defer`). The button shows only when the site follows the visitor's device and `scheme_button` is on. Put `{{ scheme_script | safe }}` in `<head>`: these few lines put the visitor's saved choice on `<html>` as `data-scheme` before the page is drawn, so your dark colors written as above just work. They're in the page itself, so phones don't wait for one more file, and the page's security policy allows exactly that script (by its hash) and no other inline script. The choice stays in the visitor's browser (`localStorage`), never in a cookie. The button's labels are `t.scheme_device`, `t.scheme_light` and `t.scheme_dark`.
 
 ### Moving between pages
 

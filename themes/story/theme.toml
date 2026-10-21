@@ -1,6 +1,6 @@
 name = "Story"
 author = "Bloogla Team"
-version = "1.1.6"
+version = "1.1.7"
 description = "A calm reading theme in the style of Medium: big sans-serif titles, a serif text column and a feed with thumbnails."
 preview_image = "static/preview.svg"
 

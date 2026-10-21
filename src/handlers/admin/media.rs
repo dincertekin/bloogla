@@ -60,10 +60,12 @@ pub struct MediaView {
 impl From<Media> for MediaView {
     fn from(m: Media) -> Self {
         let url = format!("/uploads/{}", m.filename);
+        // The smallest copy there is: tiles in the library are small.
         let thumb_url = m
-            .small_filename
+            .thumb_filename
             .as_ref()
-            .map_or_else(|| url.clone(), |small| format!("/uploads/{small}"));
+            .or(m.small_filename.as_ref())
+            .map_or_else(|| url.clone(), |copy| format!("/uploads/{copy}"));
         let alt = if m.alt_text.trim().is_empty() {
             alt_from_file_name(&m.original_name)
         } else {
@@ -117,6 +119,9 @@ struct ProcessedImage {
     /// A copy [`SMALL_WIDTH`] pixels wide, for phones and post cards
     /// (only when the image is wider than that).
     small: Option<Vec<u8>>,
+    /// A copy [`THUMB_WIDTH`] pixels wide, for cards and lists on phones.
+    thumb: Option<Vec<u8>>,
+    thumb_webp: Option<Vec<u8>>,
     /// Smaller WebP copies of the picture and of `small`, saved next to them
     /// as `<name>.webp` and served to browsers that accept WebP (see
     /// `server/middleware.rs`). Only for JPEG and PNG, and only when smaller.
@@ -126,6 +131,28 @@ struct ProcessedImage {
 
 /// Width of the smaller copy made of wide photos.
 const SMALL_WIDTH: u32 = 800;
+/// Width of the smallest copy: a card on a phone is about 370 pixels wide.
+const THUMB_WIDTH: u32 = 400;
+
+/// A smaller copy of an image: its bytes in the upload's format, and its
+/// WebP copy when that's smaller still.
+type Copy = (Vec<u8>, Option<Vec<u8>>);
+
+/// A copy of `img` `width` pixels wide. `None` when the image isn't wider
+/// than that.
+fn narrower_copy(
+    img: &DynamicImage,
+    format: ImageFormat,
+    width: u32,
+) -> Result<Option<Copy>, String> {
+    if img.width() <= width {
+        return Ok(None);
+    }
+    let copy = img.resize(width, u32::MAX, image::imageops::FilterType::Lanczos3);
+    let bytes = encode(&copy, format)?;
+    let webp = webp_copy(&copy, format, &bytes);
+    Ok(Some((bytes, webp)))
+}
 
 /// A WebP copy of `img`, if it's smaller than `original` (its JPEG or PNG).
 /// Photos (JPEG) are compressed like the JPEG is; PNGs (logos, screenshots)
@@ -179,7 +206,8 @@ fn encode(img: &DynamicImage, format: ImageFormat) -> Result<Vec<u8>, String> {
 async fn all_media(state: &AppState) -> Vec<MediaView> {
     or_log(
         sqlx::query_as::<_, Media>(
-            "SELECT id, filename, small_filename, original_name, alt_text, size_bytes, width, height
+            "SELECT id, filename, small_filename, thumb_filename, original_name, alt_text,
+                    size_bytes, width, height
              FROM media ORDER BY id DESC",
         )
         .fetch_all(&state.pool)
@@ -351,17 +379,19 @@ pub async fn update_alt(
 
 /// DELETE /admin/media/:id -> Remove a file from the library and disk.
 pub async fn delete(State(state): State<AppState>, Path(id): Path<i64>) -> StatusCode {
-    let files: Option<(String, Option<String>)> = or_log(
-        sqlx::query_as("DELETE FROM media WHERE id = ? RETURNING filename, small_filename")
-            .bind(id)
-            .fetch_optional(&state.pool)
-            .await,
+    let files: Option<(String, Option<String>, Option<String>)> = or_log(
+        sqlx::query_as(
+            "DELETE FROM media WHERE id = ? RETURNING filename, small_filename, thumb_filename",
+        )
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await,
         "delete media",
     );
 
     match files {
-        Some((filename, small)) => {
-            for name in std::iter::once(filename).chain(small) {
+        Some((filename, small, thumb)) => {
+            for name in std::iter::once(filename).chain(small).chain(thumb) {
                 let path = PathBuf::from(UPLOAD_DIR).join(&name);
                 if let Err(e) = tokio::fs::remove_file(&path).await {
                     tracing::error!("Failed to remove upload {name}: {e}");
@@ -414,6 +444,8 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
                 width,
                 height,
                 small: None,
+                thumb: None,
+                thumb_webp: None,
                 webp: None,
                 small_webp: None,
             })
@@ -446,15 +478,8 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
             } else {
                 ("png", "image/png")
             };
-            let (small, small_webp) = if img.width() > SMALL_WIDTH {
-                let small =
-                    img.resize(SMALL_WIDTH, u32::MAX, image::imageops::FilterType::Lanczos3);
-                let small_bytes = encode(&small, format)?;
-                let small_webp = webp_copy(&small, format, &small_bytes);
-                (Some(small_bytes), small_webp)
-            } else {
-                (None, None)
-            };
+            let (small, small_webp) = narrower_copy(&img, format, SMALL_WIDTH)?.unzip();
+            let (thumb, thumb_webp) = narrower_copy(&img, format, THUMB_WIDTH)?.unzip();
             let bytes = encode(&img, format)?;
             let webp = webp_copy(&img, format, &bytes);
 
@@ -465,8 +490,10 @@ fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
                 width: img.width(),
                 height: img.height(),
                 small,
+                thumb,
+                thumb_webp: thumb_webp.flatten(),
                 webp,
-                small_webp,
+                small_webp: small_webp.flatten(),
             })
         }
         _ => Err("not a supported image (JPEG, PNG, GIF or WebP)".to_string()),
@@ -527,6 +554,66 @@ fn without_webp_metadata(data: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Give images uploaded before Bloogla made 400-pixel copies (1.2.1 and
+/// earlier) theirs, so cards on phones stay light on older sites too. Runs
+/// once in the background when Bloogla starts; images that already have a
+/// copy, or don't need one, are skipped.
+pub async fn make_missing_thumbs(pool: sqlx::SqlitePool) {
+    let missing: Vec<(i64, String)> = or_log(
+        sqlx::query_as(
+            "SELECT id, filename FROM media
+             WHERE thumb_filename IS NULL AND width > ?
+               AND mime_type IN ('image/jpeg', 'image/png')",
+        )
+        .bind(THUMB_WIDTH)
+        .fetch_all(&pool)
+        .await,
+        "find images without a small copy",
+    );
+    let mut made = 0;
+    for (id, filename) in missing {
+        let name = filename.clone();
+        let copy = tokio::task::spawn_blocking(move || thumb_for(&name)).await;
+        let Ok(Ok((thumb_filename, (bytes, webp)))) = copy else {
+            tracing::warn!("Couldn't make a small copy of {filename}");
+            continue;
+        };
+        let folder = PathBuf::from(UPLOAD_DIR);
+        let written = tokio::fs::write(folder.join(&thumb_filename), &bytes).await;
+        if written.is_err() {
+            tracing::warn!("Couldn't save the small copy of {filename}");
+            continue;
+        }
+        if let Some(webp) = webp {
+            let _ = tokio::fs::write(folder.join(format!("{thumb_filename}.webp")), webp).await;
+        }
+        let saved = sqlx::query("UPDATE media SET thumb_filename = ? WHERE id = ?")
+            .bind(&thumb_filename)
+            .bind(id)
+            .execute(&pool)
+            .await;
+        if saved.is_ok() {
+            made += 1;
+        }
+    }
+    if made > 0 {
+        tracing::info!("Made smaller copies of {made} images for phones");
+    }
+}
+
+/// The 400-pixel copy of an uploaded image: its file name, its bytes and
+/// its WebP copy. Uploads are already upright and size-limited.
+fn thumb_for(filename: &str) -> Result<(String, Copy), String> {
+    let data =
+        std::fs::read(PathBuf::from(UPLOAD_DIR).join(filename)).map_err(|e| e.to_string())?;
+    let format = image::guess_format(&data).map_err(|e| e.to_string())?;
+    let img = image::load_from_memory_with_format(&data, format).map_err(|e| e.to_string())?;
+    let (bytes, webp) =
+        narrower_copy(&img, format, THUMB_WIDTH)?.ok_or("not wider than a small copy")?;
+    let (stem, extension) = filename.rsplit_once('.').ok_or("no file ending")?;
+    Ok((format!("{stem}-{THUMB_WIDTH}.{extension}"), (bytes, webp)))
+}
+
 /// Write a processed image under a random name and record it in the library.
 /// Gives back the file name.
 async fn save_image(
@@ -540,6 +627,10 @@ async fn save_image(
         .small
         .as_ref()
         .map(|_| format!("{name}-{SMALL_WIDTH}.{}", image.extension));
+    let thumb_filename = image
+        .thumb
+        .as_ref()
+        .map(|_| format!("{name}-{THUMB_WIDTH}.{}", image.extension));
 
     tokio::fs::create_dir_all(UPLOAD_DIR).await.map_err(|e| {
         tracing::warn!("Upload failed: {e}");
@@ -547,10 +638,13 @@ async fn save_image(
     })?;
     let webp_filename = format!("{filename}.webp");
     let small_webp_filename = small_filename.as_ref().map(|name| format!("{name}.webp"));
+    let thumb_webp_filename = thumb_filename.as_ref().map(|name| format!("{name}.webp"));
     let files = std::iter::once((&filename, &image.bytes))
         .chain(small_filename.as_ref().zip(image.small.as_ref()))
+        .chain(thumb_filename.as_ref().zip(image.thumb.as_ref()))
         .chain(image.webp.as_ref().map(|bytes| (&webp_filename, bytes)))
-        .chain(small_webp_filename.as_ref().zip(image.small_webp.as_ref()));
+        .chain(small_webp_filename.as_ref().zip(image.small_webp.as_ref()))
+        .chain(thumb_webp_filename.as_ref().zip(image.thumb_webp.as_ref()));
     for (name, bytes) in files {
         tokio::fs::write(PathBuf::from(UPLOAD_DIR).join(name), bytes)
             .await
@@ -562,12 +656,13 @@ async fn save_image(
 
     let original_name: String = original_name.chars().take(200).collect();
     sqlx::query(
-        "INSERT INTO media (filename, small_filename, original_name, mime_type, size_bytes,
-                            width, height)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO media (filename, small_filename, thumb_filename, original_name, mime_type,
+                            size_bytes, width, height)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&filename)
     .bind(&small_filename)
+    .bind(&thumb_filename)
     .bind(&original_name)
     .bind(image.mime_type)
     .bind(image.bytes.len() as i64)

@@ -1,18 +1,13 @@
 // Light or dark, chosen by a visitor with the button in the header. Each
 // click goes device → light → dark → device, like the switch in the admin.
-// Loaded in <head>, before the page is drawn, so a saved choice shows from
-// the first moment instead of flashing the other colors. The choice stays in
-// this visitor's own browser (no cookie, nothing sent to the server); until
-// they choose, and after "device" again, the site follows their device.
+// The choice stays in this visitor's own browser (no cookie, nothing sent to
+// the server); until they choose, and after "device" again, the site follows
+// their device. A saved choice is applied before the page is drawn by
+// `scheme_script` in the page (see colors.html); this file only runs the
+// button, so it loads with `defer` and never holds the page back.
 (() => {
     const key = "bloogla:scheme";
     const root = document.documentElement;
-    try {
-        const saved = localStorage.getItem(key);
-        if (saved === "light" || saved === "dark") root.dataset.scheme = saved;
-    } catch {
-        // Storage turned off: follow the device.
-    }
 
     // The button says which choice is on ("Light or dark: always dark"); the
     // icon follows <html data-scheme> in style.css.

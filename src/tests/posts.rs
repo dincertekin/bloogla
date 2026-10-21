@@ -254,3 +254,43 @@ async fn views_are_counted_and_saved_together() {
             .unwrap();
     assert_eq!((views, today, referred), (250, 250, 250));
 }
+
+/// A tag page, or a later page of the home page, names itself as its real
+/// address; pointing search engines at the home page would hide it from them.
+#[tokio::test]
+async fn lists_of_posts_have_their_own_canonical_address() {
+    let mut site = TestSite::with_owner().await;
+    site.post(
+        "/admin/settings/general",
+        &[("posts_per_page", "1"), ("nav_menu", "")],
+    )
+    .await;
+    for title in ["First", "Second"] {
+        site.post(
+            "/admin/posts",
+            &[
+                ("title", title),
+                ("content", "Text."),
+                ("status", "published"),
+                ("new_tags", "Recipes"),
+            ],
+        )
+        .await;
+    }
+    site.new_visitor();
+    let canonical = |body: &str| {
+        let start = body
+            .find(r#"<link rel="canonical" href=""#)
+            .expect("a canonical link")
+            + 28;
+        body[start..start + body[start..].find('"').unwrap()].to_string()
+    };
+    let home = canonical(&site.get("/").await.body);
+    assert!(!home.contains("page="), "{home}");
+    let page_two = canonical(&site.get("/?page=2").await.body);
+    assert!(page_two.ends_with("/?page=2"), "{page_two}");
+    let tag = canonical(&site.get("/tag/recipes").await.body);
+    assert!(tag.ends_with("/tag/recipes"), "{tag}");
+    let tag_two = canonical(&site.get("/tag/recipes?page=2").await.body);
+    assert!(tag_two.ends_with("/tag/recipes?page=2"), "{tag_two}");
+}

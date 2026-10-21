@@ -247,6 +247,7 @@ async fn new_page_for(
         cover_width: None,
         cover_height: None,
         cover_small: None,
+        cover_thumb: None,
         views: 0,
         created_at: String::new(),
         status: "draft".to_string(),

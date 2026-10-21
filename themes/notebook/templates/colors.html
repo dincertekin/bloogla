@@ -10,8 +10,11 @@
 :root[data-scheme="dark"]{--accent:color-mix(in srgb,{{ accent }} 55%,white);--accent-hover:color-mix(in srgb,{{ accent }} 35%,white);--on-accent:#111111;--soft:color-mix(in srgb,{{ accent }} 16%,var(--surface))}
 </style>
 
-{#- The visitor's own light/dark choice, applied before the page is drawn
-    (only with the button, see scheme_button.html). -#}
+{#- The visitor's own light/dark choice (only with the button, see
+    scheme_button.html): `scheme_script` applies a saved choice before the
+    page is drawn, in the page itself so phones don't wait for a file;
+    scheme.js runs the button once the page is there. -#}
 {%- if theme_options.scheme_button | default(value=false) and scheme != "Always light" and scheme != "Always dark" %}
-<script src="{{ theme_url }}/static/js/scheme.js?v={{ asset_version }}"></script>
+{{ scheme_script | safe }}
+<script src="{{ theme_url }}/static/js/scheme.js?v={{ asset_version }}" defer></script>
 {%- endif %}

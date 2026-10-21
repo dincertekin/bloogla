@@ -16,6 +16,8 @@ pub struct Post {
     pub cover_height: Option<i64>,
     /// A smaller copy of the cover (800px wide), when there is one.
     pub cover_small: Option<String>,
+    /// The smallest copy of the cover (400px wide), for cards on phones.
+    pub cover_thumb: Option<String>,
     pub views: i64,
     pub created_at: String,
     pub status: String,
@@ -309,6 +311,7 @@ impl PostForm {
             cover_width: None,
             cover_height: None,
             cover_small: None,
+            cover_thumb: None,
             views: 0,
             created_at: String::new(),
             status: status.to_string(),
@@ -350,6 +353,8 @@ pub struct Media {
     pub filename: String,
     /// The 800px-wide copy, for wide photos.
     pub small_filename: Option<String>,
+    /// The 400px-wide copy, for cards and thumbnails.
+    pub thumb_filename: Option<String>,
     pub original_name: String,
     /// What the picture shows, for people who can't see it.
     pub alt_text: String,
