@@ -6,8 +6,10 @@
     --bg-main: #fafafa;
     --bg-card: #ffffff;
     --text-primary: #111827;
-    --text-secondary: #6b7280;
-    --text-muted: #9ca3af;
+    /* Greys for small text reach WCAG AA contrast (4.5:1) on cards, the page
+       and chips, in light and dark. */
+    --text-secondary: #5b6170;
+    --text-muted: #6b7280;
     --border-light: #e5e7eb;
     --accent-black: #111827;
     --accent-hover: #1f2937;
@@ -56,7 +58,7 @@
         --bg-card: #19191c;
         --text-primary: #ededef;
         --text-secondary: #a1a1aa;
-        --text-muted: #71717a;
+        --text-muted: #8e8e98;
         --border-light: #2b2b30;
         --accent-black: #ededef;
         --accent-hover: #d4d4d8;
@@ -95,7 +97,7 @@
     --bg-card: #19191c;
     --text-primary: #ededef;
     --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-muted: #8e8e98;
     --border-light: #2b2b30;
     --accent-black: #ededef;
     --accent-hover: #d4d4d8;
@@ -1328,14 +1330,16 @@ label.tag-chip:has(input:checked) {
     margin-left: 0.2rem;
 }
 
+/* Red text uses the darker "danger text" red: the bright red is too light
+   to read as small text on white (WCAG AA). */
 .btn-ghost-danger {
     background: transparent;
-    color: var(--danger);
+    color: var(--danger-text);
 }
 
 .btn-ghost-danger:hover {
     background-color: var(--danger-bg);
-    color: var(--danger-hover);
+    color: var(--danger-text);
 }
 
 /* ============================================================
@@ -1605,6 +1609,40 @@ code {
     color: var(--text-secondary);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.85rem;
+}
+
+/* Formulas (LaTeX) are shown as written, in the same quiet style as
+   shortcodes: a block between $$ lines, or a $…$ piece in a sentence. */
+.visual-editor .math-block {
+    margin: 0 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px dashed var(--border-light);
+    border-radius: 6px;
+    background: var(--chip-bg);
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+
+.visual-editor .math-block::before {
+    content: "$$";
+    display: block;
+    color: var(--text-muted);
+}
+
+.visual-editor .math-block::after {
+    content: "$$";
+    display: block;
+    color: var(--text-muted);
+}
+
+.visual-editor .math-inline {
+    padding: 0.05em 0.3em;
+    border-radius: 4px;
+    background: var(--chip-bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em;
 }
 
 /* HTML kept as written keeps its lines, so a box like <details> reads as it

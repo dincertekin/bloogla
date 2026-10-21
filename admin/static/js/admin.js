@@ -331,7 +331,12 @@ document.addEventListener("htmx:afterSettle", (event) => {
 
 // ---- Modals ----
 
+// A pop-up keeps the keyboard inside while it's open (Tab and Shift+Tab go
+// round its own buttons and fields) and gives the focus back to what opened
+// it when it closes, so keyboard and screen reader users don't get lost.
+
 function openModal(modal) {
+    modal.returnFocus = document.activeElement;
     modal.querySelectorAll("[data-clear-on-open]").forEach((part) => (part.innerHTML = ""));
     modal.classList.add("active");
     const first = modal.querySelector("[data-modal-close], button, input");
@@ -340,7 +345,34 @@ function openModal(modal) {
 
 function closeModal(modal) {
     modal.classList.remove("active");
+    const back = modal.returnFocus;
+    modal.returnFocus = null;
+    if (back && back.isConnected) back.focus();
 }
+
+// What Tab can reach inside a pop-up, in order.
+function focusableIn(modal) {
+    return [...modal.querySelectorAll('a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+        .filter((element) => element.offsetParent !== null);
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const modal = document.querySelector(".modal-overlay.active");
+    if (!modal) return;
+    const stops = focusableIn(modal);
+    if (stops.length === 0) return;
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    const inside = modal.contains(document.activeElement);
+    if (event.shiftKey && (document.activeElement === first || !inside)) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+        event.preventDefault();
+        first.focus();
+    }
+});
 
 document.addEventListener("click", (event) => {
     const opener = event.target.closest("[data-open-modal]");
@@ -364,14 +396,14 @@ function openMediaPicker(callback) {
     mediaPickerCallback = callback;
     const modal = document.getElementById("media-modal");
     htmx.ajax("GET", "/admin/media/picker", { target: "#picker-body" });
-    modal.classList.add("active");
+    openModal(modal);
 }
 
 document.getElementById("media-modal")?.addEventListener("click", (event) => {
     const item = event.target.closest(".picker-item");
     if (!item || !mediaPickerCallback) return;
     mediaPickerCallback(item.dataset.url, item.dataset.alt);
-    event.currentTarget.classList.remove("active");
+    closeModal(event.currentTarget);
 });
 
 // ---- Delete buttons, confirmed in a modal ----

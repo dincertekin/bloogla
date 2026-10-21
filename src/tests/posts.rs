@@ -294,3 +294,14 @@ async fn lists_of_posts_have_their_own_canonical_address() {
     let tag_two = canonical(&site.get("/tag/recipes?page=2").await.body);
     assert!(tag_two.ends_with("/tag/recipes?page=2"), "{tag_two}");
 }
+
+/// The editor's writing area has a name for screen readers ("Post text" or
+/// "Page text"; editor.js puts it on the writing area).
+#[tokio::test]
+async fn the_writing_area_is_named_for_screen_readers() {
+    let mut site = TestSite::with_owner().await;
+    let post = site.get("/admin/posts/new").await.body;
+    assert!(post.contains(r#"data-text-writing-area="Post text""#));
+    let page = site.get("/admin/pages/new").await.body;
+    assert!(page.contains(r#"data-text-writing-area="Page text""#));
+}

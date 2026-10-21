@@ -182,6 +182,11 @@ pub const LANGUAGE: Language = Language {
         ("could not decode image", "nepavyko nuskaityti paveikslėlio"),
         ("could not encode image", "nepavyko apdoroti paveikslėlio"),
         ("could not read image", "nepavyko perskaityti paveikslėlio"),
+        ("larger than 20 MB: save it smaller and upload it again", "didesnis nei 20 MB: išsaugokite jį mažesnį ir įkelkite dar kartą"),
+        ("more than 12,000 pixels wide or tall: make it smaller and upload it again", "platesnis arba aukštesnis nei 12 000 pikselių: sumažinkite jį ir įkelkite dar kartą"),
+        ("an animation larger than 5 MB makes pages slow to load: make it shorter or smaller, or post it as a video on YouTube or Vimeo", "didesnė nei 5 MB animacija lėtina puslapius: sutrumpinkite arba sumažinkite ją, arba paskelbkite kaip vaizdo įrašą „YouTube“ ar „Vimeo“"),
+        ("the upload didn't finish: please try again", "įkėlimas nebaigtas: bandykite dar kartą"),
+        ("The images together are larger than 200 MB. Upload fewer at a time.", "Paveikslėliai kartu didesni nei 200 MB. Įkelkite mažiau vienu metu."),
         ("could not save file", "nepavyko išsaugoti failo"),
         ("Could not save the tag. Please try again.", "Nepavyko išsaugoti žymos. Bandykite dar kartą."),
         ("could not save to the media library", "nepavyko išsaugoti medijos bibliotekoje"),
@@ -675,6 +680,12 @@ pub const LANGUAGE: Language = Language {
         ("Write your first post right away.", "Iškart parašykite pirmąjį įrašą."),
         ("Bring my posts from another site", "Perkelti mano įrašus iš kitos svetainės"),
         ("After the next step, Bloogla opens Import, where you can bring in a WordPress site.", "Po kito žingsnio Bloogla atvers importavimą, kur galėsite perkelti WordPress svetainę."),
+        // The editor: the writing area's name for screen readers
+        ("Post text", "Įrašo tekstas"),
+        ("Page text", "Puslapio tekstas"),
+        // The editor: subscript and superscript buttons
+        ("Subscript", "Apatinis indeksas"),
+        ("Superscript", "Viršutinis indeksas"),
     ],
 };
 

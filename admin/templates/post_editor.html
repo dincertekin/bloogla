@@ -37,6 +37,7 @@
     data-text-preview-failed="{{ me.t("Preview failed. Your text is safe; try again.") }}"
     data-text-link-prompt="{{ me.t("Link address") }}"
     data-text-visual-placeholder="{{ me.t("Start writing…") }}"
+    data-text-writing-area="{% if post.is_page %}{{ me.t("Page text") }}{% else %}{{ me.t("Post text") }}{% endif %}"
     data-text-video-prompt="{{ me.t("Paste a YouTube or Vimeo link") }}"
     data-text-saved="{{ me.t("Saved.") }}"
     data-text-save-failed="{{ me.t("Couldn't save your changes. Please try again.") }}"
@@ -77,6 +78,8 @@
                 <button type="button" data-format="bold" title="{{ me.t("Bold") }} (⌘B)" aria-label="{{ me.t("Bold") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></svg></button>
                 <button type="button" data-format="italic" title="{{ me.t("Italic") }} (⌘I)" aria-label="{{ me.t("Italic") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg></button>
                 <button type="button" data-format="code" title="{{ me.t("Code") }}" aria-label="{{ me.t("Code") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>
+                <button type="button" data-format="subscript" title="{{ me.t("Subscript") }} (⌘,)" aria-label="{{ me.t("Subscript") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 5 8 8"/><path d="m12 5-8 8"/><path d="M20 19h-4c0-1.5.44-2 1.5-2.5S20 15.33 20 14c0-.47-.17-.93-.48-1.29a2.11 2.11 0 0 0-2.62-.44c-.42.24-.74.62-.9 1.07"/></svg></button>
+                <button type="button" data-format="superscript" title="{{ me.t("Superscript") }} (⌘.)" aria-label="{{ me.t("Superscript") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 19 8-8"/><path d="m12 19-8-8"/><path d="M20 12h-4c0-1.5.44-2 1.5-2.5S20 8.33 20 7c0-.47-.17-.93-.48-1.29a2.11 2.11 0 0 0-2.62-.44c-.42.24-.74.61-.9 1.06"/></svg></button>
                 <span class="format-sep" aria-hidden="true"></span>
                 <button type="button" data-format="link" title="{{ me.t("Link") }} (⌘K)" aria-label="{{ me.t("Link") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
                 <button type="button" data-picker="insert" title="{{ me.t("Insert image") }}" aria-label="{{ me.t("Insert image") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></button>

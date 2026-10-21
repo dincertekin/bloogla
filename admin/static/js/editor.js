@@ -17,6 +17,7 @@
         linkPrompt: form.dataset.textLinkPrompt,
         videoPrompt: form.dataset.textVideoPrompt,
         visualPlaceholder: form.dataset.textVisualPlaceholder,
+        writingArea: form.dataset.textWritingArea,
         saved: form.dataset.textSaved,
         saveFailed: form.dataset.textSaveFailed,
     };
@@ -290,6 +291,9 @@
             content.dispatchEvent(new Event("input", { bubbles: true }));
         },
     });
+    // Screen readers name the writing area ("Post text"), like a labelled
+    // field; the editor itself doesn't give it a name.
+    editor.view.dom.setAttribute("aria-label", text.writingArea);
 
     // Replace the whole text (restoring a draft or an earlier version).
     function setMarkdown(markdown) {
@@ -333,6 +337,9 @@
         },
         bold: () => run().toggleBold().run(),
         italic: () => run().toggleItalic().run(),
+        // H₂O and mc²: one turns the other off.
+        subscript: () => run().unsetSuperscript().toggleSubscript().run(),
+        superscript: () => run().unsetSubscript().toggleSuperscript().run(),
         // Code inside a sentence, or a code block for several lines.
         code: () => {
             const { $from, $to, empty } = editor.state.selection;
@@ -371,6 +378,8 @@
         heading: () => editor.isActive("heading"),
         bold: () => editor.isActive("bold"),
         italic: () => editor.isActive("italic"),
+        subscript: () => editor.isActive("subscript"),
+        superscript: () => editor.isActive("superscript"),
         code: () => editor.isActive("code") || editor.isActive("codeBlock"),
         link: () => editor.isActive("link"),
         bullets: () => editor.isActive("bulletList"),

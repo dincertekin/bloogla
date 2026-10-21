@@ -1,13 +1,15 @@
 // Bloogla's visual editor: TipTap (ProseMirror) reading and writing Markdown.
 // Built from this file into admin/static/js/visual-editor.js (see the header
 // of that file); used by admin/static/js/editor.js.
-import { Editor, Node, mergeAttributes } from "@tiptap/core";
+import { Editor, Node, InputRule, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 
 // A shortcode on its own line, like [youtube URL], [toc] or [note "Text"].
 const SHORTCODE_LINE = /^\[([a-z][\w-]*)(?:[ \t][^\n\]]*)?\][ \t]*(?:\n|$)/i;
@@ -113,6 +115,118 @@ const HtmlBlock = Node.create({
     },
 });
 
+// Subscript and superscript (H₂O, mc²). Markdown has no way to write them,
+// so they're saved as <sub>/<sup>, which the site shows as they are.
+const SubscriptMark = Subscript.extend({
+    renderMarkdown: (node, h) => `<sub>${h.renderChildren(node)}</sub>`,
+});
+const SuperscriptMark = Superscript.extend({
+    renderMarkdown: (node, h) => `<sup>${h.renderChildren(node)}</sup>`,
+});
+
+// Formulas in LaTeX are kept exactly as written: Markdown's escaping would
+// otherwise double backslashes and lose `\,` or `_`. A block between $$
+// lines is edited like code; $…$ inside a sentence is kept as one piece
+// (delete it and type it again to change it).
+
+// A $$ … $$ block at the start of `src`, or null.
+const MATH_BLOCK = /^\$\$[ \t]*\n([\s\S]*?)\n\$\$[ \t]*(?:\n|$)/;
+// $…$ in a sentence: not "$ " at the start or " $" at the end, and not
+// followed by a digit, so prices like "$5 and $10" stay text.
+const MATH_INLINE = /^\$(?![\s$])((?:\\.|[^$\\\n])+?)(?<!\s)\$(?!\d)/;
+
+const MathBlock = Node.create({
+    name: "mathBlock",
+    group: "block",
+    content: "text*",
+    marks: "",
+    code: true,
+    defining: true,
+    parseHTML() {
+        return [{ tag: "pre[data-math-block]", preserveWhitespace: "full" }];
+    },
+    renderHTML() {
+        return ["pre", { "data-math-block": "", class: "math-block" }, ["code", 0]];
+    },
+    markdownTokenName: "mathBlock",
+    markdownTokenizer: {
+        name: "mathBlock",
+        level: "block",
+        start: (src) => {
+            const match = /(^|\n)\$\$/.exec(src);
+            return match ? match.index + match[1].length : -1;
+        },
+        tokenize(src) {
+            const match = MATH_BLOCK.exec(src);
+            if (match) return { type: "mathBlock", raw: match[0], text: match[1] };
+        },
+    },
+    parseMarkdown(token) {
+        return { type: "mathBlock", content: token.text ? [{ type: "text", text: token.text }] : [] };
+    },
+    // The text as typed: the pieces joined, never escaped.
+    renderMarkdown(node) {
+        const latex = (node.content || []).map((part) => part.text || "").join("");
+        return `$$\n${latex}\n$$`;
+    },
+    // Typing $$ and a space on an empty line starts a formula block.
+    addInputRules() {
+        return [
+            new InputRule({
+                find: /^\$\$\s$/,
+                handler: ({ range, chain }) => {
+                    chain().deleteRange(range).setNode("mathBlock").run();
+                },
+            }),
+        ];
+    },
+});
+
+const MathInline = Node.create({
+    name: "mathInline",
+    group: "inline",
+    inline: true,
+    atom: true,
+    selectable: true,
+    addAttributes() {
+        return { latex: { default: "" } };
+    },
+    parseHTML() {
+        return [{ tag: "span[data-math-inline]", getAttrs: (el) => ({ latex: el.getAttribute("data-math-inline") }) }];
+    },
+    renderHTML({ node }) {
+        return ["span", { "data-math-inline": node.attrs.latex, class: "math-inline" }, `$${node.attrs.latex}$`];
+    },
+    markdownTokenName: "mathInline",
+    markdownTokenizer: {
+        name: "mathInline",
+        level: "inline",
+        start: (src) => src.indexOf("$"),
+        tokenize(src) {
+            const match = MATH_INLINE.exec(src);
+            if (match) return { type: "mathInline", raw: match[0], text: match[1] };
+        },
+    },
+    parseMarkdown(token) {
+        return { type: "mathInline", attrs: { latex: token.text } };
+    },
+    renderMarkdown(node) {
+        return `$${node.attrs.latex}$`;
+    },
+    // Typing $…$ in a sentence keeps it as a formula.
+    addInputRules() {
+        return [
+            new InputRule({
+                find: /(?:^|\s)\$([^$\s](?:[^$]*[^$\s])?)\$$/,
+                handler: ({ state, range, match }) => {
+                    const start = range.from + match[0].indexOf("$");
+                    state.tr.replaceWith(start, range.to, this.type.create({ latex: match[1] }));
+                },
+            }),
+        ];
+    },
+});
+
 window.BlooglaVisualEditor = {
     create({ element, markdown, placeholder, onChange }) {
         return new Editor({
@@ -130,6 +244,10 @@ window.BlooglaVisualEditor = {
                 TaskItem.configure({ nested: true }),
                 Shortcode,
                 HtmlBlock,
+                SubscriptMark,
+                SuperscriptMark,
+                MathBlock,
+                MathInline,
                 Markdown,
             ],
             content: markdown,

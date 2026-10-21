@@ -214,7 +214,8 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
 
     // Everyone signed in, authors included. Post handlers also check who
     // owns each post.
-    let upload_limit = DefaultBodyLimit::max(admin::media::MAX_UPLOAD_BYTES);
+    // Several images at once; each is checked against its own limit.
+    let upload_limit = DefaultBodyLimit::max(admin::media::MAX_UPLOAD_REQUEST_BYTES);
     let writers = Router::new()
         .route("/admin", get(admin::dashboard::page))
         .route(

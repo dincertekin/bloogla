@@ -172,6 +172,11 @@ pub const LANGUAGE: Language = Language {
         ("could not decode image", "Bild konnte nicht gelesen werden"),
         ("could not encode image", "Bild konnte nicht gespeichert werden"),
         ("could not read image", "Bild konnte nicht gelesen werden"),
+        ("larger than 20 MB: save it smaller and upload it again", "größer als 20 MB: Bitte speichern Sie es kleiner und laden Sie es erneut hoch"),
+        ("more than 12,000 pixels wide or tall: make it smaller and upload it again", "mehr als 12.000 Pixel breit oder hoch: Bitte verkleinern Sie es und laden Sie es erneut hoch"),
+        ("an animation larger than 5 MB makes pages slow to load: make it shorter or smaller, or post it as a video on YouTube or Vimeo", "eine Animation über 5 MB macht Seiten langsam: Bitte kürzen oder verkleinern Sie sie, oder veröffentlichen Sie sie als Video auf YouTube oder Vimeo"),
+        ("the upload didn't finish: please try again", "das Hochladen wurde nicht abgeschlossen: Bitte versuchen Sie es erneut"),
+        ("The images together are larger than 200 MB. Upload fewer at a time.", "Die Bilder sind zusammen größer als 200 MB. Bitte laden Sie weniger auf einmal hoch."),
         ("could not save file", "Datei konnte nicht gespeichert werden"),
         ("Could not save the tag. Please try again.", "Das Schlagwort konnte nicht gespeichert werden. Bitte versuchen Sie es erneut."),
         ("could not save to the media library", "konnte nicht in der Mediathek gespeichert werden"),
@@ -665,6 +670,12 @@ pub const LANGUAGE: Language = Language {
         ("Write your first post right away.", "Schreiben Sie gleich Ihren ersten Beitrag."),
         ("Bring my posts from another site", "Meine Beiträge von einer anderen Website übernehmen"),
         ("After the next step, Bloogla opens Import, where you can bring in a WordPress site.", "Nach dem nächsten Schritt öffnet Bloogla den Import, wo Sie eine WordPress-Website übernehmen können."),
+        // The editor: the writing area's name for screen readers
+        ("Post text", "Beitragstext"),
+        ("Page text", "Seitentext"),
+        // The editor: subscript and superscript buttons
+        ("Subscript", "Tiefgestellt"),
+        ("Superscript", "Hochgestellt"),
     ],
 };
 

@@ -172,6 +172,11 @@ pub const LANGUAGE: Language = Language {
         ("could not decode image", "görsel çözümlenemedi"),
         ("could not encode image", "görsel kaydedilemedi"),
         ("could not read image", "görsel okunamadı"),
+        ("larger than 20 MB: save it smaller and upload it again", "20 MB'tan büyük: daha küçük kaydedip yeniden yükleyin"),
+        ("more than 12,000 pixels wide or tall: make it smaller and upload it again", "genişliği veya yüksekliği 12.000 pikselden fazla: küçültüp yeniden yükleyin"),
+        ("an animation larger than 5 MB makes pages slow to load: make it shorter or smaller, or post it as a video on YouTube or Vimeo", "5 MB'tan büyük bir animasyon sayfaları yavaşlatır: kısaltın veya küçültün ya da YouTube veya Vimeo'da video olarak paylaşın"),
+        ("the upload didn't finish: please try again", "yükleme tamamlanmadı: lütfen yeniden deneyin"),
+        ("The images together are larger than 200 MB. Upload fewer at a time.", "Görseller toplamda 200 MB'tan büyük. Bir seferde daha az yükleyin."),
         ("could not save file", "dosya kaydedilemedi"),
         ("Could not save the tag. Please try again.", "Etiket kaydedilemedi. Lütfen tekrar deneyin."),
         ("could not save to the media library", "medya kütüphanesine kaydedilemedi"),
@@ -665,5 +670,11 @@ pub const LANGUAGE: Language = Language {
         ("Write your first post right away.", "Hemen ilk yazınızı yazın."),
         ("Bring my posts from another site", "Yazılarımı başka bir siteden getir"),
         ("After the next step, Bloogla opens Import, where you can bring in a WordPress site.", "Sonraki adımdan sonra Bloogla, bir WordPress sitesini getirebileceğiniz İçe aktarma bölümünü açar."),
+        // The editor: the writing area's name for screen readers
+        ("Post text", "Yazı metni"),
+        ("Page text", "Sayfa metni"),
+        // The editor: subscript and superscript buttons
+        ("Subscript", "Alt simge"),
+        ("Superscript", "Üst simge"),
     ],
 };

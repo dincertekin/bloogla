@@ -21,8 +21,20 @@ use std::path::PathBuf;
 
 /// Folder uploads are saved in, served at `/uploads`.
 pub const UPLOAD_DIR: &str = "uploads";
-/// Maximum accepted upload size per request.
+/// The largest image accepted (each file; several can be uploaded at once).
 pub const MAX_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
+/// The largest upload of several images together.
+pub const MAX_UPLOAD_REQUEST_BYTES: usize = 10 * MAX_UPLOAD_BYTES;
+/// Animations (GIF, animated WebP) can't be made smaller like photos; bigger
+/// ones than this make pages slow, so they're refused.
+const MAX_ANIMATION_BYTES: usize = 5 * 1024 * 1024;
+
+/// Why an upload was refused (English; `lang.t_owned` translates them).
+const TOO_LARGE: &str = "larger than 20 MB: save it smaller and upload it again";
+const TOO_MANY_PIXELS: &str =
+    "more than 12,000 pixels wide or tall: make it smaller and upload it again";
+const ANIMATION_TOO_LARGE: &str = "an animation larger than 5 MB makes pages slow to load: make it shorter or smaller, or post it as a video on YouTube or Vimeo";
+const UPLOAD_CUT_SHORT: &str = "the upload didn't finish: please try again";
 /// Larger photos are scaled down to fit this box.
 const MAX_DIMENSION: u32 = 2000;
 const JPEG_QUALITY: u8 = 85;
@@ -134,31 +146,54 @@ const SMALL_WIDTH: u32 = 800;
 /// Width of the smallest copy: a card on a phone is about 370 pixels wide.
 const THUMB_WIDTH: u32 = 400;
 
-/// A smaller copy of an image: its bytes in the upload's format, and its
-/// WebP copy when that's smaller still.
+/// How a picture is saved: JPEG and PNG (with a WebP copy next to them for
+/// browsers that take WebP), or WebP itself.
+#[derive(Clone, Copy, PartialEq)]
+enum Output {
+    Jpeg,
+    Png,
+    /// `true` keeps every pixel exact (graphics), `false` compresses like a
+    /// photo.
+    WebP(bool),
+}
+
+/// A smaller copy of an image: its bytes, and for JPEG and PNG its WebP copy
+/// when that's smaller still.
 type Copy = (Vec<u8>, Option<Vec<u8>>);
 
 /// A copy of `img` `width` pixels wide. `None` when the image isn't wider
 /// than that.
-fn narrower_copy(
-    img: &DynamicImage,
-    format: ImageFormat,
-    width: u32,
-) -> Result<Option<Copy>, String> {
+fn narrower_copy(img: &DynamicImage, output: Output, width: u32) -> Result<Option<Copy>, String> {
     if img.width() <= width {
         return Ok(None);
     }
     let copy = img.resize(width, u32::MAX, image::imageops::FilterType::Lanczos3);
-    let bytes = encode(&copy, format)?;
-    let webp = webp_copy(&copy, format, &bytes);
+    let bytes = encode(&copy, output)?;
+    let webp = webp_copy(&copy, output, &bytes);
     Ok(Some((bytes, webp)))
 }
 
-/// A WebP copy of `img`, if it's smaller than `original` (its JPEG or PNG).
-/// Photos (JPEG) are compressed like the JPEG is; PNGs (logos, screenshots)
-/// stay pixel-exact, so text and sharp edges don't blur.
-fn webp_copy(img: &DynamicImage, format: ImageFormat, original: &[u8]) -> Option<Vec<u8>> {
-    let lossless = format == ImageFormat::Png;
+/// A WebP copy of a JPEG or PNG `img`, if it's smaller than `original`.
+fn webp_copy(img: &DynamicImage, output: Output, original: &[u8]) -> Option<Vec<u8>> {
+    let lossless = match output {
+        Output::Jpeg => false,
+        Output::Png => true,
+        Output::WebP(_) => return None, // already WebP
+    };
+    match encode_webp(img, lossless) {
+        Ok(webp) if webp.len() < original.len() => Some(webp),
+        Ok(_) => None,
+        Err(e) => {
+            // The original is enough; the upload still works.
+            tracing::warn!("Could not make a WebP copy: {e}");
+            None
+        }
+    }
+}
+
+/// `img` as WebP. Photos (`lossless` false) are compressed like the JPEG is;
+/// graphics stay pixel-exact, so text and sharp edges don't blur.
+fn encode_webp(img: &DynamicImage, lossless: bool) -> Result<Vec<u8>, String> {
     // The image library's own buffers always hold width × height pixels,
     // which is what the WebP encoder checks.
     let encoded = if img.color().has_alpha() {
@@ -170,31 +205,34 @@ fn webp_copy(img: &DynamicImage, format: ImageFormat, original: &[u8]) -> Option
         webp::Encoder::from_rgb(&rgb, img.width(), img.height())
             .encode_simple(lossless, WEBP_QUALITY)
     };
-    match encoded {
-        Ok(webp) if webp.len() < original.len() => Some(webp.to_vec()),
-        Ok(_) => None,
-        Err(e) => {
-            // The original is enough; the upload still works.
-            tracing::warn!("Could not make a WebP copy: {e:?}");
-            None
-        }
-    }
+    encoded
+        .map(|webp| webp.to_vec())
+        .map_err(|e| format!("{e:?}"))
 }
 
-/// Encode `img` in the upload's format (JPEG or PNG).
-fn encode(img: &DynamicImage, format: ImageFormat) -> Result<Vec<u8>, String> {
+/// Encode `img` as `output`.
+fn encode(img: &DynamicImage, output: Output) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
-    let result = if format == ImageFormat::Jpeg {
-        let encoder = JpegEncoder::new_with_quality(&mut bytes, JPEG_QUALITY);
-        img.to_rgb8().write_with_encoder(encoder)
-    } else {
-        // Best compression: uploads are saved once and downloaded many times.
-        let encoder = PngEncoder::new_with_quality(
-            &mut bytes,
-            CompressionType::Best,
-            image::codecs::png::FilterType::Adaptive,
-        );
-        img.write_with_encoder(encoder)
+    let result = match output {
+        Output::Jpeg => {
+            let encoder = JpegEncoder::new_with_quality(&mut bytes, JPEG_QUALITY);
+            img.to_rgb8().write_with_encoder(encoder)
+        }
+        Output::Png => {
+            // Best compression: uploads are saved once and downloaded many times.
+            let encoder = PngEncoder::new_with_quality(
+                &mut bytes,
+                CompressionType::Best,
+                image::codecs::png::FilterType::Adaptive,
+            );
+            img.write_with_encoder(encoder)
+        }
+        Output::WebP(lossless) => {
+            return encode_webp(img, lossless).map_err(|e| {
+                tracing::warn!("Upload failed: {e}");
+                "could not encode image".to_string()
+            })
+        }
     };
     result.map_err(|e| {
         tracing::warn!("Upload failed: {e}");
@@ -288,11 +326,17 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
     let mut errors = Vec::new();
 
     loop {
-        let field = match multipart.next_field().await {
+        let mut field = match multipart.next_field().await {
             Ok(Some(field)) => field,
             Ok(None) => break,
             Err(e) => {
-                errors.push(format!("Upload failed: {e}"));
+                tracing::warn!("Upload stopped: {e}");
+                let reason = if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+                    "The images together are larger than 200 MB. Upload fewer at a time."
+                } else {
+                    "The upload didn't finish. Please try again."
+                };
+                errors.push(lang.t(reason).to_string());
                 break;
             }
         };
@@ -301,16 +345,34 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
         }
 
         let original_name = field.file_name().unwrap_or("upload").to_string();
-        let data = match field.bytes().await {
-            Ok(data) if data.is_empty() => continue,
-            Ok(data) => data,
-            Err(e) => {
-                errors.push(format!("{original_name}: {e}"));
-                continue;
+        // Read a piece at a time and stop past the limit, so one huge file
+        // is refused without filling the memory, and the others still go in.
+        let mut data = Vec::new();
+        let mut refused = None;
+        loop {
+            match field.chunk().await {
+                Ok(Some(chunk)) if data.len() + chunk.len() > MAX_UPLOAD_BYTES => {
+                    refused = Some(TOO_LARGE);
+                    break;
+                }
+                Ok(Some(chunk)) => data.extend_from_slice(&chunk),
+                Ok(None) => break,
+                Err(e) => {
+                    tracing::warn!("Upload stopped: {e}");
+                    refused = Some(UPLOAD_CUT_SHORT);
+                    break;
+                }
             }
-        };
+        }
+        if let Some(reason) = refused {
+            errors.push(format!("{original_name}: {}", lang.t(reason)));
+            continue;
+        }
+        if data.is_empty() {
+            continue;
+        }
 
-        if let Err(e) = add_image(state, &original_name, data.to_vec()).await {
+        if let Err(e) = add_image(state, &original_name, data).await {
             errors.push(format!("{original_name}: {}", lang.t_owned(&e)));
         }
     }
@@ -405,99 +467,160 @@ pub async fn delete(State(state): State<AppState>, Path(id): Path<i64>) -> Statu
     }
 }
 
-/// Validate an upload by its content (not its name) and normalize it.
+/// Check an upload by its content (not its name) and make it ready for the
+/// web.
 ///
-/// JPEG and PNG are decoded, rotated upright, scaled down to [`MAX_DIMENSION`]
-/// and re-encoded, which also strips metadata such as GPS location. GIF and
-/// WebP are kept as they are so animations survive, except that WebP's
-/// metadata is taken out (see [`without_webp_metadata`]).
+/// Still pictures (JPEG, PNG, GIF, WebP) are decoded, turned upright, scaled
+/// down to [`MAX_DIMENSION`], re-encoded (which also drops metadata such as
+/// GPS location) and given smaller copies for phones. Animations (GIF,
+/// animated WebP) are kept as they are, up to [`MAX_ANIMATION_BYTES`]; a
+/// WebP animation loses its metadata (see [`without_webp_metadata`]).
 fn process_image(data: &[u8]) -> Result<ProcessedImage, String> {
     let format = image::guess_format(data)
         .map_err(|_| "not a supported image (JPEG, PNG, GIF or WebP)".to_string())?;
-
-    let mut limits = Limits::default();
-    limits.max_image_width = Some(12_000);
-    limits.max_image_height = Some(12_000);
-
-    let mut reader = ImageReader::with_format(Cursor::new(data), format);
-    reader.limits(limits);
-
-    match format {
-        ImageFormat::Gif | ImageFormat::WebP => {
-            let (width, height) = reader.into_dimensions().map_err(|e| {
-                tracing::warn!("Upload failed: {e}");
-                "could not read image".to_string()
-            })?;
-            let (extension, mime_type, bytes) = if format == ImageFormat::Gif {
-                ("gif", "image/gif", data.to_vec())
-            } else {
-                let bytes = without_webp_metadata(data).ok_or_else(|| {
-                    tracing::warn!("Upload failed: WebP chunks don't add up");
-                    "could not read image".to_string()
-                })?;
-                ("webp", "image/webp", bytes)
-            };
-            Ok(ProcessedImage {
-                bytes,
-                extension,
-                mime_type,
-                width,
-                height,
-                small: None,
-                thumb: None,
-                thumb_webp: None,
-                webp: None,
-                small_webp: None,
-            })
-        }
-        ImageFormat::Jpeg | ImageFormat::Png => {
-            let mut decoder = reader.into_decoder().map_err(|e| {
-                tracing::warn!("Upload failed: {e}");
-                "could not read image".to_string()
-            })?;
-            let orientation = decoder.orientation().map_err(|e| {
-                tracing::warn!("Upload failed: {e}");
-                "could not read image".to_string()
-            })?;
-            let mut img = DynamicImage::from_decoder(decoder).map_err(|e| {
-                tracing::warn!("Upload failed: {e}");
-                "could not decode image".to_string()
-            })?;
-            img.apply_orientation(orientation);
-
-            if img.width() > MAX_DIMENSION || img.height() > MAX_DIMENSION {
-                img = img.resize(
-                    MAX_DIMENSION,
-                    MAX_DIMENSION,
-                    image::imageops::FilterType::Lanczos3,
-                );
-            }
-
-            let (extension, mime_type) = if format == ImageFormat::Jpeg {
-                ("jpg", "image/jpeg")
-            } else {
-                ("png", "image/png")
-            };
-            let (small, small_webp) = narrower_copy(&img, format, SMALL_WIDTH)?.unzip();
-            let (thumb, thumb_webp) = narrower_copy(&img, format, THUMB_WIDTH)?.unzip();
-            let bytes = encode(&img, format)?;
-            let webp = webp_copy(&img, format, &bytes);
-
-            Ok(ProcessedImage {
-                bytes,
-                extension,
-                mime_type,
-                width: img.width(),
-                height: img.height(),
-                small,
-                thumb,
-                thumb_webp: thumb_webp.flatten(),
-                webp,
-                small_webp: small_webp.flatten(),
-            })
-        }
-        _ => Err("not a supported image (JPEG, PNG, GIF or WebP)".to_string()),
+    if !matches!(
+        format,
+        ImageFormat::Jpeg | ImageFormat::Png | ImageFormat::Gif | ImageFormat::WebP
+    ) {
+        return Err("not a supported image (JPEG, PNG, GIF or WebP)".to_string());
     }
+
+    let reader = || {
+        let mut limits = Limits::default();
+        limits.max_image_width = Some(12_000);
+        limits.max_image_height = Some(12_000);
+        let mut reader = ImageReader::with_format(Cursor::new(data), format);
+        reader.limits(limits);
+        reader
+    };
+    // Its size first: a file can claim a huge picture to fill the memory.
+    let (width, height) = reader().into_dimensions().map_err(unreadable)?;
+    if is_animation(data, format) {
+        return keep_animation(data, format, width, height);
+    }
+
+    let mut decoder = reader().into_decoder().map_err(unreadable)?;
+    let orientation = decoder.orientation().map_err(unreadable)?;
+    let mut img = DynamicImage::from_decoder(decoder).map_err(unreadable)?;
+    img.apply_orientation(orientation);
+    let resized = img.width() > MAX_DIMENSION || img.height() > MAX_DIMENSION;
+    if resized {
+        img = img.resize(
+            MAX_DIMENSION,
+            MAX_DIMENSION,
+            image::imageops::FilterType::Lanczos3,
+        );
+    }
+
+    // A still GIF is saved like a PNG (same pixels, smaller file).
+    let (output, extension, mime_type) = match format {
+        ImageFormat::Jpeg => (Output::Jpeg, "jpg", "image/jpeg"),
+        ImageFormat::WebP => (Output::WebP(is_lossless_webp(data)), "webp", "image/webp"),
+        _ => (Output::Png, "png", "image/png"),
+    };
+    let (small, small_webp) = narrower_copy(&img, output, SMALL_WIDTH)?.unzip();
+    let (thumb, thumb_webp) = narrower_copy(&img, output, THUMB_WIDTH)?.unzip();
+    // A WebP that didn't need resizing keeps its own bytes (without its
+    // metadata): encoding it again would only lose quality.
+    let bytes = match output {
+        Output::WebP(_) if !resized => without_webp_metadata(data).ok_or_else(|| {
+            tracing::warn!("Upload failed: WebP chunks don't add up");
+            "could not read image".to_string()
+        })?,
+        _ => encode(&img, output)?,
+    };
+    let webp = webp_copy(&img, output, &bytes);
+
+    Ok(ProcessedImage {
+        bytes,
+        extension,
+        mime_type,
+        width: img.width(),
+        height: img.height(),
+        small,
+        thumb,
+        thumb_webp: thumb_webp.flatten(),
+        webp,
+        small_webp: small_webp.flatten(),
+    })
+}
+
+/// What a picture that can't be read is called: too big, or broken.
+fn unreadable(error: image::ImageError) -> String {
+    tracing::warn!("Upload failed: {error}");
+    if matches!(error, image::ImageError::Limits(_)) {
+        TOO_MANY_PIXELS.to_string()
+    } else {
+        "could not read image".to_string()
+    }
+}
+
+/// Whether a GIF or WebP moves (has more than one frame).
+fn is_animation(data: &[u8], format: ImageFormat) -> bool {
+    use image::AnimationDecoder;
+    match format {
+        ImageFormat::Gif => image::codecs::gif::GifDecoder::new(Cursor::new(data))
+            .map(|gif| gif.into_frames().take(2).count() > 1)
+            .unwrap_or(false),
+        ImageFormat::WebP => image::codecs::webp::WebPDecoder::new(Cursor::new(data))
+            .map(|webp| webp.has_animation())
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+/// An animation, kept as it is (resizing every frame would be slow and
+/// lose quality), if it's small enough to load quickly.
+fn keep_animation(
+    data: &[u8],
+    format: ImageFormat,
+    width: u32,
+    height: u32,
+) -> Result<ProcessedImage, String> {
+    if data.len() > MAX_ANIMATION_BYTES {
+        return Err(ANIMATION_TOO_LARGE.to_string());
+    }
+    let (extension, mime_type, bytes) = if format == ImageFormat::Gif {
+        ("gif", "image/gif", data.to_vec())
+    } else {
+        let bytes = without_webp_metadata(data).ok_or_else(|| {
+            tracing::warn!("Upload failed: WebP chunks don't add up");
+            "could not read image".to_string()
+        })?;
+        ("webp", "image/webp", bytes)
+    };
+    Ok(ProcessedImage {
+        bytes,
+        extension,
+        mime_type,
+        width,
+        height,
+        small: None,
+        thumb: None,
+        thumb_webp: None,
+        webp: None,
+        small_webp: None,
+    })
+}
+
+/// Whether a WebP is stored pixel-exact (`VP8L`, used for graphics) rather
+/// than compressed like a photo (`VP8 `): its copies are made the same way.
+fn is_lossless_webp(data: &[u8]) -> bool {
+    // Chunks after the 12-byte header: a 4-letter name, a size, the data.
+    let mut at = 12;
+    while at + 8 <= data.len() {
+        let name = &data[at..at + 4];
+        if name == b"VP8L" {
+            return true;
+        }
+        if name == b"VP8 " {
+            return false;
+        }
+        let size =
+            u32::from_le_bytes([data[at + 4], data[at + 5], data[at + 6], data[at + 7]]) as usize;
+        at += 8 + size + size % 2;
+    }
+    false
 }
 
 /// A WebP file with only the chunks needed to show it: the picture,
@@ -607,9 +730,14 @@ fn thumb_for(filename: &str) -> Result<(String, Copy), String> {
     let data =
         std::fs::read(PathBuf::from(UPLOAD_DIR).join(filename)).map_err(|e| e.to_string())?;
     let format = image::guess_format(&data).map_err(|e| e.to_string())?;
+    let output = if format == ImageFormat::Jpeg {
+        Output::Jpeg
+    } else {
+        Output::Png
+    };
     let img = image::load_from_memory_with_format(&data, format).map_err(|e| e.to_string())?;
     let (bytes, webp) =
-        narrower_copy(&img, format, THUMB_WIDTH)?.ok_or("not wider than a small copy")?;
+        narrower_copy(&img, output, THUMB_WIDTH)?.ok_or("not wider than a small copy")?;
     let (stem, extension) = filename.rsplit_once('.').ok_or("no file ending")?;
     Ok((format!("{stem}-{THUMB_WIDTH}.{extension}"), (bytes, webp)))
 }

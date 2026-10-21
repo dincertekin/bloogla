@@ -177,6 +177,11 @@ pub const LANGUAGE: Language = Language {
         ("could not decode image", "impossible de décoder l'image"),
         ("could not encode image", "impossible d'encoder l'image"),
         ("could not read image", "impossible de lire l'image"),
+        ("larger than 20 MB: save it smaller and upload it again", "plus de 20 Mo : enregistrez-la en plus petit et envoyez-la à nouveau"),
+        ("more than 12,000 pixels wide or tall: make it smaller and upload it again", "plus de 12 000 pixels de large ou de haut : réduisez-la et envoyez-la à nouveau"),
+        ("an animation larger than 5 MB makes pages slow to load: make it shorter or smaller, or post it as a video on YouTube or Vimeo", "une animation de plus de 5 Mo ralentit les pages : raccourcissez-la ou réduisez-la, ou publiez-la en vidéo sur YouTube ou Vimeo"),
+        ("the upload didn't finish: please try again", "le téléversement n'a pas abouti : veuillez réessayer"),
+        ("The images together are larger than 200 MB. Upload fewer at a time.", "Les images dépassent 200 Mo au total. Envoyez-en moins à la fois."),
         ("could not save file", "impossible d'enregistrer le fichier"),
         ("Could not save the tag. Please try again.", "Impossible d'enregistrer l'étiquette. Veuillez réessayer."),
         ("could not save to the media library", "impossible d'enregistrer dans la médiathèque"),
@@ -670,6 +675,12 @@ pub const LANGUAGE: Language = Language {
         ("Write your first post right away.", "Écrivez votre premier article tout de suite."),
         ("Bring my posts from another site", "Apporter mes articles d'un autre site"),
         ("After the next step, Bloogla opens Import, where you can bring in a WordPress site.", "Après l'étape suivante, Bloogla ouvre l'importation, où vous pouvez apporter un site WordPress."),
+        // The editor: the writing area's name for screen readers
+        ("Post text", "Texte de l'article"),
+        ("Page text", "Texte de la page"),
+        // The editor: subscript and superscript buttons
+        ("Subscript", "Indice"),
+        ("Superscript", "Exposant"),
     ],
 };
 
