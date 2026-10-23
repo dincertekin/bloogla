@@ -15,7 +15,7 @@ tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal", "
 tower-http = { version = "0.5", features = ["catch-panic", "compression-br", "compression-gzip", "fs", "set-header"] }
 # Login rate limit; only its axum part (the default also pulls in gRPC)
 tower_governor = { version = "0.8", default-features = false, features = ["axum"] }
-tower-sessions = { version = "0.14", default-features = false, features = ["axum-core"] }
+tower-sessions = { version = "0.15", default-features = false, features = ["axum-core"] }
 tower-sessions-sqlx-store = { version = "0.15", features = ["sqlite"] }
 
 # Built-in HTTPS (Let's Encrypt)
