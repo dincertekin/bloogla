@@ -16,6 +16,7 @@
         previewFailed: form.dataset.textPreviewFailed,
         linkPrompt: form.dataset.textLinkPrompt,
         videoPrompt: form.dataset.textVideoPrompt,
+        contactForm: form.dataset.textContactForm,
         visualPlaceholder: form.dataset.textVisualPlaceholder,
         writingArea: form.dataset.textWritingArea,
         saved: form.dataset.textSaved,
@@ -285,6 +286,7 @@
         element: visualBox,
         markdown: content.value,
         placeholder: text.visualPlaceholder,
+        shortcodeLabels: { "contact-form": text.contactForm },
         onChange: (markdown) => {
             content.value = markdown;
             // Marks the post as changed and backs it up, like typing does.
@@ -367,11 +369,47 @@
             const youtube = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/);
             if (youtube && !coverInput.value) setCover(`https://i.ytimg.com/vi/${youtube[1]}/hqdefault.jpg`);
         },
+        // Asks for the heading and button text (contactFormDone adds it).
+        // With a contact form selected, changes that one.
+        contactForm: () => {
+            const selected = editor.state.selection.node;
+            const shortcode = selected?.type.name === "shortcode" ? selected.attrs.text : "";
+            const current = /^\[contact-form[\s\]]/.test(shortcode) ? shortcode : "";
+            for (const [field, key] of [[contactHeading, "title"], [contactButton, "button"]]) {
+                field.value = current.match(new RegExp(`${key}="([^"]*)"`))?.[1] ?? field.dataset.default;
+            }
+            openModal(contactModal);
+            contactHeading.select();
+        },
         bullets: () => run().toggleBulletList().run(),
         numbers: () => run().toggleOrderedList().run(),
         quote: () => run().toggleBlockquote().run(),
         divider: () => run().setHorizontalRule().run(),
     };
+
+    // The contact form window. Wording left as it is isn't saved, so the
+    // form keeps the site's language if that changes; quotes and brackets
+    // would end the shortcode, so they're left out.
+    const contactModal = document.getElementById("contact-form-modal");
+    const contactHeading = document.getElementById("contact-heading");
+    const contactButton = document.getElementById("contact-button");
+    function contactFormDone() {
+        let shortcode = "[contact-form";
+        for (const [field, key] of [[contactHeading, "title"], [contactButton, "button"]]) {
+            const value = field.value.replace(/["[\]]/g, "").trim();
+            if (value && value !== field.dataset.default) shortcode += ` ${key}="${value}"`;
+        }
+        closeModal(contactModal);
+        // Replaces the selected contact form, if one was being changed.
+        run().insertContent({ type: "shortcode", attrs: { text: `${shortcode}]` } }).run();
+    }
+    document.getElementById("contact-form-done").addEventListener("click", contactFormDone);
+    contactModal.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            contactFormDone();
+        }
+    });
 
     // Buttons show what's on at the cursor (bold, a list...).
     const pressedWhen = {

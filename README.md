@@ -73,8 +73,8 @@ automatically. More in [Running Bloogla](docs/running.md).
 
 |                     |                                                                                              |
 | ------------------- | -------------------------------------------------------------------------------------------- |
-| **Writing**         | Visual editor, drafts and scheduling, pages, tags, image library, revisions, a trash, changing many posts at once, YouTube and Vimeo embeds |
-| **Your site**       | Seven themes with light and dark mode (visitors can switch), menus, search, comments with spam protection, RSS, sitemap |
+| **Writing**         | Visual editor, drafts and scheduling, pages, tags, image library, revisions, a trash, changing many posts at once, YouTube and Vimeo embeds, formulas (`$E = mc^2$`, drawn with KaTeX) |
+| **Your site**       | Seven themes with light and dark mode (visitors can switch), a page or your latest posts as the home page, menus, search, comments and a contact form with spam protection, RSS, sitemap |
 | **Found on Google** | Meta tags, Open Graph, structured data, clean addresses with automatic redirects, verification tags for Google, Bing and Mastodon |
 | **Analytics**       | Views and referring sites per day, without cookies or personal data                          |
 | **People**          | Admins, editors and authors, two-factor login, password reset by email, light or dark admin for each person |

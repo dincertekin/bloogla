@@ -92,9 +92,9 @@ pub async fn rss(State(state): State<AppState>) -> Response {
 
 /// GET /sitemap.xml -> Every public post and page, for search engines.
 pub async fn sitemap(State(state): State<AppState>) -> Response {
-    let rows: Vec<(String, bool, String)> = or_log(
+    let rows: Vec<(i64, String, bool, String)> = or_log(
         sqlx::query_as(&format!(
-            "SELECT slug, is_page, published_at FROM posts
+            "SELECT id, slug, is_page, published_at FROM posts
              WHERE {PUBLIC_POST_FILTER} ORDER BY published_at DESC"
         ))
         .fetch_all(&state.pool)
@@ -109,7 +109,24 @@ pub async fn sitemap(State(state): State<AppState>) -> Response {
             <priority>1.0</priority>
         </url>"#
     );
-    for (slug, is_page, published_at) in rows {
+    // A home page is listed as the site itself (above), and the posts
+    // have their own list at /blog.
+    let home_page = settings::load(&state.pool)
+        .await
+        .home_page
+        .filter(|home| rows.iter().any(|(id, ..)| id == home));
+    if home_page.is_some() {
+        urls.push_str(&format!(
+            r#"<url>
+                <loc>{base_url}/blog</loc>
+                <priority>0.9</priority>
+            </url>"#
+        ));
+    }
+    for (id, slug, is_page, published_at) in rows {
+        if home_page == Some(id) {
+            continue;
+        }
         let loc = escape_html(&format!("{base_url}{}", post_path(&slug, is_page)));
         let lastmod = published_at.get(..10).unwrap_or_default();
         urls.push_str(&format!(

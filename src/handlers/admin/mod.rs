@@ -9,6 +9,7 @@ pub mod comments;
 pub mod dashboard;
 pub mod import_export;
 pub mod media;
+pub mod messages;
 pub mod password_reset;
 pub mod posts;
 pub mod profile;
@@ -118,6 +119,7 @@ templates_answer_requests!(
     import_export::ImportTemplate,
     media::MediaTemplate,
     media::MediaPickerTemplate,
+    messages::MessagesTemplate,
     password_reset::ForgotTemplate,
     password_reset::ResetTemplate,
     posts::PostsTemplate,

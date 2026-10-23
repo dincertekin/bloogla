@@ -45,6 +45,8 @@ const MAX_REVISIONS: i64 = 25;
 const RESERVED_SLUGS: &[&str] = &[
     "admin",
     "api",
+    // The list of posts when a page is the home page.
+    "blog",
     "health",
     "post",
     "search",
@@ -77,6 +79,19 @@ pub async fn find_public(pool: &SqlitePool, slug: &str, is_page: bool) -> Option
         .fetch_optional(pool)
         .await,
         "find public post",
+    )
+}
+
+/// The page chosen as the home page, while it's published.
+pub async fn find_public_page(pool: &SqlitePool, id: i64) -> Option<Post> {
+    or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE id = ? AND is_page = 1 AND {PUBLIC_POST_FILTER}"
+        ))
+        .bind(id)
+        .fetch_optional(pool)
+        .await,
+        "find home page",
     )
 }
 

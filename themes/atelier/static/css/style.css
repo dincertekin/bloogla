@@ -821,7 +821,8 @@ h3 {
     margin-top: 1.5rem;
 }
 
-.comment-form h3 {
+.comment-form h3,
+.contact-form h2 {
     font-size: 1.05rem;
     margin: 0;
 }

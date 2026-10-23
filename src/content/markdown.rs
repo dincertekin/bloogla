@@ -14,6 +14,9 @@ pub fn to_safe_html(markdown: &str) -> String {
     options.extension.autolink = true;
     options.extension.tasklist = true;
     options.extension.header_id_prefix = Some(String::new());
+    // Formulas: `$x^2$` and `$$…$$` become `<span data-math-style="…">`
+    // holding the formula as text, which KaTeX draws in the browser.
+    options.extension.math_dollars = true;
     // ammonia sanitizes the result, so raw HTML can be let through here.
     options.render.r#unsafe = true;
 
@@ -60,7 +63,8 @@ fn sanitizer() -> &'static ammonia::Builder<'static> {
             .add_tags(["details", "summary", "kbd", "mark", "sub", "sup", "input"])
             .add_generic_attributes(["class", "id"])
             .add_tag_attributes("input", ["type", "checked", "disabled"])
-            .add_tag_attribute_values("input", "type", ["checkbox"]);
+            .add_tag_attribute_values("input", "type", ["checkbox"])
+            .add_tag_attribute_values("span", "data-math-style", ["inline", "display"]);
         builder
     })
 }
@@ -153,6 +157,17 @@ fn beginning(markdown: &str, limit: usize) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formulas_are_marked_for_katex_and_prices_stay_text() {
+        let html = to_safe_html(
+            "Water is $H_2O$, and $$E = mc^2$$.\n\n$$\n\\frac{a}{b}\n$$\n\nIt costs $5 and $10.",
+        );
+        assert!(html.contains(r#"<span data-math-style="inline">H_2O</span>"#));
+        assert!(html.contains(r#"<span data-math-style="display">E = mc^2</span>"#));
+        assert!(html.contains("\\frac{a}{b}"));
+        assert!(html.contains("It costs $5 and $10."));
+    }
 
     #[test]
     fn excerpts_of_long_posts_only_read_the_beginning() {

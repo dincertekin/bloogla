@@ -24,6 +24,10 @@ pub struct SettingsTemplate {
     pub menu_suggestions: Vec<(String, String)>,
     pub me: CurrentUser,
     pub blog_description: String,
+    /// The page shown at `/` (0: the latest posts), and the pages to pick
+    /// from: `(id, title)`.
+    pub home_page: i64,
+    pub pages: Vec<(i64, String)>,
     pub posts_per_page: String,
     pub nav_menu: String,
     pub show_views: bool,
@@ -49,6 +53,11 @@ pub struct SettingsTemplate {
 }
 
 impl SettingsTemplate {
+    /// True for the page shown at `/` (to preselect it).
+    fn is_home_page(&self, id: &i64) -> bool {
+        self.home_page == *id
+    }
+
     /// True for the site's current time zone (to preselect it).
     fn is_timezone(&self, zone: &str) -> bool {
         self.timezone == zone
@@ -71,6 +80,8 @@ pub struct EmailSettings {
 pub struct GeneralSettingsForm {
     pub blog_name: Option<String>,
     pub blog_description: Option<String>,
+    /// A page's id, or empty for the latest posts.
+    pub home_page: Option<String>,
     pub posts_per_page: Option<String>,
     pub nav_menu: Option<String>,
     /// Checkbox: show view counts on the public site.
@@ -124,7 +135,18 @@ pub async fn page(
 ) -> impl IntoResponse {
     let site = settings::load(&state.pool).await;
     let mut menu_suggestions = vec![(me.t("Home").to_string(), "/".to_string())];
-    for page in crate::db::posts::public_pages(&state.pool).await {
+    if site.home_page.is_some() {
+        menu_suggestions.push((me.t("Blog").to_string(), "/blog".to_string()));
+    }
+    let public_pages = crate::db::posts::public_pages(&state.pool).await;
+    let pages = public_pages
+        .iter()
+        .map(|page| (page.id, page.title.clone()))
+        .collect();
+    for page in public_pages {
+        if site.home_page == Some(page.id) {
+            continue; // it's "Home" now
+        }
         let url = crate::server::routes::post_path(&page.slug, true);
         menu_suggestions.push((page.title, url));
     }
@@ -137,6 +159,8 @@ pub async fn page(
         blog_name: site.blog_name.clone(),
         menu_suggestions,
         blog_description: site.blog_description.clone(),
+        home_page: site.home_page.unwrap_or(0),
+        pages,
         posts_per_page: site.posts_per_page.to_string(),
         nav_menu: site.nav_menu.clone(),
         show_views: site.show_views,
@@ -255,7 +279,29 @@ pub async fn update_general(
                 "Each menu link needs a name and an address that starts with / or https://.",
             );
         }
+        let home_page = match form.home_page.as_deref().map(str::trim) {
+            None | Some("" | "0") => String::new(),
+            Some(id) => {
+                let Ok(id) = id.parse::<i64>() else {
+                    return settings_error(me.lang, "Choose a page from the list.");
+                };
+                if crate::db::posts::find_public_page(&state.pool, id)
+                    .await
+                    .is_none()
+                {
+                    return settings_error(me.lang, "Choose a page from the list.");
+                }
+                if page_at_blog(&state).await {
+                    return settings_error(
+                        me.lang,
+                        "You have a page at /blog. Change its address first, because your posts will be shown there.",
+                    );
+                }
+                id.to_string()
+            }
+        };
         values.extend([
+            ("home_page", home_page),
             ("posts_per_page", posts_per_page),
             ("nav_menu", nav_menu),
             ("show_views", form.show_views.is_some().to_string()),
@@ -281,6 +327,20 @@ pub async fn update_general(
         _ => alert(me.lang, "success", "Saved."),
     };
     save(&state, me.lang, &values, saved).await
+}
+
+/// Whether a page (not in the trash) already uses the address `/blog`, where
+/// the posts go when a page is the home page.
+async fn page_at_blog(state: &AppState) -> bool {
+    let found: Option<i64> = or_log(
+        sqlx::query_scalar(
+            "SELECT id FROM posts WHERE slug = 'blog' AND is_page = 1 AND trashed_at IS NULL",
+        )
+        .fetch_optional(&state.pool)
+        .await,
+        "find a page at /blog",
+    );
+    found.is_some()
 }
 
 /// Whether this person uses the site's language for the admin panel.
@@ -390,6 +450,7 @@ pub async fn send_test_email(
             ),
             "",
         ),
+        reply_to: None,
     };
     match crate::services::email::send(&state, &email).await {
         Ok(()) => alert(

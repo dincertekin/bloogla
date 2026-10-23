@@ -1010,7 +1010,8 @@ a {
     font-family: var(--sans);
 }
 
-.comment-form h3 {
+.comment-form h3,
+.contact-form h2 {
     font-size: 0.95rem;
     font-weight: 700;
 }

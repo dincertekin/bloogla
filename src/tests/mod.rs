@@ -16,6 +16,8 @@
 
 mod account_changes;
 mod badges;
+mod contact;
+mod home_page;
 mod import_export;
 mod media;
 mod posts;
@@ -113,6 +115,8 @@ impl TestSite {
 
     async fn with_config(config: Config) -> Self {
         let turn = ONE_AT_A_TIME.lock().await;
+        // A real start always loads `data/secret.key`.
+        crate::app::secrets::use_test_key();
         let folder = std::env::temp_dir().join(format!(
             "bloogla-test-site-{}",
             crate::app::security::random_hex(8)

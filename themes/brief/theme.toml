@@ -1,6 +1,6 @@
 name = "Brief"
 author = "Bloogla Team"
-version = "1.0.4"
+version = "1.0.5"
 description = "Clear, professional news for a business or project: a strong logo header, a lead story and a column of short news."
 preview_image = "static/preview.svg"
 

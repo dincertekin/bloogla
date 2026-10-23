@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block title %}{{ me.t("Messages") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ me.t("Messages") }}</h1>
+        <p>{{ me.t("What visitors send with the contact form. When email is set up, each one is also sent to you by email.") }}</p>
+    </div>
+</div>
+
+<div id="message-list" class="item-list" data-empty-text="{{ me.t("No messages.") }}" {% if messages.is_empty() %}hidden{% endif %}>
+    {% for message in messages %}
+    <div class="list-row" id="message-{{ message.id }}" data-item style="align-items: flex-start">
+        <div class="row-main">
+            <div>
+                <strong>{{ message.name }}</strong>
+                <span class="form-hint">{{ message.email }}</span>
+                {% if message.is_new %}<span class="badge badge-home">{{ me.t("New") }}</span>{% endif %}
+            </div>
+            <div class="prose" style="font-size: 0.9rem; margin: 0.35rem 0">{{ message.html|safe }}</div>
+            <div class="row-meta">
+                <span>{{ message.date }}</span>
+                {% if !message.page_link.is_empty() %}<span>{{ me.tv("from {page}", message.page_link)|safe }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="row-actions">
+            <a class="btn btn-secondary btn-sm" href="{{ message.reply_link }}">{{ me.t("Reply by email") }}</a>
+            <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/messages/{{ message.id }}"
+                data-delete-target="#message-{{ message.id }}" data-confirm-title="{{ me.t("Delete this message?") }}"
+                data-confirm-text="{{ me.t("It will be removed permanently.") }}">{{ me.t("Delete") }}</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<p class="empty-state" data-empty-for="message-list" {% if !messages.is_empty() %}hidden{% endif %}>
+    {{ me.t("No messages yet. To get some, add a contact form to a page with the envelope button in the editor.") }}
+</p>
+{% endblock %}

@@ -954,7 +954,8 @@ a {
     margin-top: 1.75rem;
 }
 
-.comment-form h3 {
+.comment-form h3,
+.contact-form h2 {
     font-size: 1rem;
     font-weight: 600;
 }

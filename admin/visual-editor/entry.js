@@ -14,14 +14,19 @@ import Superscript from "@tiptap/extension-superscript";
 // A shortcode on its own line, like [youtube URL], [toc] or [note "Text"].
 const SHORTCODE_LINE = /^\[([a-z][\w-]*)(?:[ \t][^\n\]]*)?\][ \t]*(?:\n|$)/i;
 
-// Shortcodes are kept exactly as written: shown as a labelled block in the
-// editor and written back to Markdown unchanged.
+// Shortcodes are kept exactly as written: shown as a block in the editor
+// and written back to Markdown unchanged. Those with a label (translated,
+// by name, e.g. "contact-form") show it, and their title="…", instead of
+// their text.
 const Shortcode = Node.create({
     name: "shortcode",
     group: "block",
     atom: true,
     selectable: true,
     draggable: true,
+    addOptions() {
+        return { labels: {} };
+    },
     addAttributes() {
         return { text: { default: "" } };
     },
@@ -29,7 +34,12 @@ const Shortcode = Node.create({
         return [{ tag: "div[data-shortcode]", getAttrs: (el) => ({ text: el.getAttribute("data-shortcode") }) }];
     },
     renderHTML({ node, HTMLAttributes }) {
-        return ["div", mergeAttributes(HTMLAttributes, { "data-shortcode": node.attrs.text, class: "shortcode-block" }), node.attrs.text];
+        const name = node.attrs.text.match(/^\[([\w-]+)/)?.[1];
+        const label = this.options.labels[name];
+        const title = node.attrs.text.match(/title="([^"]*)"/)?.[1];
+        const shown = label ? (title ? `${label}: ${title}` : label) : node.attrs.text;
+        const attributes = { "data-shortcode": node.attrs.text, class: label ? "shortcode-block is-labelled" : "shortcode-block" };
+        return ["div", mergeAttributes(HTMLAttributes, attributes), shown];
     },
     markdownTokenName: "shortcode",
     markdownTokenizer: {
@@ -228,7 +238,9 @@ const MathInline = Node.create({
 });
 
 window.BlooglaVisualEditor = {
-    create({ element, markdown, placeholder, onChange }) {
+    // `shortcodeLabels`: what some shortcodes show in the editor, by name,
+    // e.g. { "contact-form": "Contact form" }.
+    create({ element, markdown, placeholder, shortcodeLabels, onChange }) {
         return new Editor({
             element,
             extensions: [
@@ -242,7 +254,7 @@ window.BlooglaVisualEditor = {
                 TableKit,
                 TaskList,
                 TaskItem.configure({ nested: true }),
-                Shortcode,
+                Shortcode.configure({ labels: shortcodeLabels || {} }),
                 HtmlBlock,
                 SubscriptMark,
                 SuperscriptMark,

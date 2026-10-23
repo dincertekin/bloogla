@@ -1,6 +1,6 @@
 name = "Atelier"
 author = "Bloogla Team"
-version = "1.0.4"
+version = "1.0.5"
 description = "Warm colors, rounded cards and friendly serif headings, with a welcome card on the home page. For hobby, family and cooking blogs."
 preview_image = "static/preview.svg"
 

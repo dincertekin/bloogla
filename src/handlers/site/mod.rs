@@ -1,8 +1,9 @@
 //! The public website: pages drawn by the active theme, feeds, and the forms
-//! visitors can send (comments).
+//! visitors can send (comments, the contact form).
 
 pub mod analytics;
 pub mod comments;
+pub mod contact;
 pub mod feeds;
 pub mod pages;
 
@@ -46,6 +47,13 @@ async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
     context.insert("menu", &site.menu());
     context.insert("tags", &tags);
     context.insert("search_query", "");
+    // Where the list of posts is: `/blog` when a page is the home page.
+    let blog_url = if site.home_page.is_some() {
+        "/blog"
+    } else {
+        "/"
+    };
+    context.insert("blog_url", blog_url);
     context.insert("show_views", &site.show_views);
     context.insert("lang", site.language.code());
     context.insert("t", &site.language.theme_strings());

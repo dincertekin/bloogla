@@ -154,6 +154,8 @@ impl ColorScheme {
 pub struct Badges {
     /// Comments waiting for approval (shown to admins and editors).
     pub pending_comments: i64,
+    /// Contact form messages not read yet (shown to admins and editors).
+    pub new_messages: i64,
     /// A newer Bloogla version is out (shown to admins).
     pub update_available: bool,
 }
@@ -174,19 +176,39 @@ impl Badges {
         } else {
             0
         };
+        let new_messages = if user.can_edit_all() {
+            crate::db::or_log(
+                sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE read_at IS NULL")
+                    .fetch_one(&state.pool)
+                    .await,
+                "count new messages",
+            )
+        } else {
+            0
+        };
         Self {
             pending_comments,
+            new_messages,
             update_available: user.is_admin()
                 && crate::services::updates::available(&state.newer_release).is_some(),
         }
     }
 
-    /// The number as shown: big numbers stop at "99+".
+    /// The numbers as shown: big numbers stop at "99+".
     pub fn comments_label(&self) -> String {
-        match self.pending_comments {
-            n if n > 99 => "99+".to_string(),
-            n => n.to_string(),
-        }
+        short_count(self.pending_comments)
+    }
+
+    pub fn messages_label(&self) -> String {
+        short_count(self.new_messages)
+    }
+}
+
+fn short_count(n: i64) -> String {
+    if n > 99 {
+        "99+".to_string()
+    } else {
+        n.to_string()
     }
 }
 

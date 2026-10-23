@@ -1,12 +1,23 @@
 //! Shortcodes: `[name args]` in post text, expanded after Markdown is rendered
 //! and sanitized.
 //!
-//! Built in: `[youtube URL]`, `[vimeo URL]`, `[audio URL]`, `[video URL]`, `[toc]`.
+//! Built in: `[youtube URL]`, `[vimeo URL]`, `[audio URL]`, `[video URL]`, `[toc]`,
+//! `[contact-form]`.
 //! Themes add their own with `themes/<theme>/shortcodes/<name>.html`; the
 //! template receives `args` (positional values) and `params` (`key=value`).
 //! Shortcodes inside `<code>`/`<pre>` stay as text, and `[[name]]` prints `[name]`.
 
 use std::collections::HashMap;
+
+/// What `[contact-form title="…" button="…"]` becomes here: a marker the
+/// page replaces with the form (`handlers/site/contact.rs`), since the form
+/// needs the page and the time. It carries the writer's heading and button
+/// text in hex, so nothing in them can end the marker early. Writers can't
+/// make it themselves: HTML comments are removed from posts.
+pub const CONTACT_FORM: &str = "<!--contact-form:";
+
+/// The longest heading or button text a contact form keeps.
+const CONTACT_TEXT_CHARS: usize = 80;
 
 /// Parsed shortcode arguments: `[name first second key="value"]`.
 #[derive(Debug, Default, serde::Serialize)]
@@ -231,6 +242,14 @@ fn builtin(name: &str, args: &Args, html: &str) -> Option<String> {
             ))
         }
         "toc" => Some(table_of_contents(html)),
+        "contact-form" => {
+            let text = |key: &str| {
+                let value = args.params.get(key).map_or("", |v| v.trim());
+                let value: String = value.chars().take(CONTACT_TEXT_CHARS).collect();
+                crate::app::security::to_hex(value.as_bytes())
+            };
+            Some(format!("{CONTACT_FORM}{}:{}-->", text("title"), text("button")))
+        }
         _ => None,
     }
 }

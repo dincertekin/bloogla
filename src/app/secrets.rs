@@ -87,6 +87,16 @@ pub fn decrypt(stored: &str) -> Option<String> {
     String::from_utf8(plain).ok()
 }
 
+/// Read a value this program encrypted. Unlike [`decrypt`], plain text is
+/// refused: for values that must not be made up, like the time a contact
+/// form was opened.
+pub fn decrypt_sealed(stored: &str) -> Option<String> {
+    stored
+        .starts_with(PREFIX)
+        .then(|| decrypt(stored))
+        .flatten()
+}
+
 /// Tests that store a secret use this fixed key instead of `data/secret.key`.
 #[cfg(test)]
 pub fn use_test_key() {

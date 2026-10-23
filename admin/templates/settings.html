@@ -110,6 +110,18 @@
         <h2 class="section-title">{{ me.t("Reading") }}</h2>
 
         <div class="form-group">
+            <label for="home_page">{{ me.t("Home page") }}</label>
+            <span class="form-hint">{{ me.t("What visitors see first at your site's address.") }}</span>
+            <select id="home_page" name="home_page" class="form-control" style="max-width: 320px">
+                <option value="">{{ me.t("Your latest posts") }}</option>
+                {% for (id, title) in pages %}
+                <option value="{{ id }}" {% if self.is_home_page(id) %}selected{% endif %}>{{ title }}</option>
+                {% endfor %}
+            </select>
+            <span id="home-page-note" data-live class="form-hint">{% if home_page != 0 %}{{ me.t("Your posts are at /blog. Add a link to it in the menu below so visitors can find them.") }}{% endif %}</span>
+        </div>
+
+        <div class="form-group">
             <label for="nav_menu">{{ me.t("Menu") }}</label>
             <span class="form-hint">{{ me.t("The links at the top of your site. Pick one of your pages or tags, or paste any web address.") }}</span>
             <!-- The menu editor (admin/static/js/settings.js) fills this in. Without

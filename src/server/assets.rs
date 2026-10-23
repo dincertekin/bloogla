@@ -1,4 +1,5 @@
-//! The admin panel's CSS and JS, compiled into the binary so a deploy is a
+//! The admin panel's CSS and JS (and KaTeX, which public pages with
+//! formulas use), compiled into the binary so a deploy is a
 //! single executable.
 
 use axum::extract::Path;
@@ -6,7 +7,7 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
-/// Admin panel CSS and JS, served from memory at `/static`.
+/// Admin panel CSS and JS, and KaTeX, served from memory at `/static`.
 #[derive(RustEmbed)]
 #[folder = "admin/static/"]
 struct StaticAssets;

@@ -37,14 +37,16 @@ A theme with a mistake (a template that doesn't parse, a missing required templa
 
 Lists of posts give each one a `post.url` (search results include pages too).
 
-Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `tags`, `search_query`, `show_views`, `seo_head`, `scheme_script`, `asset_version`, `theme_url` and `theme_options`. Put `{{ seo_head | safe }}` inside `<head>`: besides the SEO tags, it carries the verification tags the owner adds in **Settings → Site**.
+Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `blog_url`, `tags`, `search_query`, `show_views`, `seo_head`, `scheme_script`, `asset_version`, `theme_url` and `theme_options`. Put `{{ seo_head | safe }}` inside `<head>`: besides the SEO tags, it carries the verification tags the owner adds in **Settings → Site**, and on posts and pages with formulas, the KaTeX files that draw them (formulas are `<span data-math-style="inline">` or `"display"` in `content_html`).
 
 Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
 
+- `blog_url` is where the list of posts is: `/`, or `/blog` when the owner picks a page as the home page (**Settings → Reading**). Link "back to all posts" to it rather than to `/`. The home page itself is drawn with `page.html`, like any page.
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
 - Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small` and `post.cover_thumb`, 800px- and 400px-wide copies for `srcset`; give cards a `sizes` with their real width so phones download the small one) and `content_html`. Pictures from the media library are sent as WebP to browsers that support it, under the same `.jpg`/`.png` address, so themes don't need to do anything for it.
 - Posts also get `previous_post` and `next_post` (each with `title` and `url`, or empty for the oldest and newest post, and on pages): the older and newer post, for links at the end. `{% if previous_post %}` works everywhere.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html`.
+- A contact form (the writer's `[contact-form]`) arrives inside `content_html`, built by Bloogla with the comment form's classes (`comment-form`, `comment-fields`, `comment-trap`, `comment-notice`), so a theme that styles its comment form styles it too. The form also has the class `contact-form`, for anything a theme wants to change.
 
 ## Theme options
 

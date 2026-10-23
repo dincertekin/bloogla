@@ -39,6 +39,7 @@
     data-text-visual-placeholder="{{ me.t("Start writing…") }}"
     data-text-writing-area="{% if post.is_page %}{{ me.t("Page text") }}{% else %}{{ me.t("Post text") }}{% endif %}"
     data-text-video-prompt="{{ me.t("Paste a YouTube or Vimeo link") }}"
+    data-text-contact-form="{{ me.t("Contact form") }}"
     data-text-saved="{{ me.t("Saved.") }}"
     data-text-save-failed="{{ me.t("Couldn't save your changes. Please try again.") }}"
     action="{% if post.id == 0 %}{{ admin_path }}{% else %}{{ admin_path }}/{{ post.id }}/edit{% endif %}">
@@ -84,6 +85,7 @@
                 <button type="button" data-format="link" title="{{ me.t("Link") }} (⌘K)" aria-label="{{ me.t("Link") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
                 <button type="button" data-picker="insert" title="{{ me.t("Insert image") }}" aria-label="{{ me.t("Insert image") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></button>
                 <button type="button" data-format="video" title="{{ me.t("Video") }}" aria-label="{{ me.t("Video") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></button>
+                <button type="button" data-format="contactForm" title="{{ me.t("Contact form") }}" aria-label="{{ me.t("Contact form") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></button>
                 <span class="format-sep" aria-hidden="true"></span>
                 <button type="button" data-format="bullets" title="{{ me.t("Bulleted list") }}" aria-label="{{ me.t("Bulleted list") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/></svg></button>
                 <button type="button" data-format="numbers" title="{{ me.t("Numbered list") }}" aria-label="{{ me.t("Numbered list") }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 12h11"/><path d="M10 18h11"/><path d="M10 6h11"/><path d="M4 10h2"/><path d="M4 6h1v4"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></button>
@@ -177,6 +179,34 @@
         </aside>
     </div>
 </form>
+
+<!-- Asked when adding a contact form, or changing a selected one (editor.js).
+     Outside the editor's form, so Enter here doesn't save the post. -->
+<div id="contact-form-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="contact-form-modal-title">
+    <div class="modal-card" style="max-width: 460px">
+        <div class="modal-header">
+            <h3 id="contact-form-modal-title">{{ me.t("Contact form") }}</h3>
+            <button type="button" class="btn btn-ghost btn-sm" data-modal-close aria-label="{{ me.t("Close") }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            </button>
+        </div>
+        <p class="form-hint" style="margin-bottom: 1rem">{{ me.t("Visitors fill in their name, email address and message. Their messages arrive in Messages.") }}</p>
+        <div class="form-group">
+            <label for="contact-heading">{{ me.t("Heading") }}</label>
+            <input type="text" id="contact-heading" class="form-control" maxlength="80" data-default="{{ contact_heading }}" />
+        </div>
+        <div class="form-group">
+            <label for="contact-button">{{ me.t("Button text") }}</label>
+            <input type="text" id="contact-button" class="form-control" maxlength="80" data-default="{{ contact_button }}" />
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" data-modal-close>{{ me.t("Cancel") }}</button>
+            <button type="button" class="btn btn-primary" id="contact-form-done">{{ me.t("Done") }}</button>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 

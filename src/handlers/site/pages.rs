@@ -32,6 +32,8 @@ pub struct ListingQuery {
 pub struct PostQuery {
     /// Result of sending a comment (`pending`, `slow`, `invalid`).
     comment: Option<String>,
+    /// Result of sending the contact form (`sent`, `slow`, `invalid`).
+    contact: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,34 +42,80 @@ pub struct SearchQuery {
     page: Option<i64>,
 }
 
-/// GET / -> Newest posts.
-pub async fn home(State(state): State<AppState>, Query(query): Query<ListingQuery>) -> Response {
+/// GET / -> The latest posts, or the page the owner chose as the home page
+/// (Settings → Reading).
+pub async fn home(
+    State(state): State<AppState>,
+    Query(query): Query<ListingQuery>,
+    Query(notices): Query<PostQuery>,
+    headers: HeaderMap,
+    session: Session,
+) -> Response {
     let site = settings::load(&state.pool).await;
-    let Some((posts, pagination)) = fetch_listing(
-        &state,
-        &site,
-        LISTED_POST_FILTER,
-        "",
-        &[],
-        query.page,
-        |p| with_page("/", p),
-    )
-    .await
+    if let Some(page) = home_page(&state, &site).await {
+        // The posts are at /blog now; links to their later pages follow them.
+        if let Some(number) = query.page {
+            return Redirect::temporary(&with_page("/blog", number)).into_response();
+        }
+        return render_post(&state, page, &headers, &session, &notices).await;
+    }
+    latest_posts(&state, &site, "/", query.page).await
+}
+
+/// GET /blog -> The latest posts, when a page is the home page.
+pub async fn blog(
+    State(state): State<AppState>,
+    Query(query): Query<ListingQuery>,
+    Query(notices): Query<PostQuery>,
+    headers: HeaderMap,
+    session: Session,
+) -> Response {
+    let site = settings::load(&state.pool).await;
+    if home_page(&state, &site).await.is_some() {
+        return latest_posts(&state, &site, "/blog", query.page).await;
+    }
+    // A page called "blog" from before 1.3 keeps its address.
+    if let Some(page) = posts::find_public(&state.pool, "blog", true).await {
+        return render_post(&state, page, &headers, &session, &notices).await;
+    }
+    // Otherwise the posts are on the home page. Temporary, because the
+    // owner can choose a home page again.
+    Redirect::temporary("/").into_response()
+}
+
+/// The page shown at `/`, if the owner chose one and it's published (a page
+/// moved to the trash brings the latest posts back).
+async fn home_page(state: &AppState, site: &Settings) -> Option<Post> {
+    posts::find_public_page(&state.pool, site.home_page?).await
+}
+
+/// The newest posts, at `address` (`/` or `/blog`).
+async fn latest_posts(
+    state: &AppState,
+    site: &Settings,
+    address: &str,
+    page: Option<i64>,
+) -> Response {
+    let Some((posts, pagination)) =
+        fetch_listing(state, site, LISTED_POST_FILTER, "", &[], page, |p| {
+            with_page(address, p)
+        })
+        .await
     else {
-        return not_found(&state).await;
+        return not_found(state).await;
     };
 
-    let mut context = base_context(&state, &site).await;
+    let mut context = base_context(state, site).await;
     context.insert("posts", &posts);
     context.insert("pagination", &pagination);
-    // Page 1 is the site itself; later pages have their own address.
-    if query.page.unwrap_or(1) > 1 {
-        let address = with_page("/", query.page.unwrap_or(1));
-        let head = listing_head(&state, &site, &site.blog_name, &address);
+    // The home page is the site itself; other lists have their own address.
+    let number = page.unwrap_or(1);
+    if address != "/" || number > 1 {
+        let head = listing_head(state, site, &site.blog_name, &with_page(address, number));
         context.insert("seo_head", &head);
     }
 
-    themes::render(&state, &["templates/index.html"], context, StatusCode::OK).await
+    themes::render(state, &["templates/index.html"], context, StatusCode::OK).await
 }
 
 /// The SEO tags for a list of posts at `address` (a tag, or a later page of
@@ -99,7 +147,7 @@ pub async fn show_post(
     session: Session,
 ) -> Response {
     if let Some(post) = posts::find_public(&state.pool, &slug, false).await {
-        return render_post(&state, post, &headers, &session, query.comment.as_deref()).await;
+        return render_post(&state, post, &headers, &session, &query).await;
     }
     match redirect_to_slug(&state, &slug).await {
         Some(redirect) => redirect,
@@ -114,11 +162,16 @@ pub async fn show_post(
 pub async fn show_page(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    Query(query): Query<PostQuery>,
     headers: HeaderMap,
     session: Session,
 ) -> Response {
     if let Some(page) = posts::find_public(&state.pool, &slug, true).await {
-        return render_post(&state, page, &headers, &session, None).await;
+        // The home page has one address, so search engines don't see it twice.
+        if settings::load(&state.pool).await.home_page == Some(page.id) {
+            return Redirect::temporary("/").into_response();
+        }
+        return render_post(&state, page, &headers, &session, &query).await;
     }
     match redirect_to_slug(&state, &slug).await {
         Some(redirect) => redirect,
@@ -226,15 +279,22 @@ pub async fn fallback(State(state): State<AppState>, method: Method, uri: Uri) -
     not_found(&state).await
 }
 
-/// Render a post or page with its SEO tags and comments.
-/// `comment_notice` is the result of sending the comment form.
+/// KaTeX's style and script, and the few lines that draw a page's formulas
+/// with it (`admin/static/js/math.js`). `defer` lets the text show first.
+const MATH_HEAD: &str = r#"<link rel="stylesheet" href="/static/katex/katex.min.css">
+<script defer src="/static/katex/katex.min.js"></script>
+<script defer src="/static/js/math.js"></script>"#;
+
+/// Render a post or page with its SEO tags and comments. `notices` says
+/// how sending a comment or the contact form went.
 async fn render_post(
     state: &AppState,
     mut post: Post,
     headers: &HeaderMap,
     session: &Session,
-    comment_notice: Option<&str>,
+    notices: &PostQuery,
 ) -> Response {
+    let comment_notice = notices.comment.as_deref();
     if analytics::is_countable_view(headers, session).await {
         let referrer = analytics::referrer_host(headers, &state.config.base_url);
         analytics::record_view(post.id, referrer);
@@ -244,11 +304,21 @@ async fn render_post(
     let lang = site.language;
     let content_html = crate::content::render(state, &post.content).await;
     let content_html = crate::content::with_image_copies(&state.pool, &content_html).await;
+    let content_html = super::contact::with_form(
+        &content_html,
+        lang,
+        Some(post.id),
+        notices.contact.as_deref(),
+    );
     let description = excerpt(&post.content, META_DESCRIPTION_CHARS);
     post.reading_time = reading_time(&post.content);
     posts::load_tags(&state.pool, std::slice::from_mut(&mut post)).await;
 
-    let path = post_path(&post.slug, post.is_page);
+    let path = if post.is_page && site.home_page == Some(post.id) {
+        "/".to_string()
+    } else {
+        post_path(&post.slug, post.is_page)
+    };
     post.url = path.clone();
     let canonical_url = format!("{}{path}", state.config.base_url);
     let tag_names: Vec<&str> = post.tags.iter().map(|t| t.name.as_str()).collect();
@@ -274,6 +344,13 @@ async fn render_post(
     );
     // Themes show `created_at` as the post's date.
     post.created_at = display_date(lang, site.timezone, &post.published_at);
+
+    // Formulas are drawn by KaTeX, loaded only on pages that have one.
+    let seo_head = if content_html.contains("data-math-style") {
+        format!("{seo_head}\n{MATH_HEAD}")
+    } else {
+        seo_head
+    };
 
     let mut context = base_context(state, &site).await;
     context.insert("seo_head", &seo_head);

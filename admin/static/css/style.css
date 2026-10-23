@@ -1281,6 +1281,12 @@ label.tag-chip:has(input:checked) {
     border-color: var(--blue-border);
 }
 
+/* Pages: the one shown at the site's address (Settings → Reading). */
+.badge-home {
+    background-color: var(--tag-bg);
+    color: var(--tag-text);
+}
+
 .filter-tabs {
     display: flex;
     gap: 0.25rem;
@@ -1611,6 +1617,12 @@ code {
     font-size: 0.85rem;
 }
 
+/* A shortcode with a name, like the contact form: read as a block, not code. */
+.visual-editor .shortcode-block.is-labelled {
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
 /* Formulas (LaTeX) are shown as written, in the same quiet style as
    shortcodes: a block between $$ lines, or a $…$ piece in a sentence. */
 .visual-editor .math-block {
@@ -1690,6 +1702,54 @@ code {
     border: 1px solid var(--border-light);
     border-radius: 8px;
     background: var(--bg-card);
+}
+
+/* The contact form in the preview: the site's theme draws the real one. */
+.preview-pane .comment-form {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.preview-pane .comment-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.75rem;
+}
+
+.preview-pane .comment-form label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.preview-pane .comment-form input,
+.preview-pane .comment-form textarea {
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    font: inherit;
+    font-weight: 400;
+    color: var(--text-primary);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+}
+
+.preview-pane .comment-form button {
+    justify-self: start;
+    padding: 0.55rem 1rem;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--on-accent);
+    background-color: var(--accent-black);
+    border: 0;
+    border-radius: 8px;
+}
+
+.preview-pane .comment-trap {
+    display: none;
 }
 
 .panel {

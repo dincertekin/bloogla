@@ -85,9 +85,14 @@ fn public_routes() -> Router<AppState> {
         .layer(from_fn(middleware::theme_static_only));
 
     Router::new()
-        .route("/", get(site::pages::home))
+        // A contact form sends to the address of the page it's on.
+        .route("/", get(site::pages::home).post(contact_form()))
+        .route("/blog", get(site::pages::blog))
         .route("/search", get(site::pages::search))
-        .route("/post/{slug}", get(site::pages::show_post))
+        .route(
+            "/post/{slug}",
+            get(site::pages::show_post).post(contact_form()),
+        )
         .route(
             "/post/{slug}/comments",
             post(site::comments::submit).layer(DefaultBodyLimit::max(64 * 1024)),
@@ -103,7 +108,12 @@ fn public_routes() -> Router<AppState> {
         .nest("/theme-assets", theme_assets)
         // Standalone pages (About, Contact...). Listed last among public
         // routes; the fixed paths above take priority.
-        .route("/{slug}", get(site::pages::show_page))
+        .route("/{slug}", get(site::pages::show_page).post(contact_form()))
+}
+
+/// Receiving the contact form (small: a name, an address and a message).
+fn contact_form() -> axum::routing::MethodRouter<AppState> {
+    post(site::contact::submit).layer(DefaultBodyLimit::max(64 * 1024))
 }
 
 /// The admin panel. Everything except login and setup needs a signed-in person.
@@ -205,6 +215,8 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route("/admin/tags/{id}", delete(admin::tags::delete))
         .route("/admin/media/{id}", delete(admin::media::delete))
         .route("/admin/comments", get(admin::comments::page))
+        .route("/admin/messages", get(admin::messages::page))
+        .route("/admin/messages/{id}", delete(admin::messages::delete))
         .route("/admin/comments/{id}", delete(admin::comments::delete))
         .route(
             "/admin/comments/{id}/{action}",

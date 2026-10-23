@@ -186,6 +186,7 @@ fn send_email(state: &AppState, to: String, link: String) {
             subject: lang.tv("Reset your password on {site}", &blog_name),
             text,
             html,
+            reply_to: None,
         };
         if let Err(e) = crate::services::email::send(&state, &email).await {
             tracing::warn!("Password reset email to {} failed: {e}", email.to);

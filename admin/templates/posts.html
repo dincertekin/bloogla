@@ -91,6 +91,9 @@
             {% else if row.public_path.is_none() && row.days_in_trash.is_none() %}
             <span class="badge badge-scheduled">{{ me.t("Scheduled") }}</span>
             {% endif %}
+            {% if row.is_home_page %}
+            <span class="badge badge-home">{{ me.t("Home page") }}</span>
+            {% endif %}
 
             <div class="row-meta">
                 {% if row.days_in_trash.is_some() %}

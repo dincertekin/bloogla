@@ -305,3 +305,46 @@ async fn the_writing_area_is_named_for_screen_readers() {
     let page = site.get("/admin/pages/new").await.body;
     assert!(page.contains(r#"data-text-writing-area="Page text""#));
 }
+
+/// Formulas are drawn by KaTeX, which comes with Bloogla and loads only on
+/// pages that have a formula.
+#[tokio::test]
+async fn posts_with_formulas_load_katex_and_others_dont() {
+    let mut site = TestSite::with_owner().await;
+    for (title, content) in [
+        ("Water", "Water is $H_2O$.\n\n$$\nE = mc^2\n$$"),
+        ("Prices", "It costs $5 and $10."),
+    ] {
+        site.post(
+            "/admin/posts",
+            &[
+                ("title", title),
+                ("content", content),
+                ("status", "published"),
+            ],
+        )
+        .await;
+    }
+    site.new_visitor();
+
+    let water = site.get("/post/water").await;
+    assert!(water
+        .body
+        .contains(r#"<span data-math-style="inline">H_2O</span>"#));
+    assert!(water
+        .body
+        .contains(r#"<script defer src="/static/katex/katex.min.js"></script>"#));
+    let prices = site.get("/post/prices").await;
+    assert!(prices.body.contains("It costs $5 and $10."));
+    assert!(!prices.body.contains("katex"));
+
+    // Everything it needs is served by Bloogla itself.
+    for file in [
+        "/static/katex/katex.min.js",
+        "/static/katex/katex.min.css",
+        "/static/katex/fonts/KaTeX_Main-Regular.woff2",
+        "/static/js/math.js",
+    ] {
+        assert_eq!(site.get(file).await.status, StatusCode::OK, "{file}");
+    }
+}

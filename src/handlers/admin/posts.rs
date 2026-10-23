@@ -26,6 +26,8 @@ pub struct PostRow {
     pub public_path: Option<String>,
     /// In the trash: how many days ago it was moved there.
     pub days_in_trash: Option<i64>,
+    /// The page shown at the site's address (Settings → Reading).
+    pub is_home_page: bool,
 }
 
 impl PostRow {
@@ -71,6 +73,10 @@ pub struct PostEditorTemplate {
     pub revisions: Vec<RevisionRow>,
     pub error: Option<String>,
     pub saved: bool,
+    /// A contact form's usual heading and button text, in the site's
+    /// language (what visitors see unless the writer changes them).
+    pub contact_heading: &'static str,
+    pub contact_button: &'static str,
 }
 
 /// An earlier saved version listed in the editor.
@@ -187,23 +193,31 @@ async fn list(
 
     let ids: Vec<i64> = posts.iter().map(|p| p.id).collect();
     let mut tag_map = tags::for_posts(&state.pool, &ids).await;
-    let tz = settings::load(&state.pool).await.timezone;
+    let site = settings::load(&state.pool).await;
+    let tz = site.timezone;
 
     let rows = posts
         .into_iter()
         .map(|mut post| {
             post.tags = tag_map.remove(&post.id).unwrap_or_default();
+            let is_home_page = post.is_page && site.home_page == Some(post.id);
+            let public_path = if is_home_page {
+                "/".to_string()
+            } else {
+                post_path(&post.slug, post.is_page)
+            };
             PostRow {
                 date: display_date(me.lang, tz, &post.published_at),
-                public_path: posts::is_live(&post).then(|| post_path(&post.slug, post.is_page)),
+                public_path: posts::is_live(&post).then_some(public_path),
                 days_in_trash: post.trashed_at.as_deref().map(days_ago),
+                is_home_page: is_home_page && post.trashed_at.is_none(),
                 post,
             }
         })
         .collect();
 
     PostsTemplate {
-        blog_name: settings::load(&state.pool).await.blog_name.clone(),
+        blog_name: site.blog_name.clone(),
         me,
         is_page: kind.is_page(),
         admin_path: kind.admin_path(),
@@ -313,6 +327,8 @@ async fn editor(
     (
         status,
         PostEditorTemplate {
+            contact_heading: site.language.t("Send a message"),
+            contact_button: site.language.t("Send"),
             blog_name: site.blog_name.clone(),
             timezone: site.timezone.name().to_string(),
             me,
@@ -632,7 +648,13 @@ pub async fn preview(
             me.t("Nothing to preview yet.")
         ));
     }
-    Html(crate::content::render(&state, &form.content).await)
+    let html = crate::content::render(&state, &form.content).await;
+    // The contact form as visitors will see it (in the site's language),
+    // but it can't be sent from here.
+    let language = settings::load(&state.pool).await.language;
+    Html(crate::handlers::site::contact::with_form(
+        &html, language, None, None,
+    ))
 }
 
 fn database_error(lang: Lang) -> Response {

@@ -1,4 +1,5 @@
-//! Outgoing email over SMTP: comment notifications and test emails.
+//! Outgoing email over SMTP: comment and message notifications, and test
+//! emails.
 //!
 //! The mail server is configured in Settings (host, port, security, login,
 //! sender). Nothing is sent until that's filled in.
@@ -61,6 +62,8 @@ pub struct Email {
     pub subject: String,
     pub text: String,
     pub html: String,
+    /// Where replies go, when not to the sender (a visitor's message).
+    pub reply_to: Option<String>,
 }
 
 fn mailer(settings: &SmtpSettings) -> Result<AsyncSmtpTransport<Tokio1Executor>, String> {
@@ -98,9 +101,11 @@ fn build_message(settings: &SmtpSettings, email: &Email) -> Result<Message, Stri
         .parse()
         .map_err(|_| format!("{} isn't a valid email address", email.to))?;
 
-    Message::builder()
-        .from(from)
-        .to(to)
+    let mut builder = Message::builder().from(from).to(to);
+    if let Some(reply_to) = email.reply_to.as_deref().and_then(|a| a.parse().ok()) {
+        builder = builder.reply_to(reply_to);
+    }
+    builder
         .subject(email.subject.clone())
         .multipart(MultiPart::alternative_plain_html(
             email.text.clone(),
@@ -180,9 +185,81 @@ pub fn notify_new_comment(state: &AppState, post_title: String, author: String, 
                 subject: subject.clone(),
                 text: text.clone(),
                 html: html.clone(),
+                reply_to: None,
             };
             if let Err(e) = send(&state, &email).await {
                 tracing::warn!("Comment notification to {} failed: {e}", email.to);
+            }
+        }
+    });
+}
+
+/// A message a visitor sent with the contact form.
+pub struct NewMessage {
+    /// The post or page the form is on.
+    pub page_title: String,
+    pub name: String,
+    pub email: String,
+    pub text: String,
+}
+
+/// Email a visitor's message to admins and editors (who read Messages), in
+/// the background. Replying answers the visitor. Nothing is sent when email
+/// isn't set up: the message is in Messages either way.
+pub fn notify_new_message(state: &AppState, message: NewMessage) {
+    let state = state.clone();
+    tokio::spawn(async move {
+        if smtp_settings(&state).await.is_none() {
+            return;
+        }
+        let site = settings::load(&state.pool).await;
+        let recipients: Vec<String> = or_log(
+            sqlx::query_scalar("SELECT email FROM users WHERE role IN ('admin', 'editor')")
+                .fetch_all(&state.pool)
+                .await,
+            "message notification recipients",
+        );
+        let lang = site.language;
+        let messages_url = format!("{}/admin/messages", state.config.base_url);
+        let subject = lang.tv("New message from {name}", &message.name);
+        let intro = |name: String, title: String| {
+            lang.tv2("{name} sent a message from “{title}”:", name, title)
+        };
+        let text = format!(
+            "{} ({})\n\n{}\n\n{} {messages_url}\n",
+            intro(message.name.clone(), message.page_title.clone()),
+            message.email,
+            message.text,
+            lang.t("Reply to this email to answer. All messages:")
+        );
+        let html = layout(
+            &site.blog_name,
+            &format!(
+                r#"<p style="margin:0 0 12px">{} <a href="mailto:{email}" style="color:#374151">{email}</a></p>
+<blockquote style="margin:0 0 20px;padding-left:12px;border-left:3px solid #e5e7eb;color:#374151">{}</blockquote>
+<p style="margin:0 0 12px">{}</p>
+<p style="margin:0"><a href="{messages_url}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px">{}</a></p>"#,
+                intro(
+                    format!("<strong>{}</strong>", escape_html(&message.name)),
+                    format!("<strong>{}</strong>", escape_html(&message.page_title)),
+                ),
+                crate::handlers::site::comments::paragraphs(&message.text),
+                lang.t("Reply to this email to answer."),
+                lang.t("Open Messages"),
+                email = escape_html(&message.email),
+            ),
+            lang.t("You get this because you can read messages from the contact form."),
+        );
+        for to in recipients {
+            let email = Email {
+                to,
+                subject: subject.clone(),
+                text: text.clone(),
+                html: html.clone(),
+                reply_to: Some(message.email.clone()),
+            };
+            if let Err(e) = send(&state, &email).await {
+                tracing::warn!("Message notification to {} failed: {e}", email.to);
             }
         }
     });

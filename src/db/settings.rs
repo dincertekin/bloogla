@@ -67,6 +67,9 @@ pub struct Settings {
     pub checklist_hidden: bool,
 
     // Reading
+    /// The page shown at `/` instead of the latest posts (its id), which
+    /// then move to `/blog`. `None`: the latest posts.
+    pub home_page: Option<i64>,
     pub posts_per_page: i64,
     /// One `Label | URL` per line.
     pub nav_menu: String,
@@ -124,6 +127,7 @@ impl Settings {
             active_theme: text("active_theme", "default"),
             checklist_hidden: flag("checklist_hidden", false),
 
+            home_page: text("home_page", "").parse().ok().filter(|id| *id > 0),
             posts_per_page: text("posts_per_page", "10")
                 .parse()
                 .unwrap_or(10)

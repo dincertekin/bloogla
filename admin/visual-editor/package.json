@@ -1,9 +1,9 @@
 {
   "name": "bloogla-visual-editor",
   "private": true,
-  "description": "Builds admin/static/js/visual-editor.js (TipTap with Markdown).",
+  "description": "Builds admin/static/js/visual-editor.js (TipTap with Markdown) and copies KaTeX to admin/static/katex.",
   "scripts": {
-    "build": "esbuild entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=none --outfile=../static/js/visual-editor.body.js && node header.js"
+    "build": "esbuild entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=none --outfile=../static/js/visual-editor.body.js && node header.js && node katex.js"
   },
   "dependencies": {
     "@tiptap/core": "3.31.4",
@@ -15,7 +15,8 @@
     "@tiptap/extension-table": "3.31.4",
     "@tiptap/markdown": "3.31.4",
     "@tiptap/pm": "3.31.4",
-    "@tiptap/starter-kit": "3.31.4"
+    "@tiptap/starter-kit": "3.31.4",
+    "katex": "0.19.0"
   },
   "devDependencies": {
     "esbuild": "0.28.2"
