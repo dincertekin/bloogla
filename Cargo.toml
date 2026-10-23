@@ -12,7 +12,7 @@ readme = "README.md"
 axum = { version = "0.8", features = ["multipart"] }
 axum-extra = { version = "0.12", features = ["form"] }
 tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "signal", "fs"] }
-tower-http = { version = "0.5", features = ["catch-panic", "compression-br", "compression-gzip", "fs", "set-header"] }
+tower-http = { version = "0.7", features = ["catch-panic", "compression-br", "compression-gzip", "fs", "set-header"] }
 # Login rate limit; only its axum part (the default also pulls in gRPC)
 tower_governor = { version = "0.8", default-features = false, features = ["axum"] }
 tower-sessions = { version = "0.14", default-features = false, features = ["axum-core"] }
