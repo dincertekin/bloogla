@@ -81,6 +81,43 @@ pub async fn for_posts(pool: &SqlitePool, post_ids: &[i64]) -> HashMap<i64, Vec<
     map
 }
 
+/// Every tag with how many posts use it, by name (Admin → Tags).
+pub async fn with_post_counts(pool: &SqlitePool) -> Vec<(Tag, i64)> {
+    let rows: Vec<(i64, String, String, i64)> = crate::db::or_log(
+        sqlx::query_as(
+            "SELECT t.id, t.name, t.slug, COUNT(pt.post_id)
+             FROM tags t LEFT JOIN post_tags pt ON pt.tag_id = t.id
+             GROUP BY t.id ORDER BY t.name ASC",
+        )
+        .fetch_all(pool)
+        .await,
+        "list tags",
+    );
+    rows.into_iter()
+        .map(|(id, name, slug, post_count)| (Tag { id, name, slug }, post_count))
+        .collect()
+}
+
+/// Add a tag and return its id, or `None` when one with this name or
+/// address already exists.
+pub async fn create(pool: &SqlitePool, name: &str, slug: &str) -> Result<Option<i64>, sqlx::Error> {
+    let result = sqlx::query("INSERT OR IGNORE INTO tags (name, slug) VALUES (?, ?)")
+        .bind(name)
+        .bind(slug)
+        .execute(pool)
+        .await?;
+    Ok((result.rows_affected() > 0).then(|| result.last_insert_rowid()))
+}
+
+/// Remove a tag (posts keep everything else). `false` when there is no such tag.
+pub async fn delete(pool: &SqlitePool, id: i64) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM tags WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 /// Longest tag name accepted, and the most new tags one save may create.
 const MAX_NAME_CHARS: usize = 50;
 const MAX_NEW_TAGS: usize = 20;

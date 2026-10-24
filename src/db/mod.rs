@@ -3,7 +3,12 @@
 //! The tables themselves are created by the files in `migrations/`, which run
 //! automatically on start.
 
+pub mod analytics;
+pub mod comments;
+pub mod media;
+pub mod messages;
 pub mod posts;
+pub mod redirects;
 pub mod settings;
 pub mod tags;
 pub mod users;

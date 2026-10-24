@@ -13,6 +13,7 @@ pub mod messages;
 pub mod password_reset;
 pub mod posts;
 pub mod profile;
+pub mod redirects;
 pub mod settings;
 pub mod setup;
 pub mod tags;
@@ -126,6 +127,7 @@ templates_answer_requests!(
     posts::PostEditorTemplate,
     profile::ProfileTemplate,
     profile::TwoFactorTemplate,
+    redirects::RedirectItemTemplate,
     settings::SettingsTemplate,
     setup::SetupTemplate,
     tags::TagsTemplate,

@@ -121,7 +121,8 @@ pub async fn save_views(pool: &SqlitePool) {
     if pending.posts.is_empty() && pending.referrers.is_empty() {
         return;
     }
-    if let Err(e) = write_views(pool, &pending).await {
+    if let Err(e) = crate::db::analytics::add_views(pool, &pending.posts, &pending.referrers).await
+    {
         tracing::warn!("Could not save view counts (trying again shortly): {e}");
         // Put them back, added to anything counted meanwhile.
         if let Ok(mut guard) = PENDING.lock() {
@@ -134,39 +135,6 @@ pub async fn save_views(pool: &SqlitePool) {
             }
         }
     }
-}
-
-async fn write_views(pool: &SqlitePool, pending: &PendingViews) -> Result<(), sqlx::Error> {
-    // IMMEDIATE takes the write lock first, so this waits for other writers
-    // (busy_timeout) instead of failing halfway.
-    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-    for (post_id, views) in &pending.posts {
-        sqlx::query("UPDATE posts SET views = views + ? WHERE id = ?")
-            .bind(views)
-            .bind(post_id)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query(
-            "INSERT INTO daily_views (day, post_id, views)
-             SELECT date('now'), id, ? FROM posts WHERE id = ?
-             ON CONFLICT(day, post_id) DO UPDATE SET views = views + excluded.views",
-        )
-        .bind(views)
-        .bind(post_id)
-        .execute(&mut *tx)
-        .await?;
-    }
-    for (host, views) in &pending.referrers {
-        sqlx::query(
-            "INSERT INTO daily_referrers (day, host, views) VALUES (date('now'), ?, ?)
-             ON CONFLICT(day, host) DO UPDATE SET views = views + excluded.views",
-        )
-        .bind(host)
-        .bind(views)
-        .execute(&mut *tx)
-        .await?;
-    }
-    tx.commit().await
 }
 
 #[cfg(test)]

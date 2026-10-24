@@ -5,7 +5,6 @@ use super::{alert, saved_and_reload};
 use crate::app::models::CurrentUser;
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
-use crate::db::or_log;
 use crate::db::settings::{self, CommentMode};
 use crate::i18n::Lang;
 
@@ -48,6 +47,8 @@ pub struct SettingsTemplate {
     pub restore: super::backup::RestoreCard,
     /// Settings → Import & export → Import.
     pub import: super::import_export::ImportCard,
+    /// Settings → Redirects.
+    pub redirects: Vec<super::redirects::RedirectRow>,
     /// Settings → Updates.
     pub update: super::updates::UpdateStatus,
 }
@@ -138,6 +139,7 @@ pub async fn page(
     if site.home_page.is_some() {
         menu_suggestions.push((me.t("Blog").to_string(), "/blog".to_string()));
     }
+    menu_suggestions.push((me.t("Archive").to_string(), "/archive".to_string()));
     let public_pages = crate::db::posts::public_pages(&state.pool).await;
     let pages = public_pages
         .iter()
@@ -185,6 +187,7 @@ pub async fn page(
         auto_backup: site.auto_backup,
         restore: Default::default(),
         import: super::import_export::ImportCard::now(),
+        redirects: super::redirects::rows(&state).await,
         update: super::updates::UpdateStatus::load(&state, &site, &me, None),
         me,
     }
@@ -332,27 +335,14 @@ pub async fn update_general(
 /// Whether a page (not in the trash) already uses the address `/blog`, where
 /// the posts go when a page is the home page.
 async fn page_at_blog(state: &AppState) -> bool {
-    let found: Option<i64> = or_log(
-        sqlx::query_scalar(
-            "SELECT id FROM posts WHERE slug = 'blog' AND is_page = 1 AND trashed_at IS NULL",
-        )
-        .fetch_optional(&state.pool)
-        .await,
-        "find a page at /blog",
-    );
-    found.is_some()
+    crate::db::posts::page_exists(&state.pool, "blog").await
 }
 
 /// Whether this person uses the site's language for the admin panel.
 async fn follows_site_language(state: &AppState, user_id: i64) -> bool {
-    let own: Option<String> = or_log(
-        sqlx::query_scalar("SELECT language FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load language",
-    );
-    own.is_some_and(|code| code.is_empty())
+    crate::db::users::language_of(&state.pool, user_id)
+        .await
+        .is_empty()
 }
 
 fn settings_error(lang: Lang, message: &str) -> Response {

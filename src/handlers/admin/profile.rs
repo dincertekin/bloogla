@@ -7,7 +7,7 @@ use crate::app::security::{
     new_recovery_codes, to_hex, verify_password, PasswordRule, PASSWORD_RULES,
 };
 use crate::app::state::AppState;
-use crate::db::{or_log, settings};
+use crate::db::{settings, users};
 use crate::i18n::Lang;
 
 use askama::Template;
@@ -107,13 +107,7 @@ async fn check_password(
             "Too many failed sign-ins for this account. Wait a minute and try again.",
         ));
     }
-    let stored: Option<String> = or_log(
-        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load password",
-    );
+    let stored = users::password_hash_of(&state.pool, me.id).await;
     let valid = tokio::task::spawn_blocking(move || verify_password(&password, stored.as_deref()))
         .await
         .unwrap_or(false);
@@ -145,7 +139,7 @@ pub async fn set_color_scheme(
     let Some(scheme) = crate::app::models::ColorScheme::parse(&form.scheme) else {
         return StatusCode::UNPROCESSABLE_ENTITY;
     };
-    match crate::db::users::set_color_scheme(&state.pool, me.id, scheme).await {
+    match users::set_color_scheme(&state.pool, me.id, scheme).await {
         Ok(()) => StatusCode::NO_CONTENT,
         Err(e) => {
             tracing::error!("Failed to save the light or dark choice: {e}");
@@ -159,22 +153,14 @@ pub async fn page(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
 ) -> impl IntoResponse {
-    let language: String = or_log(
-        sqlx::query_scalar("SELECT language FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_one(&state.pool)
-            .await,
-        "load language",
-    );
+    let language = users::language_of(&state.pool, me.id).await;
     ProfileTemplate {
         blog_name: settings::load(&state.pool).await.blog_name.clone(),
         language,
         languages: Lang::all(),
         password_rules: PASSWORD_RULES,
-        two_factor: crate::db::users::two_factor(&state.pool, me.id)
-            .await
-            .is_some(),
-        recovery_codes_left: crate::db::users::recovery_codes_left(&state.pool, me.id).await,
+        two_factor: users::two_factor(&state.pool, me.id).await.is_some(),
+        recovery_codes_left: users::recovery_codes_left(&state.pool, me.id).await,
         me,
     }
 }
@@ -192,14 +178,9 @@ pub async fn update(
     if !email.contains('@') {
         return alert(me.lang, "error", "Enter a valid email address.");
     }
-    let taken: Option<i64> = or_log(
-        sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?")
-            .bind(email)
-            .bind(me.id)
-            .fetch_optional(&state.pool)
-            .await,
-        "check email",
-    );
+    let taken = users::id_by_email(&state.pool, email)
+        .await
+        .filter(|id| *id != me.id);
     if taken.is_some() {
         return alert(me.lang, "error", "Someone else already uses this email.");
     }
@@ -223,16 +204,8 @@ pub async fn update(
     }
 
     let language = Lang::parse(&form.language).map_or("", Lang::code);
-    let previous_language: String = or_log(
-        sqlx::query_scalar("SELECT language FROM users WHERE id = ?")
-            .bind(me.id)
-            .fetch_one(&state.pool)
-            .await,
-        "load language",
-    );
-    match crate::db::users::update_profile(&state.pool, &me, form.name.trim(), email, language)
-        .await
-    {
+    let previous_language = users::language_of(&state.pool, me.id).await;
+    match users::update_profile(&state.pool, &me, form.name.trim(), email, language).await {
         // A new language applies to the whole page, so reload it. A new
         // email too: it empties the password field and shows the new address.
         Ok(version) if language != previous_language || email_changes => {
@@ -293,7 +266,7 @@ pub async fn update_password(
             "Couldn't change your password. Please try again.",
         );
     };
-    match crate::db::users::set_password(&state.pool, me.id, &hash).await {
+    match users::set_password(&state.pool, me.id, &hash).await {
         Ok(new_version) => {
             log_event("password_changed", &[("user", &me.email)]);
             // Every other device is now signed out; this one stays signed in.
@@ -350,9 +323,9 @@ async fn save_new_codes(
     let hashes: Vec<String> = codes.iter().map(|c| hash_recovery_code(c)).collect();
     let saved = match secret {
         Some((secret, step)) => {
-            crate::db::users::enable_two_factor(&state.pool, me.id, secret, step, &hashes).await
+            users::enable_two_factor(&state.pool, me.id, secret, step, &hashes).await
         }
-        None => crate::db::users::set_recovery_codes(&state.pool, me.id, &hashes).await,
+        None => users::set_recovery_codes(&state.pool, me.id, &hashes).await,
     };
     let version = match saved {
         Ok(version) => version,
@@ -406,10 +379,7 @@ pub async fn two_factor_page(
     Extension(me): Extension<CurrentUser>,
     session: Session,
 ) -> Response {
-    if crate::db::users::two_factor(&state.pool, me.id)
-        .await
-        .is_some()
-    {
+    if users::two_factor(&state.pool, me.id).await.is_some() {
         return Redirect::to("/admin/profile#two-factor").into_response();
     }
     // A new key each time the page opens; it's saved only once confirmed.
@@ -466,10 +436,7 @@ pub async fn new_recovery_codes_page(
     session: Session,
     Form(form): Form<ConfirmPasswordForm>,
 ) -> Response {
-    if crate::db::users::two_factor(&state.pool, me.id)
-        .await
-        .is_none()
-    {
+    if users::two_factor(&state.pool, me.id).await.is_none() {
         return ([("HX-Redirect", "/admin/profile#two-factor")], ()).into_response();
     }
     if let Some(refusal) = confirm_password(&state, &me, form.password).await {
@@ -497,7 +464,7 @@ pub async fn disable_two_factor(
     if let Some(refusal) = confirm_password(&state, &me, form.password).await {
         return refusal;
     }
-    match crate::db::users::disable_two_factor(&state.pool, me.id).await {
+    match users::disable_two_factor(&state.pool, me.id).await {
         Ok(_) => {
             log_event("two_factor_disabled", &[("user", &me.email)]);
             saved_and_reload(me.lang)

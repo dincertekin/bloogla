@@ -62,8 +62,11 @@ built file by hand.
   a new template struct goes in the `templates_answer_requests!` list in
   `src/handlers/admin/mod.rs` so handlers can return it
 - `src/handlers/site/` public pages, rendered by themes (Tera, loaded at runtime from `themes/`)
-- `src/db/` queries; `src/db/settings.rs` is the typed `Settings` struct (all settings + defaults)
-- `src/services/` email, backups, themes, updates (GitHub check, signed self-update, restart)
+- `src/db/` every SQL query, one file per table or topic (handlers and services call these;
+  only backup/restore work on whole database files themselves); `src/db/settings.rs` is the
+  typed `Settings` struct (all settings + defaults)
+- `src/services/` email, backups, images (upload checks, resizing, WebP), import/export,
+  themes, updates (GitHub check, signed self-update, restart)
 - `src/i18n/` languages: `de.rs`, `fr.rs`, `lt.rs` and `tr.rs` map English text → German, French, Lithuanian and Turkish; `mod.rs` has `THEME_STRINGS`
 - `src/tests/` full-request tests with `TestSite` (fresh DB per test)
 - `admin/static/js/admin.js` shared admin behaviour, documented at the top of the file
@@ -228,6 +231,9 @@ People update with one click and can't fix things by hand. After any update:
 - Set `version` in `Cargo.toml`; the maintainer tags and publishes
   (CONTRIBUTING.md → Releasing).
 - Credit translators of new languages in the release notes.
+- Commit messages: one plain sentence saying what changed for the person
+  using Bloogla ("Faster pages on phones"); release commits start with
+  `Release 1.x.y:`. No `feat:`/`fix:` prefixes; never rewrite pushed history.
 
 ## Don't
 

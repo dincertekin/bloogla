@@ -6,7 +6,7 @@ use crate::app::models::{CurrentUser, Role};
 use crate::app::security::{hash_password, log_event, temporary_password};
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
-use crate::db::{or_log, settings};
+use crate::db::{settings, users};
 
 use askama::Template;
 use axum::extract::{Extension, Path, State};
@@ -57,26 +57,16 @@ pub struct RoleForm {
 }
 
 async fn user_rows(state: &AppState) -> Vec<UserRow> {
-    let rows: Vec<(i64, String, String, String, i64, bool)> = or_log(
-        sqlx::query_as(
-            "SELECT u.id, u.name, u.email, u.role,
-                    (SELECT COUNT(*) FROM posts p
-                     WHERE p.author_id = u.id AND p.is_page = 0 AND p.trashed_at IS NULL),
-                    u.totp_secret IS NOT NULL
-             FROM users u ORDER BY u.id",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "list users",
-    );
-    rows.into_iter()
-        .map(|(id, name, email, role, post_count, two_factor)| UserRow {
-            id,
-            name,
-            email,
-            role: Role::parse(&role).unwrap_or(Role::Author),
-            post_count,
-            two_factor,
+    users::people(&state.pool)
+        .await
+        .into_iter()
+        .map(|person| UserRow {
+            id: person.id,
+            name: person.name,
+            email: person.email,
+            role: Role::parse(&person.role).unwrap_or(Role::Author),
+            post_count: person.post_count,
+            two_factor: person.two_factor,
         })
         .collect()
 }
@@ -110,13 +100,7 @@ pub async fn create(
         return alert(me.lang, "error", "Enter a valid email address.");
     }
 
-    let taken: Option<i64> = or_log(
-        sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
-            .bind(email)
-            .fetch_optional(&state.pool)
-            .await,
-        "check email",
-    );
+    let taken = users::id_by_email(&state.pool, email).await;
     if taken.is_some() {
         return alert(
             me.lang,
@@ -137,22 +121,13 @@ pub async fn create(
             );
         }
     };
-    let id = match sqlx::query(
-        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-    )
-    .bind(name)
-    .bind(email)
-    .bind(&hash)
-    .bind(role.as_str())
-    .execute(&state.pool)
-    .await
-    {
-        Ok(r) => {
+    let id = match users::create(&state.pool, name, email, &hash, role).await {
+        Ok(id) => {
             log_event(
                 "user_created",
                 &[("user", email), ("role", role.as_str()), ("by", &me.email)],
             );
-            r.last_insert_rowid()
+            id
         }
         Err(e) => {
             tracing::error!("Failed to create user: {e}");
@@ -212,13 +187,8 @@ pub async fn update_role(
     let Some(role) = Role::parse(&form.role) else {
         return StatusCode::BAD_REQUEST.into_response();
     };
-    match sqlx::query("UPDATE users SET role = ? WHERE id = ?")
-        .bind(role.as_str())
-        .bind(id)
-        .execute(&state.pool)
-        .await
-    {
-        Ok(r) if r.rows_affected() > 0 => {
+    match users::set_role(&state.pool, id, role).await {
+        Ok(true) => {
             log_event(
                 "role_changed",
                 &[
@@ -259,7 +229,7 @@ pub async fn reset_password(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     // Also signs them out everywhere, in case someone else had their password.
-    match crate::db::users::set_password(&state.pool, id, &hash).await {
+    match users::set_password(&state.pool, id, &hash).await {
         Ok(_) => {
             log_event(
                 "password_reset_by_admin",
@@ -291,26 +261,11 @@ pub async fn delete(
     if id == me.id {
         return StatusCode::FORBIDDEN;
     }
-    let result = async {
-        let mut tx = state.pool.begin().await?;
-        sqlx::query("UPDATE posts SET author_id = ? WHERE author_id = ?")
-            .bind(me.id)
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
-        let deleted = sqlx::query("DELETE FROM users WHERE id = ?")
-            .bind(id)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
-        tx.commit().await?;
-        Ok::<u64, sqlx::Error>(deleted)
-    }
-    .await;
+    let result = users::delete(&state.pool, id, me.id).await;
 
     match result {
-        Ok(0) => StatusCode::NOT_FOUND,
-        Ok(_) => {
+        Ok(false) => StatusCode::NOT_FOUND,
+        Ok(true) => {
             log_event(
                 "user_deleted",
                 &[("user_id", &id.to_string()), ("by", &me.email)],
@@ -334,7 +289,7 @@ pub async fn disable_two_factor(
     if id == me.id {
         return StatusCode::FORBIDDEN.into_response();
     }
-    match crate::db::users::disable_two_factor(&state.pool, id).await {
+    match users::disable_two_factor(&state.pool, id).await {
         Ok(true) => {
             log_event(
                 "two_factor_disabled_by_admin",

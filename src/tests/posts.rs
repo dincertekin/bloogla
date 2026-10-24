@@ -1,7 +1,8 @@
 //! Writing posts, and what visitors (and search engines) see.
 
-use super::TestSite;
-use axum::http::StatusCode;
+use super::{TestSite, ADMIN_EMAIL, ADMIN_PASSWORD};
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
 
 #[tokio::test]
 async fn a_published_post_shows_up_everywhere() {
@@ -347,4 +348,155 @@ async fn posts_with_formulas_load_katex_and_others_dont() {
     ] {
         assert_eq!(site.get(file).await.status, StatusCode::OK, "{file}");
     }
+}
+
+#[tokio::test]
+async fn a_draft_can_be_shared_with_a_private_link() {
+    let mut site = TestSite::with_owner().await;
+    let address = site.publish("Spring menu", "draft").await;
+    let id: i64 = sqlx::query_scalar("SELECT id FROM posts WHERE slug = 'spring-menu'")
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    let editor = format!("/admin/posts/{id}/edit");
+    assert!(site.get(&editor).await.body.contains("Create a link"));
+
+    assert_eq!(
+        site.post(&format!("/admin/posts/{id}/share"), &[])
+            .await
+            .status,
+        StatusCode::OK
+    );
+    let editor_page = site.get(&editor).await.body;
+    let start = editor_page
+        .find("/preview/")
+        .expect("the editor shows the link");
+    let link: String = editor_page[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '/')
+        .collect();
+
+    // A visitor with the link reads the draft; nobody else finds it.
+    site.new_visitor();
+    let preview = site.get(&link).await;
+    assert_eq!(preview.status, StatusCode::OK);
+    assert!(preview.body.contains("Spring menu"));
+    assert!(preview
+        .body
+        .contains(r#"<meta name="robots" content="noindex">"#));
+    assert_eq!(preview.header("cache-control"), "no-store");
+    assert_eq!(preview.header("referrer-policy"), "no-referrer");
+    assert_eq!(site.get(&address).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        site.get("/preview/0123456789abcdef0123456789abcdef")
+            .await
+            .status,
+        StatusCode::NOT_FOUND
+    );
+    // Reading it isn't a view.
+    crate::handlers::site::analytics::save_views(&site.pool).await;
+    let views: i64 = sqlx::query_scalar("SELECT views FROM posts WHERE id = ?")
+        .bind(id)
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    assert_eq!(views, 0);
+
+    // Stop sharing: the link stops working.
+    site.sign_in(ADMIN_EMAIL, ADMIN_PASSWORD).await;
+    let stop =
+        Request::delete(format!("/admin/posts/{id}/share")).header("sec-fetch-site", "same-origin");
+    assert_eq!(site.send(stop, Body::empty()).await.status, StatusCode::OK);
+    site.new_visitor();
+    assert_eq!(site.get(&link).await.status, StatusCode::NOT_FOUND);
+
+    // Shared again and then published: the link leads to the post itself.
+    site.sign_in(ADMIN_EMAIL, ADMIN_PASSWORD).await;
+    site.post(&format!("/admin/posts/{id}/share"), &[]).await;
+    let token: String = sqlx::query_scalar("SELECT preview_token FROM posts WHERE id = ?")
+        .bind(id)
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE posts SET status = 'published' WHERE id = ?")
+        .bind(id)
+        .execute(&site.pool)
+        .await
+        .unwrap();
+    site.new_visitor();
+    let published = site.get(&format!("/preview/{token}")).await;
+    assert_eq!(published.status, StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(published.location(), address);
+}
+
+#[tokio::test]
+async fn authors_cant_share_someone_elses_draft() {
+    let mut site = TestSite::with_owner().await;
+    site.publish("Owner's draft", "draft").await;
+    let id: i64 = sqlx::query_scalar("SELECT id FROM posts WHERE slug = 'owner-s-draft'")
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    let password = "Author-Pass-123!";
+    let hash = crate::app::security::hash_password(password).unwrap();
+    sqlx::query("INSERT INTO users (email, password_hash, name, role) VALUES ('author@example.com', ?, 'Author', 'author')")
+        .bind(hash)
+        .execute(&site.pool)
+        .await
+        .unwrap();
+    site.new_visitor();
+    site.sign_in("author@example.com", password).await;
+
+    let shared = site.post(&format!("/admin/posts/{id}/share"), &[]).await;
+    assert_eq!(shared.status, StatusCode::NOT_FOUND);
+    let token: Option<String> = sqlx::query_scalar("SELECT preview_token FROM posts WHERE id = ?")
+        .bind(id)
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    assert!(token.is_none());
+}
+
+#[tokio::test]
+async fn the_archive_lists_every_post_by_year() {
+    let mut site = TestSite::with_owner().await;
+    site.publish("Winter <soup>", "published").await;
+    site.publish("Hidden draft", "draft").await;
+    sqlx::query("UPDATE posts SET published_at = '2019-03-04 10:00:00' WHERE slug = 'winter-soup'")
+        .execute(&site.pool)
+        .await
+        .unwrap();
+    site.publish("This year", "published").await;
+    site.new_visitor();
+
+    let archive = site.get("/archive").await;
+    assert_eq!(archive.status, StatusCode::OK);
+    let body = archive.body;
+    assert!(body.contains("<h2>2019</h2>"));
+    assert!(body.contains(r#"<a href="/post/winter-soup">Winter &lt;soup&gt;</a> · Mar 4"#));
+    assert!(body.contains("This year"));
+    assert!(!body.contains("Hidden draft"));
+    // Newest first.
+    assert!(body.find("This year") < body.find("Winter &lt;soup&gt;"));
+    assert!(body.contains(r#"<link rel="canonical" href="#));
+}
+
+#[tokio::test]
+async fn a_page_called_archive_keeps_its_address() {
+    let mut site = TestSite::with_owner().await;
+    site.post(
+        "/admin/pages",
+        &[
+            ("title", "Archive"),
+            ("content", "Our own list of old things."),
+            ("status", "published"),
+        ],
+    )
+    .await;
+    site.new_visitor();
+    assert!(site
+        .get("/archive")
+        .await
+        .body
+        .contains("Our own list of old things."));
 }

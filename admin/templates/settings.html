@@ -15,6 +15,7 @@
     <a href="#email" role="tab" data-tab="email">{{ me.t("Email") }}</a>
     <a href="#backup" role="tab" data-tab="backup">{{ me.t("Backup") }}</a>
     <a href="#import-export" role="tab" data-tab="import-export">{{ me.t("Import & export") }}</a>
+    <a href="#redirects" role="tab" data-tab="redirects">{{ me.t("Redirects") }}</a>
     <a href="#updates" role="tab" data-tab="updates">{{ me.t("Updates") }}</a>
 </nav>
 
@@ -324,6 +325,38 @@
         </div>
     </div>
 </section>
+</div>
+
+<div data-tab-panel="redirects">
+<section class="card">
+    <h2 class="section-title">{{ me.t("Redirects") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Moved here from another site, or changed an address? Send visitors from the old address to the new one, so old links and search results keep working. Addresses of your posts that you change are redirected for you.") }}
+    </p>
+    <form hx-post="/admin/redirects" hx-target="#redirect-list" hx-swap="afterbegin"
+        data-reset-on-success data-clear-on-success="#redirect-form-alert">
+        <div id="redirect-form-alert"></div>
+        <div class="form-group">
+            <label for="redirect-from">{{ me.t("Old address") }}</label>
+            <input type="text" id="redirect-from" name="from" class="form-control" placeholder="/old-page" required
+                maxlength="500" autocomplete="off" />
+        </div>
+        <div class="form-group">
+            <label for="redirect-to">{{ me.t("New address") }}</label>
+            <input type="text" id="redirect-to" name="to" class="form-control" placeholder="/about" required
+                maxlength="500" autocomplete="off" />
+            <span class="form-hint">{{ me.t("An address on this site, or a whole link to another site.") }}</span>
+        </div>
+        <button type="submit" class="btn btn-primary">{{ me.t("Add Redirect") }}</button>
+    </form>
+</section>
+
+<div id="redirect-list" class="item-list" data-empty-text="{{ me.t("No redirects yet.") }}" {% if redirects.is_empty() %}hidden{% endif %}>
+    {% for row in redirects %}
+    {% include "redirect_item.html" %}
+    {% endfor %}
+</div>
+<p class="empty-state" data-empty-for="redirect-list" {% if !redirects.is_empty() %}hidden{% endif %}>{{ me.t("No redirects yet.") }}</p>
 </div>
 
 <div data-tab-panel="updates">

@@ -6,7 +6,7 @@
 
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
-use crate::db::{or_log, settings};
+use crate::db::settings;
 
 use lettre::message::{Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
@@ -149,12 +149,7 @@ pub fn notify_new_comment(state: &AppState, post_title: String, author: String, 
         if !site.notify_comments || smtp_settings(&state).await.is_none() {
             return;
         }
-        let recipients: Vec<String> = or_log(
-            sqlx::query_scalar("SELECT email FROM users WHERE role IN ('admin', 'editor')")
-                .fetch_all(&state.pool)
-                .await,
-            "comment notification recipients",
-        );
+        let recipients = crate::db::users::editor_emails(&state.pool).await;
         let (lang, blog_name) = (site.language, &site.blog_name);
         let review_url = format!("{}/admin/comments", state.config.base_url);
         let subject = lang.tv("New comment on “{title}”", &post_title);
@@ -213,12 +208,7 @@ pub fn notify_new_message(state: &AppState, message: NewMessage) {
             return;
         }
         let site = settings::load(&state.pool).await;
-        let recipients: Vec<String> = or_log(
-            sqlx::query_scalar("SELECT email FROM users WHERE role IN ('admin', 'editor')")
-                .fetch_all(&state.pool)
-                .await,
-            "message notification recipients",
-        );
+        let recipients = crate::db::users::editor_emails(&state.pool).await;
         let lang = site.language;
         let messages_url = format!("{}/admin/messages", state.config.base_url);
         let subject = lang.tv("New message from {name}", &message.name);

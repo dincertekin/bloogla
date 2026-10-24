@@ -49,15 +49,6 @@ pub fn absolute_links(html: &str, base_url: &str) -> String {
         .replace("href=\"/", &format!("href=\"{base_url}/"))
 }
 
-/// A picture in Media: its file, its 800px and 400px copies, width and height.
-type PictureCopies = (
-    String,
-    Option<String>,
-    Option<String>,
-    Option<i64>,
-    Option<i64>,
-);
-
 /// Give the post's own pictures (from Media) their smaller copies, so phones
 /// download a picture the size they show it: `srcset` with the 400px and
 /// 800px copies, `sizes` for a text column, and the picture's width and
@@ -79,16 +70,7 @@ pub async fn with_image_copies(pool: &sqlx::SqlitePool, html: &str) -> String {
     if names.is_empty() {
         return html.to_string();
     }
-    let marks = vec!["?"; names.len()].join(", ");
-    let sql = format!(
-        "SELECT filename, small_filename, thumb_filename, width, height FROM media
-         WHERE filename IN ({marks})"
-    );
-    let mut query = sqlx::query_as::<_, PictureCopies>(&sql);
-    for name in &names {
-        query = query.bind(*name);
-    }
-    let copies = crate::db::or_log(query.fetch_all(pool).await, "find picture copies");
+    let copies = crate::db::media::copies_of(pool, &names).await;
 
     let mut out = String::with_capacity(html.len());
     let mut rest = html;

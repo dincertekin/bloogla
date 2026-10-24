@@ -68,10 +68,7 @@ impl SetupTemplate {
 
 /// True until the first admin account exists.
 async fn needs_setup(pool: &SqlitePool) -> Result<bool, sqlx::Error> {
-    let users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
-        .fetch_one(pool)
-        .await?;
-    Ok(users == 0)
+    Ok(crate::db::users::count(pool).await? == 0)
 }
 
 /// Create the first admin and default settings in one transaction.
@@ -105,50 +102,17 @@ async fn create_site(
 
     let password_hash = hash_password(password)?;
 
-    let db_error = |e: sqlx::Error| format!("Database error: {e}");
-    let mut tx = pool.begin().await.map_err(db_error)?;
-
-    // Re-check inside the transaction so two concurrent setups cannot both win.
-    let users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(db_error)?;
-    if users > 0 {
-        return Err("This site has already been set up.".into());
-    }
-
-    let user_id = sqlx::query(
-        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')",
-    )
-    .bind(name)
-    .bind(email)
-    .bind(&password_hash)
-    .execute(&mut *tx)
-    .await
-    .map_err(db_error)?
-    .last_insert_rowid();
     let publisher_name = if name.is_empty() { blog_name } else { name };
-
-    let default_settings = [
+    let first_settings = [
         ("blog_name", blog_name),
         ("publisher_type", "Person"),
         ("publisher_name", publisher_name),
     ];
-    for (key, value) in default_settings {
-        sqlx::query(
-            "INSERT INTO settings (key, value) VALUES (?, ?)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        )
-        .bind(key)
-        .bind(value)
-        .execute(&mut *tx)
-        .await
-        .map_err(db_error)?;
+    match crate::db::users::create_owner(pool, name, email, &password_hash, &first_settings).await {
+        Ok(Some(user_id)) => Ok(user_id),
+        Ok(None) => Err("This site has already been set up.".into()),
+        Err(e) => Err(format!("Database error: {e}")),
     }
-
-    tx.commit().await.map_err(db_error)?;
-    crate::db::settings::invalidate();
-    Ok(user_id)
 }
 
 /// Prepare first-run setup: the setup page at `/setup` stays open until

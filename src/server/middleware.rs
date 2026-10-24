@@ -172,7 +172,7 @@ pub async fn prefer_webp(mut req: Request, next: Next) -> Response {
     let copy = format!("{name}.webp");
     let copy_exists = plain_name
         && tokio::fs::try_exists(
-            std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR).join(&copy),
+            std::path::Path::new(crate::services::images::UPLOAD_DIR).join(&copy),
         )
         .await
         .unwrap_or(false);
@@ -221,6 +221,34 @@ pub async fn theme_static_only(req: Request, next: Next) -> Response {
             .insert(header::CACHE_CONTROL, HeaderValue::from_static(cache));
     }
     response
+}
+
+/// Send visitors on from an old address listed in Settings → Redirects.
+/// Only looked up when nothing else is at the address (a "not found"
+/// answer), so pages that exist never wait for it and are never hidden.
+pub async fn redirects(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let reading = matches!(*req.method(), Method::GET | Method::HEAD);
+    let path = req.uri().path().to_string();
+    let response = next.run(req).await;
+    if response.status() != StatusCode::NOT_FOUND || !reading {
+        return response;
+    }
+    let Some(old) = crate::handlers::admin::redirects::old_address(&path) else {
+        return response;
+    };
+    let Some(target) = crate::db::redirects::target(&state.pool, &old).await else {
+        return response;
+    };
+    // Saved addresses are always valid here; if one somehow isn't, the
+    // visitor still gets the "not found" page instead of an error.
+    match HeaderValue::from_str(&target) {
+        Ok(location) => (
+            StatusCode::MOVED_PERMANENTLY,
+            [(header::LOCATION, location)],
+        )
+            .into_response(),
+        Err(_) => response,
+    }
 }
 
 /// Add an `ETag` to public HTML and XML responses and answer `304 Not Modified`

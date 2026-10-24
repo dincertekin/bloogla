@@ -1,12 +1,11 @@
 //! Machine-readable addresses: RSS feed, sitemap, robots.txt, favicon and
 //! the health check.
 
-use crate::app::models::Post;
 use crate::app::state::AppState;
 use crate::content::markdown::excerpt;
 use crate::content::text::{escape_html, to_rfc2822};
-use crate::db::posts::{LISTED_POST_FILTER, POST_SELECT, PUBLIC_POST_FILTER};
-use crate::db::{or_log, settings};
+use crate::db::posts;
+use crate::db::settings;
 use crate::server::routes::post_path;
 
 use axum::extract::State;
@@ -21,15 +20,7 @@ const FEED_SIZE: i64 = 20;
 
 /// GET /rss.xml -> RSS 2.0 feed with the full text of the newest posts.
 pub async fn rss(State(state): State<AppState>) -> Response {
-    let posts = or_log(
-        sqlx::query_as::<_, Post>(&format!(
-            "{POST_SELECT} WHERE {LISTED_POST_FILTER} ORDER BY published_at DESC LIMIT ?"
-        ))
-        .bind(FEED_SIZE)
-        .fetch_all(&state.pool)
-        .await,
-        "rss posts",
-    );
+    let posts = posts::newest_listed(&state.pool, FEED_SIZE).await;
 
     let site = settings::load(&state.pool).await;
     let base_url = &state.config.base_url;
@@ -92,15 +83,7 @@ pub async fn rss(State(state): State<AppState>) -> Response {
 
 /// GET /sitemap.xml -> Every public post and page, for search engines.
 pub async fn sitemap(State(state): State<AppState>) -> Response {
-    let rows: Vec<(i64, String, bool, String)> = or_log(
-        sqlx::query_as(&format!(
-            "SELECT id, slug, is_page, published_at FROM posts
-             WHERE {PUBLIC_POST_FILTER} ORDER BY published_at DESC"
-        ))
-        .fetch_all(&state.pool)
-        .await,
-        "sitemap posts",
-    );
+    let rows = posts::for_sitemap(&state.pool).await;
 
     let base_url = &state.config.base_url;
     let mut urls = format!(

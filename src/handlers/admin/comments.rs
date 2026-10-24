@@ -4,7 +4,7 @@ use super::StatusFilter;
 use crate::app::models::CurrentUser;
 use crate::app::state::AppState;
 use crate::content::text::{display_datetime, escape_html};
-use crate::db::or_log;
+use crate::db::comments;
 use crate::db::settings::{self, CommentMode};
 use crate::handlers::site::comments::paragraphs;
 use crate::server::routes::post_path;
@@ -14,7 +14,6 @@ use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 /// A comment in the moderation queue.
 pub struct CommentRow {
@@ -40,18 +39,6 @@ pub struct CommentsTemplate {
     pub mode_off: bool,
 }
 
-/// A comment joined with its post, as read for the moderation queue.
-#[derive(sqlx::FromRow)]
-struct QueueRow {
-    id: i64,
-    author_name: String,
-    author_email: String,
-    content: String,
-    created_at: String,
-    post_title: String,
-    slug: String,
-}
-
 #[derive(Deserialize)]
 pub struct QueueQuery {
     status: Option<String>,
@@ -69,19 +56,7 @@ pub async fn page(
         .filter(|s| matches!(*s, "approved" | "spam"))
         .unwrap_or("pending");
 
-    let counts: HashMap<String, i64> = or_log(
-        sqlx::query_as(
-            // Comments on posts in the trash aren't listed, so not counted.
-            "SELECT status, COUNT(*) FROM comments
-             WHERE post_id NOT IN (SELECT id FROM posts WHERE trashed_at IS NOT NULL)
-             GROUP BY status",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "count comments",
-    )
-    .into_iter()
-    .collect();
+    let counts = comments::count_by_status(&state.pool).await;
     let count = |s: &str| counts.get(s).copied().unwrap_or(0) as usize;
     let filters = vec![
         StatusFilter::new("pending", "Waiting", count("pending")),
@@ -89,20 +64,9 @@ pub async fn page(
         StatusFilter::new("spam", "Spam", count("spam")),
     ];
 
-    let rows: Vec<QueueRow> = or_log(
-        sqlx::query_as(
-            "SELECT c.id, c.author_name, c.author_email, c.content, c.created_at,
-                    p.title AS post_title, p.slug
-             FROM comments c JOIN posts p ON p.id = c.post_id
-             WHERE c.status = ? AND p.trashed_at IS NULL ORDER BY c.id DESC LIMIT 200",
-        )
-        .bind(active)
-        .fetch_all(&state.pool)
-        .await,
-        "list comments",
-    );
+    let rows = comments::queue(&state.pool, active).await;
     let tz = settings::load(&state.pool).await.timezone;
-    let comments = rows
+    let queue = rows
         .into_iter()
         .map(|row| CommentRow {
             id: row.id,
@@ -122,7 +86,7 @@ pub async fn page(
     CommentsTemplate {
         blog_name: site.blog_name.clone(),
         me,
-        comments,
+        comments: queue,
         filters,
         active_filter: active.to_string(),
         mode_off: site.comments == CommentMode::Off,
@@ -141,14 +105,9 @@ pub async fn set_status(
         "pending" => "pending",
         _ => return StatusCode::NOT_FOUND,
     };
-    match sqlx::query("UPDATE comments SET status = ? WHERE id = ?")
-        .bind(status)
-        .bind(id)
-        .execute(&state.pool)
-        .await
-    {
-        Ok(r) if r.rows_affected() > 0 => StatusCode::OK,
-        Ok(_) => StatusCode::NOT_FOUND,
+    match comments::set_status(&state.pool, id, status).await {
+        Ok(true) => StatusCode::OK,
+        Ok(false) => StatusCode::NOT_FOUND,
         Err(e) => {
             tracing::error!("Failed to update comment: {e}");
             StatusCode::INTERNAL_SERVER_ERROR
@@ -158,13 +117,9 @@ pub async fn set_status(
 
 /// DELETE /admin/comments/:id -> Remove a comment for good.
 pub async fn delete(State(state): State<AppState>, Path(id): Path<i64>) -> StatusCode {
-    match sqlx::query("DELETE FROM comments WHERE id = ?")
-        .bind(id)
-        .execute(&state.pool)
-        .await
-    {
-        Ok(r) if r.rows_affected() > 0 => StatusCode::OK,
-        Ok(_) => StatusCode::NOT_FOUND,
+    match comments::delete(&state.pool, id).await {
+        Ok(true) => StatusCode::OK,
+        Ok(false) => StatusCode::NOT_FOUND,
         Err(e) => {
             tracing::error!("Failed to delete comment: {e}");
             StatusCode::INTERNAL_SERVER_ERROR

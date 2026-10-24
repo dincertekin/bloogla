@@ -720,6 +720,31 @@ pub const LANGUAGE: Language = Language {
         // The editor: subscript and superscript buttons
         ("Subscript", "Apatinis indeksas"),
         ("Superscript", "Viršutinis indeksas"),
+        // The editor: sharing a draft with a private link
+        ("Share before publishing", "Bendrinti prieš paskelbiant"),
+        ("Private link", "Privati nuoroda"),
+        ("Anyone with this link can read it, as it was last saved. Search engines don't show it.", "Kiekvienas, turintis šią nuorodą, gali jį skaityti taip, kaip jis buvo paskutinį kartą išsaugotas. Paieškos sistemos jo nerodo."),
+        ("Let someone read it before it's published, with a private link.", "Leiskite kam nors jį perskaityti prieš paskelbiant, naudodami privačią nuorodą."),
+        ("Create a link", "Sukurti nuorodą"),
+        ("Stop sharing", "Nebebendrinti"),
+        // Settings → Redirects
+        ("Redirects", "Peradresavimai"),
+        ("Moved here from another site, or changed an address? Send visitors from the old address to the new one, so old links and search results keep working. Addresses of your posts that you change are redirected for you.", "Persikėlėte iš kitos svetainės ar pakeitėte adresą? Nukreipkite lankytojus iš seno adreso į naują, kad senos nuorodos ir paieškos rezultatai toliau veiktų. Jūsų pakeisti įrašų adresai nukreipiami automatiškai."),
+        ("Old address", "Senas adresas"),
+        ("New address", "Naujas adresas"),
+        ("An address on this site, or a whole link to another site.", "Šios svetainės adresas arba visa nuoroda į kitą svetainę."),
+        ("Add Redirect", "Pridėti peradresavimą"),
+        ("No redirects yet.", "Peradresavimų dar nėra."),
+        ("Leads to {address}", "Veda į {address}"),
+        ("Delete the redirect from {address}?", "Ištrinti peradresavimą iš {address}?"),
+        ("Visitors who open the old address will see “Page not found” again.", "Lankytojai, atidarę seną adresą, vėl matys „Puslapis nerastas“."),
+        ("Enter the old address as it starts after your domain, like /old-page.", "Įveskite seną adresą taip, kaip jis prasideda po jūsų domeno, pavyzdžiui, /senas-puslapis."),
+        ("Enter the new address, like /about or https://example.com/page.", "Įveskite naują adresą, pavyzdžiui, /apie arba https://example.com/puslapis."),
+        ("The new address must be different from the old one.", "Naujas adresas turi skirtis nuo seno."),
+        ("This old address already leads somewhere. Delete that redirect first.", "Šis senas adresas jau kur nors veda. Pirmiausia ištrinkite tą peradresavimą."),
+        // The archive page (/archive)
+        ("Archive", "Archyvas"),
+        ("Every post on {site}, newest first.", "Visi {site} įrašai, naujausi pirmiausia."),
     ],
 };
 

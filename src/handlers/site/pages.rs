@@ -6,17 +6,20 @@ use crate::app::models::{Pagination, Post};
 use crate::app::state::AppState;
 use crate::content::markdown::excerpt;
 use crate::content::seo::{SeoKind, SeoMeta};
-use crate::content::text::{display_date, escape_html, reading_time, url_decode, url_encode};
-use crate::db::posts::{self, LISTED_POST_FILTER, POST_SELECT, PUBLIC_POST_FILTER};
+use crate::content::text::{
+    display_date, escape_html, local_date, reading_time, url_decode, url_encode,
+};
+use crate::db::posts::{self, LISTED_POST_FILTER, PUBLIC_POST_FILTER};
 use crate::db::settings::{self, CommentMode, Settings};
-use crate::db::{or_log, tags};
+use crate::db::tags;
 use crate::server::routes::post_path;
 use crate::services::themes;
 
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, Method, StatusCode, Uri};
+use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Redirect, Response};
-use serde::Deserialize;
+use chrono::Datelike;
+use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
 /// Characters of plain text in listing excerpts and meta descriptions.
@@ -28,7 +31,7 @@ pub struct ListingQuery {
     page: Option<i64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct PostQuery {
     /// Result of sending a comment (`pending`, `slow`, `invalid`).
     comment: Option<String>,
@@ -57,7 +60,7 @@ pub async fn home(
         if let Some(number) = query.page {
             return Redirect::temporary(&with_page("/blog", number)).into_response();
         }
-        return render_post(&state, page, &headers, &session, &notices).await;
+        return render_post(&state, page, &headers, &session, &notices, false).await;
     }
     latest_posts(&state, &site, "/", query.page).await
 }
@@ -76,7 +79,7 @@ pub async fn blog(
     }
     // A page called "blog" from before 1.3 keeps its address.
     if let Some(page) = posts::find_public(&state.pool, "blog", true).await {
-        return render_post(&state, page, &headers, &session, &notices).await;
+        return render_post(&state, page, &headers, &session, &notices, false).await;
     }
     // Otherwise the posts are on the home page. Temporary, because the
     // owner can choose a home page again.
@@ -147,7 +150,7 @@ pub async fn show_post(
     session: Session,
 ) -> Response {
     if let Some(post) = posts::find_public(&state.pool, &slug, false).await {
-        return render_post(&state, post, &headers, &session, &query).await;
+        return render_post(&state, post, &headers, &session, &query, false).await;
     }
     match redirect_to_slug(&state, &slug).await {
         Some(redirect) => redirect,
@@ -171,12 +174,164 @@ pub async fn show_page(
         if settings::load(&state.pool).await.home_page == Some(page.id) {
             return Redirect::temporary("/").into_response();
         }
-        return render_post(&state, page, &headers, &session, &query).await;
+        return render_post(&state, page, &headers, &session, &query, false).await;
     }
     match redirect_to_slug(&state, &slug).await {
         Some(redirect) => redirect,
         None => not_found(&state).await,
     }
+}
+
+/// GET /preview/:token -> A post or page shared with a private link before
+/// it's published (Share before publishing, in the editor). Once it's
+/// public, the link leads to its own address.
+pub async fn preview(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+    headers: HeaderMap,
+    session: Session,
+) -> Response {
+    let Some(post) = posts::find_by_preview_token(&state.pool, &token).await else {
+        return not_found(&state).await;
+    };
+    if posts::is_live(&post) {
+        return Redirect::temporary(&post_path(&post.slug, post.is_page)).into_response();
+    }
+    let notices = PostQuery::default();
+    let mut response = render_post(&state, post, &headers, &session, &notices, true).await;
+    // Never kept by browsers or caches, and the link (it works like a
+    // password) isn't passed on to sites the draft links to.
+    let response_headers = response.headers_mut();
+    response_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response_headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response_headers.insert("x-robots-tag", HeaderValue::from_static("noindex"));
+    response
+}
+
+/// A year on the archive page, with its posts (newest first).
+#[derive(Serialize)]
+struct ArchiveYear {
+    year: i32,
+    posts: Vec<ArchivePost>,
+}
+
+/// A post on the archive page: themes get these as `archive`.
+#[derive(Serialize)]
+struct ArchivePost {
+    title: String,
+    url: String,
+    /// The day it came out, like `Oct 2`.
+    date: String,
+}
+
+/// GET /archive -> Every post, newest first, under the year it came out.
+/// Themes with a `templates/archive.html` draw it themselves from `archive`;
+/// others show it as a page, with the list as its text. A page whose
+/// address is `archive` keeps it.
+pub async fn archive(
+    State(state): State<AppState>,
+    Query(notices): Query<PostQuery>,
+    headers: HeaderMap,
+    session: Session,
+) -> Response {
+    if let Some(page) = posts::find_public(&state.pool, "archive", true).await {
+        return render_post(&state, page, &headers, &session, &notices, false).await;
+    }
+    let site = settings::load(&state.pool).await;
+    let lang = site.language;
+
+    let mut years: Vec<ArchiveYear> = Vec::new();
+    for (title, slug, published_at) in posts::for_archive(&state.pool).await {
+        let Some(day) = local_date(site.timezone, &published_at) else {
+            continue;
+        };
+        let post = ArchivePost {
+            title,
+            url: post_path(&slug, false),
+            date: lang.day_month(day),
+        };
+        // Posts come newest first, so a new year starts a new group.
+        match years.last_mut() {
+            Some(last) if last.year == day.year() => last.posts.push(post),
+            _ => years.push(ArchiveYear {
+                year: day.year(),
+                posts: vec![post],
+            }),
+        }
+    }
+
+    let mut content_html = String::new();
+    for year in &years {
+        content_html.push_str(&format!("<h2>{}</h2>\n<ul>\n", year.year));
+        for post in &year.posts {
+            content_html.push_str(&format!(
+                "<li><a href=\"{}\">{}</a> · {}</li>\n",
+                post.url,
+                escape_html(&post.title),
+                escape_html(&post.date)
+            ));
+        }
+        content_html.push_str("</ul>\n");
+    }
+    if years.is_empty() {
+        content_html = format!("<p>{}</p>", lang.t("No posts yet."));
+    }
+
+    let title = lang.t("Archive");
+    let canonical_url = format!("{}/archive", state.config.base_url);
+    let seo_head = seo_head(
+        &state,
+        &site,
+        &SeoMeta {
+            title,
+            description: &lang.tv("Every post on {site}, newest first.", &site.blog_name),
+            canonical_url: &canonical_url,
+            image: None,
+            kind: SeoKind::Website,
+            noindex: false,
+        },
+    );
+    // Themes without `archive.html` show it like any page.
+    let page = Post {
+        id: 0,
+        title: title.to_string(),
+        slug: "archive".to_string(),
+        content: String::new(),
+        cover_image: None,
+        cover_width: None,
+        cover_height: None,
+        cover_small: None,
+        cover_thumb: None,
+        views: 0,
+        created_at: String::new(),
+        status: "published".to_string(),
+        published_at: String::new(),
+        is_page: true,
+        author_id: None,
+        author_name: None,
+        trashed_at: None,
+        reading_time: 0,
+        tags: Vec::new(),
+        url: "/archive".to_string(),
+    };
+
+    let mut context = base_context(&state, &site).await;
+    context.insert("seo_head", &seo_head);
+    context.insert("archive", &years);
+    context.insert("content_html", &content_html);
+    context.insert("post", &page);
+    context.insert("comments_enabled", &false);
+    context.insert("previous_post", &None::<()>);
+    context.insert("next_post", &None::<()>);
+    let templates = [
+        "templates/archive.html",
+        "templates/page.html",
+        "templates/post.html",
+    ];
+    themes::render(&state, &templates, context, StatusCode::OK).await
 }
 
 /// GET /tag/:slug -> Posts with a tag.
@@ -286,16 +441,19 @@ const MATH_HEAD: &str = r#"<link rel="stylesheet" href="/static/katex/katex.min.
 <script defer src="/static/js/math.js"></script>"#;
 
 /// Render a post or page with its SEO tags and comments. `notices` says
-/// how sending a comment or the contact form went.
+/// how sending a comment or the contact form went. A `preview` (a private
+/// link to something not published yet) isn't counted as a view, has no
+/// comments and asks search engines to stay away.
 async fn render_post(
     state: &AppState,
     mut post: Post,
     headers: &HeaderMap,
     session: &Session,
     notices: &PostQuery,
+    preview: bool,
 ) -> Response {
     let comment_notice = notices.comment.as_deref();
-    if analytics::is_countable_view(headers, session).await {
+    if !preview && analytics::is_countable_view(headers, session).await {
         let referrer = analytics::referrer_host(headers, &state.config.base_url);
         analytics::record_view(post.id, referrer);
     }
@@ -339,7 +497,7 @@ async fn render_post(
                     author: post.author_name.as_deref(),
                 }
             },
-            noindex: false,
+            noindex: preview,
         },
     );
     // Themes show `created_at` as the post's date.
@@ -366,7 +524,7 @@ async fn render_post(
     context.insert("next_post", &next_post);
 
     // Comments are for posts only. Themes check `comments_enabled`.
-    let comments_enabled = !post.is_page && site.comments != CommentMode::Off;
+    let comments_enabled = !post.is_page && !preview && site.comments != CommentMode::Off;
     context.insert("comments_enabled", &comments_enabled);
     if comments_enabled {
         context.insert(
@@ -401,17 +559,7 @@ async fn redirect_to_slug(state: &AppState, slug: &str) -> Option<Response> {
 
 /// If `slug` is an old URL of a public post, redirect to its current URL.
 async fn redirect_old_slug(state: &AppState, slug: &str) -> Option<Response> {
-    let target: Option<(String, bool)> = or_log(
-        sqlx::query_as(&format!(
-            "SELECT slug, is_page FROM posts
-             WHERE id = (SELECT post_id FROM slug_redirects WHERE old_slug = ?)
-               AND {PUBLIC_POST_FILTER}"
-        ))
-        .bind(slug)
-        .fetch_optional(&state.pool)
-        .await,
-        "slug redirect lookup",
-    );
+    let target = posts::moved_to(&state.pool, slug).await;
 
     target.map(|(new_slug, is_page)| {
         Redirect::permanent(&post_path(&new_slug, is_page)).into_response()
@@ -436,32 +584,21 @@ async fn fetch_listing(
     let current = page.unwrap_or(1).max(1);
     let filter = format!("{base_filter} {extra_filter}");
 
-    let count_sql = format!("SELECT COUNT(*) FROM posts WHERE {filter}");
-    let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
-    for bind in binds {
-        count_query = count_query.bind(*bind);
-    }
-    let total = or_log(count_query.fetch_one(&state.pool).await, "count listing");
+    let total = posts::count_where(&state.pool, &filter, binds).await;
 
     let total_pages = ((total + per_page - 1) / per_page).max(1);
     if current > total_pages {
         return None;
     }
 
-    let list_sql =
-        format!("{POST_SELECT} WHERE {filter} ORDER BY published_at DESC LIMIT ? OFFSET ?");
-    let mut list_query = sqlx::query_as::<_, Post>(&list_sql);
-    for bind in binds {
-        list_query = list_query.bind(*bind);
-    }
-    let mut posts = or_log(
-        list_query
-            .bind(per_page)
-            .bind((current - 1) * per_page)
-            .fetch_all(&state.pool)
-            .await,
-        "fetch listing",
-    );
+    let mut posts = posts::list_where(
+        &state.pool,
+        &filter,
+        binds,
+        per_page,
+        (current - 1) * per_page,
+    )
+    .await;
 
     as_cards(state, site, &mut posts).await;
 

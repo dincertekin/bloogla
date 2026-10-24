@@ -164,25 +164,12 @@ impl Badges {
     /// What `user` should see right now.
     pub async fn load(state: &crate::app::state::AppState, user: &CurrentUser) -> Self {
         let pending_comments = if user.can_edit_all() {
-            crate::db::or_log(
-                sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM comments WHERE status = 'pending'
-                     AND post_id NOT IN (SELECT id FROM posts WHERE trashed_at IS NOT NULL)",
-                )
-                .fetch_one(&state.pool)
-                .await,
-                "count waiting comments",
-            )
+            crate::db::comments::count_waiting(&state.pool).await
         } else {
             0
         };
         let new_messages = if user.can_edit_all() {
-            crate::db::or_log(
-                sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE read_at IS NULL")
-                    .fetch_one(&state.pool)
-                    .await,
-                "count new messages",
-            )
+            crate::db::messages::count_unread(&state.pool).await
         } else {
             0
         };

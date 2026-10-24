@@ -3,7 +3,7 @@
 use crate::app::models::{SESSION_USER_ID, SESSION_VERSION};
 use crate::app::security::log_event;
 use crate::app::state::AppState;
-use crate::db::settings;
+use crate::db::{settings, users};
 use crate::i18n::Lang;
 
 use askama::Template;
@@ -158,17 +158,7 @@ pub async fn login(
         )
             .into_response();
     }
-    let user: Option<(i64, String, i64, bool)> = sqlx::query_as(
-        "SELECT id, password_hash, session_version, totp_secret IS NOT NULL
-         FROM users WHERE email = ? COLLATE NOCASE",
-    )
-    .bind(&email)
-    .fetch_optional(&state.pool)
-    .await
-    .unwrap_or_else(|e| {
-        tracing::error!("Failed to look up login: {e}");
-        None
-    });
+    let user = users::for_sign_in(&state.pool, &email).await;
 
     // Password hashing is slow on purpose, so it runs off the async threads.
     let password = form.password;
@@ -284,12 +274,7 @@ pub async fn check_code(
     };
     let ip = crate::handlers::client_ip(&state, peer, &headers).to_string();
     let lang = settings::load(&state.pool).await.language;
-    let user: Option<(String, i64)> =
-        sqlx::query_as("SELECT email, session_version FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_optional(&state.pool)
-            .await
-            .unwrap_or(None);
+    let user = users::email_and_version(&state.pool, user_id).await;
     let Some((email, version)) = user else {
         return Redirect::to("/admin/login").into_response();
     };
@@ -322,18 +307,15 @@ pub async fn check_code(
 
     let typed = form.code.trim();
     let mut accepted = false;
-    if let Some((secret, last_step)) = crate::db::users::two_factor(&state.pool, user_id).await {
+    if let Some((secret, last_step)) = users::two_factor(&state.pool, user_id).await {
         if let Some(step) = crate::app::totp::verify(&secret, typed, unix_now(), last_step) {
             // Two sign-ins with the same code at the same moment: only the
             // first one gets in.
-            accepted = crate::db::users::set_two_factor_step(&state.pool, user_id, step).await;
+            accepted = users::set_two_factor_step(&state.pool, user_id, step).await;
         }
     }
     // A recovery code is longer than the six digits from the app.
-    if !accepted
-        && typed.len() > 6
-        && crate::db::users::use_recovery_code(&state.pool, user_id, typed).await
-    {
+    if !accepted && typed.len() > 6 && users::use_recovery_code(&state.pool, user_id, typed).await {
         log_event("recovery_code_used", &[("user", &email), ("ip", &ip)]);
         accepted = true;
     }

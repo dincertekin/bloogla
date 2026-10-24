@@ -4,8 +4,8 @@
 use crate::app::state::AppState;
 use crate::content::markdown::excerpt;
 use crate::content::text::{display_date, escape_html};
-use crate::db::or_log;
-use crate::db::posts::PUBLIC_POST_FILTER;
+use crate::db::comments::{self, NewComment};
+use crate::db::posts;
 use crate::db::settings::{self, CommentMode};
 use crate::i18n::Lang;
 use crate::server::routes::post_path;
@@ -35,22 +35,14 @@ pub struct PublicComment {
 /// Approved comments on a post, oldest first.
 pub async fn approved_for(state: &AppState, post_id: i64, lang: Lang) -> Vec<PublicComment> {
     let tz = crate::db::settings::load(&state.pool).await.timezone;
-    let rows: Vec<(i64, String, String, String)> = or_log(
-        sqlx::query_as(
-            "SELECT id, author_name, content, created_at FROM comments
-             WHERE post_id = ? AND status = 'approved' ORDER BY id",
-        )
-        .bind(post_id)
-        .fetch_all(&state.pool)
-        .await,
-        "load comments",
-    );
-    rows.into_iter()
-        .map(|(id, author, content, created_at)| PublicComment {
-            id,
-            author,
-            date: display_date(lang, tz, &created_at),
-            html: paragraphs(&content),
+    comments::approved_on(&state.pool, post_id)
+        .await
+        .into_iter()
+        .map(|comment| PublicComment {
+            id: comment.id,
+            author: comment.author_name,
+            date: display_date(lang, tz, &comment.created_at),
+            html: paragraphs(&comment.content),
         })
         .collect()
 }
@@ -97,15 +89,7 @@ pub async fn submit(
     Form(form): Form<CommentForm>,
 ) -> Response {
     let mode = settings::load(&state.pool).await.comments;
-    let post_id: Option<i64> = or_log(
-        sqlx::query_scalar(&format!(
-            "SELECT id FROM posts WHERE slug = ? AND is_page = 0 AND {PUBLIC_POST_FILTER}"
-        ))
-        .bind(&slug)
-        .fetch_optional(&state.pool)
-        .await,
-        "find post for comment",
-    );
+    let post_id = posts::public_post_id(&state.pool, &slug).await;
     let (Some(post_id), false) = (post_id, mode == CommentMode::Off) else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -143,19 +127,16 @@ pub async fn submit(
         mode == CommentMode::Moderated || opened_at.is_none() || links > MAX_LINKS_WITHOUT_REVIEW;
     let status = if needs_review { "pending" } else { "approved" };
 
-    let id = match sqlx::query(
-        "INSERT INTO comments (post_id, author_name, author_email, content, status)
-         VALUES (?, ?, ?, ?, ?)",
-    )
-    .bind(post_id)
-    .bind(name)
-    .bind(email)
-    .bind(content)
-    .bind(status)
-    .execute(&state.pool)
-    .await
-    {
-        Ok(r) => r.last_insert_rowid(),
+    let comment = NewComment {
+        post_id,
+        author_name: name,
+        author_email: email,
+        content,
+        status,
+        created_at: None,
+    };
+    let id = match comments::add(&state.pool, &comment).await {
+        Ok(id) => id,
         Err(e) => {
             tracing::error!("Failed to save comment: {e}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -163,13 +144,7 @@ pub async fn submit(
     };
 
     if needs_review {
-        let title: String = or_log(
-            sqlx::query_scalar("SELECT title FROM posts WHERE id = ?")
-                .bind(post_id)
-                .fetch_one(&state.pool)
-                .await,
-            "comment post title",
-        );
+        let title = posts::title_of(&state.pool, post_id).await;
         crate::app::console::activity_tv(
             crate::app::console::Kind::Note,
             "A comment is waiting for approval on “{title}”.",

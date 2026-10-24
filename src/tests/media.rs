@@ -44,7 +44,7 @@ async fn browsers_that_accept_webp_get_the_smaller_copy() {
             .fetch_one(&site.pool)
             .await
             .unwrap();
-    let uploads = std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR);
+    let uploads = std::path::Path::new(crate::services::images::UPLOAD_DIR);
     assert!(uploads.join(format!("{filename}.webp")).exists());
     let small = small.expect("an 800px copy");
     assert!(uploads.join(format!("{small}.webp")).exists());
@@ -90,7 +90,7 @@ async fn older_images_get_their_small_copy() {
         .fetch_one(&site.pool)
         .await
         .unwrap();
-    let uploads = std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR);
+    let uploads = std::path::Path::new(crate::services::images::UPLOAD_DIR);
     std::fs::remove_file(uploads.join(&thumb)).unwrap();
     let _ = std::fs::remove_file(uploads.join(format!("{thumb}.webp")));
     sqlx::query("UPDATE media SET thumb_filename = NULL")
@@ -98,7 +98,7 @@ async fn older_images_get_their_small_copy() {
         .await
         .unwrap();
 
-    crate::handlers::admin::media::make_missing_thumbs(site.pool.clone()).await;
+    crate::services::images::make_missing_thumbs(site.pool.clone()).await;
     let made: Option<String> = sqlx::query_scalar("SELECT thumb_filename FROM media WHERE id = ?")
         .bind(id)
         .fetch_one(&site.pool)
@@ -152,7 +152,7 @@ async fn pictures_in_posts_offer_their_smaller_copies() {
     assert!(page.contains(r#"width="1200" height="800""#));
     assert!(!site.get("/rss.xml").await.body.contains("srcset"));
 
-    let uploads = std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR);
+    let uploads = std::path::Path::new(crate::services::images::UPLOAD_DIR);
     for name in [&filename, &small, &thumb] {
         let _ = std::fs::remove_file(uploads.join(name));
         let _ = std::fs::remove_file(uploads.join(format!("{name}.webp")));
@@ -252,7 +252,7 @@ async fn a_large_webp_is_made_smaller_with_copies_for_phones() {
             .unwrap();
     assert!(filename.ends_with(".webp"));
     assert_eq!(width, 2000);
-    let uploads = std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR);
+    let uploads = std::path::Path::new(crate::services::images::UPLOAD_DIR);
     assert_eq!(
         image::image_dimensions(uploads.join(&filename)).unwrap(),
         (2000, 1333)
@@ -280,7 +280,7 @@ async fn small_animations_are_kept_and_large_ones_refused() {
             .fetch_one(&site.pool)
             .await
             .unwrap();
-        let uploads = std::path::Path::new(crate::handlers::admin::media::UPLOAD_DIR);
+        let uploads = std::path::Path::new(crate::services::images::UPLOAD_DIR);
         std::fs::read(uploads.join(filename)).unwrap()
     };
     assert_eq!(saved, small, "the animation is kept as it is");

@@ -95,6 +95,7 @@ async fn every_bundled_theme_shows_every_page() {
             "/tag/travel",
             "/search?q=post",
             "/about",
+            "/archive",
         ] {
             let page = site.get(path).await;
             assert_eq!(
@@ -103,6 +104,9 @@ async fn every_bundled_theme_shows_every_page() {
                 "{theme}: {path}\n{}",
                 page.body
             );
+            if path == "/archive" {
+                assert!(page.body.contains("Post number 3"), "{theme}: archive");
+            }
             if path == "/" {
                 // Visitors can switch light and dark (on by default).
                 assert!(page.body.contains("data-scheme-toggle"), "{theme}: button");

@@ -1,0 +1,15 @@
+<div class="list-row" id="redirect-{{ row.id }}" data-item>
+    <div class="row-main">
+        <span class="row-title">{{ row.from_path }}</span>
+        <div class="row-meta">
+            <span>{{ me.tv("Leads to {address}", row.to_address) }}</span>
+        </div>
+    </div>
+    <div class="row-actions">
+        <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/redirects/{{ row.id }}"
+            data-delete-target="#redirect-{{ row.id }}" data-confirm-title="{{ me.tv("Delete the redirect from {address}?", row.from_path) }}"
+            data-confirm-text="{{ me.t("Visitors who open the old address will see “Page not found” again.") }}">
+            {{ me.t("Delete") }}
+        </button>
+    </div>
+</div>

@@ -32,7 +32,10 @@ pub async fn download(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
 ) -> Response {
-    let uploads = state.config.folder.join(super::media::UPLOAD_DIR);
+    let uploads = state
+        .config
+        .folder
+        .join(crate::services::images::UPLOAD_DIR);
     let archive = match crate::services::backup::download_archive(&state.pool, &uploads).await {
         Ok(path) => path,
         Err(e) => {

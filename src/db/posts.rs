@@ -149,6 +149,328 @@ pub async fn public_pages(pool: &SqlitePool) -> Vec<Post> {
     )
 }
 
+/// Every post (or every page) in the admin lists, newest first, trash
+/// included. People who may only edit their own get only theirs.
+pub async fn for_admin_list(pool: &SqlitePool, me: &CurrentUser, is_page: bool) -> Vec<Post> {
+    or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE is_page = ? AND (? OR author_id = ?)
+             ORDER BY published_at DESC, id DESC"
+        ))
+        .bind(is_page)
+        .bind(me.can_edit_all())
+        .bind(me.id)
+        .fetch_all(pool)
+        .await,
+        "list posts",
+    )
+}
+
+/// How many posts match `filter` (an SQL condition, with `binds` for its `?`s).
+pub async fn count_where(pool: &SqlitePool, filter: &str, binds: &[&str]) -> i64 {
+    let sql = format!("SELECT COUNT(*) FROM posts WHERE {filter}");
+    let mut query = sqlx::query_scalar::<_, i64>(&sql);
+    for bind in binds {
+        query = query.bind(*bind);
+    }
+    or_log(query.fetch_one(pool).await, "count listing")
+}
+
+/// Posts matching `filter` (as in [`count_where`]), newest first: `limit`
+/// of them, after skipping `offset`.
+pub async fn list_where(
+    pool: &SqlitePool,
+    filter: &str,
+    binds: &[&str],
+    limit: i64,
+    offset: i64,
+) -> Vec<Post> {
+    let sql = format!("{POST_SELECT} WHERE {filter} ORDER BY published_at DESC LIMIT ? OFFSET ?");
+    let mut query = sqlx::query_as::<_, Post>(&sql);
+    for bind in binds {
+        query = query.bind(*bind);
+    }
+    or_log(
+        query.bind(limit).bind(offset).fetch_all(pool).await,
+        "fetch listing",
+    )
+}
+
+/// The id of a public post (not a page) by its address.
+pub async fn public_post_id(pool: &SqlitePool, slug: &str) -> Option<i64> {
+    or_log(
+        sqlx::query_scalar(&format!(
+            "SELECT id FROM posts WHERE slug = ? AND is_page = 0 AND {PUBLIC_POST_FILTER}"
+        ))
+        .bind(slug)
+        .fetch_optional(pool)
+        .await,
+        "find post",
+    )
+}
+
+/// A post's title.
+pub async fn title_of(pool: &SqlitePool, id: i64) -> String {
+    or_log(
+        sqlx::query_scalar("SELECT title FROM posts WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "post title",
+    )
+    .unwrap_or_default()
+}
+
+/// A public post or page that holds a contact form: `(slug, is_page, title)`.
+pub async fn with_contact_form(pool: &SqlitePool, id: i64) -> Option<(String, bool, String)> {
+    or_log(
+        sqlx::query_as(&format!(
+            "SELECT slug, is_page, title FROM posts
+             WHERE id = ? AND content LIKE '%[contact-form%' AND {PUBLIC_POST_FILTER}"
+        ))
+        .bind(id)
+        .fetch_optional(pool)
+        .await,
+        "find the contact form's page",
+    )
+}
+
+/// Whether a page (not in the trash) has this address.
+pub async fn page_exists(pool: &SqlitePool, slug: &str) -> bool {
+    let found: Option<i64> = or_log(
+        sqlx::query_scalar(
+            "SELECT id FROM posts WHERE slug = ? AND is_page = 1 AND trashed_at IS NULL",
+        )
+        .bind(slug)
+        .fetch_optional(pool)
+        .await,
+        "find a page",
+    );
+    found.is_some()
+}
+
+/// Where an old address of a public post or page moved to:
+/// `(current slug, is_page)`.
+pub async fn moved_to(pool: &SqlitePool, old_slug: &str) -> Option<(String, bool)> {
+    or_log(
+        sqlx::query_as(&format!(
+            "SELECT slug, is_page FROM posts
+             WHERE id = (SELECT post_id FROM slug_redirects WHERE old_slug = ?)
+               AND {PUBLIC_POST_FILTER}"
+        ))
+        .bind(old_slug)
+        .fetch_optional(pool)
+        .await,
+        "slug redirect lookup",
+    )
+}
+
+/// The newest listed posts, for the RSS feed.
+pub async fn newest_listed(pool: &SqlitePool, limit: i64) -> Vec<Post> {
+    or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE {LISTED_POST_FILTER} ORDER BY published_at DESC LIMIT ?"
+        ))
+        .bind(limit)
+        .fetch_all(pool)
+        .await,
+        "rss posts",
+    )
+}
+
+/// Every listed post for the archive page, newest first:
+/// `(title, slug, published_at)`. Only what the list shows is read.
+pub async fn for_archive(pool: &SqlitePool) -> Vec<(String, String, String)> {
+    or_log(
+        sqlx::query_as(&format!(
+            "SELECT title, slug, published_at FROM posts
+             WHERE {LISTED_POST_FILTER} ORDER BY published_at DESC"
+        ))
+        .fetch_all(pool)
+        .await,
+        "archive posts",
+    )
+}
+
+/// Every public post and page for the sitemap: `(id, slug, is_page, published_at)`.
+pub async fn for_sitemap(pool: &SqlitePool) -> Vec<(i64, String, bool, String)> {
+    or_log(
+        sqlx::query_as(&format!(
+            "SELECT id, slug, is_page, published_at FROM posts
+             WHERE {PUBLIC_POST_FILTER} ORDER BY published_at DESC"
+        ))
+        .fetch_all(pool)
+        .await,
+        "sitemap posts",
+    )
+}
+
+/// Whether the owner wrote a post of their own. Sample posts are added at
+/// setup, so a post written more than a few minutes after the first account
+/// was made is theirs.
+pub async fn owner_wrote_a_post(pool: &SqlitePool) -> bool {
+    or_log(
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM posts WHERE is_page = 0
+             AND created_at > (SELECT datetime(MIN(created_at), '+5 minutes') FROM users))",
+        )
+        .fetch_one(pool)
+        .await,
+        "checklist posts",
+    )
+}
+
+/// The 10 newest saved versions of a post: `(revision id, saved at)`.
+pub async fn revisions(pool: &SqlitePool, post_id: i64) -> Vec<(i64, String)> {
+    or_log(
+        sqlx::query_as(
+            "SELECT id, saved_at FROM post_revisions WHERE post_id = ?
+             ORDER BY id DESC LIMIT 10",
+        )
+        .bind(post_id)
+        .fetch_all(pool)
+        .await,
+        "list revisions",
+    )
+}
+
+/// One saved version of a post: `(title, content)`.
+pub async fn revision(pool: &SqlitePool, post_id: i64, id: i64) -> Option<(String, String)> {
+    or_log(
+        sqlx::query_as("SELECT title, content FROM post_revisions WHERE id = ? AND post_id = ?")
+            .bind(id)
+            .bind(post_id)
+            .fetch_optional(pool)
+            .await,
+        "load revision",
+    )
+}
+
+// ---- Private preview links ----
+
+/// The code in a post's private preview link, if it's shared.
+pub async fn preview_token(pool: &SqlitePool, id: i64) -> Option<String> {
+    or_log(
+        sqlx::query_scalar("SELECT preview_token FROM posts WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "load preview link",
+    )
+    .flatten()
+}
+
+/// Share a post with a private link (`Some(code)`), or stop (`None`).
+pub async fn set_preview_token(
+    pool: &SqlitePool,
+    id: i64,
+    token: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE posts SET preview_token = ? WHERE id = ?")
+        .bind(token)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// The post a private preview link shows (not one in the trash).
+pub async fn find_by_preview_token(pool: &SqlitePool, token: &str) -> Option<Post> {
+    or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE preview_token = ? AND trashed_at IS NULL"
+        ))
+        .bind(token)
+        .fetch_optional(pool)
+        .await,
+        "find previewed post",
+    )
+}
+
+// ---- Import and export ----
+
+/// A post or page as it's exported.
+#[derive(sqlx::FromRow)]
+pub struct ExportedPost {
+    pub id: i64,
+    pub title: String,
+    pub slug: String,
+    pub content: String,
+    pub cover_image: Option<String>,
+    pub status: String,
+    pub published_at: String,
+    pub is_page: bool,
+    pub author_id: Option<i64>,
+}
+
+/// Every post and page outside the trash, drafts too, oldest first.
+pub async fn all_for_export(pool: &SqlitePool) -> Vec<ExportedPost> {
+    or_log(
+        sqlx::query_as(
+            "SELECT id, title, slug, content, cover_image, status, published_at, is_page,
+                    author_id
+             FROM posts WHERE trashed_at IS NULL ORDER BY published_at",
+        )
+        .fetch_all(pool)
+        .await,
+        "load posts for export",
+    )
+}
+
+/// A post or page brought in from another blog, saved as it was there.
+pub struct ImportedPost<'a> {
+    pub title: &'a str,
+    pub slug: &'a str,
+    pub content: &'a str,
+    pub cover_image: Option<&'a str>,
+    pub status: &'a str,
+    pub published_at: &'a str,
+    pub is_page: bool,
+    pub author_id: i64,
+}
+
+/// Save an imported post or page and return its id.
+pub async fn add_imported(pool: &SqlitePool, post: &ImportedPost<'_>) -> Result<i64, sqlx::Error> {
+    let result = sqlx::query(
+        "INSERT INTO posts (title, slug, content, cover_image, status, published_at, is_page,
+                            author_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(post.title)
+    .bind(post.slug)
+    .bind(post.content)
+    .bind(post.cover_image)
+    .bind(post.status)
+    .bind(post.published_at)
+    .bind(post.is_page)
+    .bind(post.author_id)
+    .execute(pool)
+    .await?;
+    Ok(result.last_insert_rowid())
+}
+
+/// Make `old_slug` lead to post `id` (unless it already leads somewhere).
+pub async fn add_old_slug(pool: &SqlitePool, old_slug: &str, id: i64) {
+    let _ = sqlx::query("INSERT OR IGNORE INTO slug_redirects (old_slug, post_id) VALUES (?, ?)")
+        .bind(old_slug)
+        .bind(id)
+        .execute(pool)
+        .await;
+}
+
+/// Replace a post's text and cover (after its images were copied).
+pub async fn set_content_and_cover(pool: &SqlitePool, id: i64, content: &str, cover: Option<&str>) {
+    let saved = sqlx::query("UPDATE posts SET content = ?, cover_image = ? WHERE id = ?")
+        .bind(content)
+        .bind(cover)
+        .bind(id)
+        .execute(pool)
+        .await;
+    if let Err(e) = saved {
+        tracing::error!("Failed to save post {id}: {e}");
+    }
+}
+
 /// Fill in `tags` for several posts with one query.
 pub async fn load_tags(pool: &SqlitePool, posts: &mut [Post]) {
     let ids: Vec<i64> = posts.iter().map(|p| p.id).collect();

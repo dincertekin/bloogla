@@ -3,7 +3,8 @@
 
 use crate::app::models::CurrentUser;
 use crate::app::state::AppState;
-use crate::db::{or_log, settings};
+use crate::db::analytics::{self, TopPost};
+use crate::db::settings;
 use crate::services::updates::{self, Release};
 
 use askama::Template;
@@ -60,15 +61,7 @@ async fn checklist(state: &AppState, me: &CurrentUser) -> Vec<Step> {
     }
     // Sample posts are added at setup, so a post written more than a few
     // minutes after the first account was made is the owner's own.
-    let wrote_a_post: bool = or_log(
-        sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM posts WHERE is_page = 0
-             AND created_at > (SELECT datetime(MIN(created_at), '+5 minutes') FROM users))",
-        )
-        .fetch_one(&state.pool)
-        .await,
-        "checklist posts",
-    );
+    let wrote_a_post = crate::db::posts::owner_wrote_a_post(&state.pool).await;
     let two_factor = crate::db::users::two_factor(&state.pool, me.id)
         .await
         .is_some();
@@ -119,14 +112,6 @@ pub async fn hide_checklist(State(state): State<AppState>) -> Redirect {
     Redirect::to("/admin")
 }
 
-/// A post in the "most viewed" chart.
-#[derive(sqlx::FromRow)]
-pub struct TopPost {
-    pub id: i64,
-    pub title: String,
-    pub views: i64,
-}
-
 /// Session key set when setup finishes: the Dashboard shows "Your site is
 /// ready" once, then removes it.
 pub const SESSION_WELCOME: &str = "welcome";
@@ -143,41 +128,12 @@ pub async fn page(
         .ok()
         .flatten()
         .unwrap_or(false);
-    let (total_posts, total_drafts, total_views): (i64, i64, i64) = or_log(
-        sqlx::query_as(
-            "SELECT COUNT(*) FILTER (WHERE status != 'draft'),
-                    COUNT(*) FILTER (WHERE status = 'draft'),
-                    COALESCE(SUM(views), 0)
-             FROM posts WHERE is_page = 0 AND trashed_at IS NULL",
-        )
-        .fetch_one(&state.pool)
-        .await,
-        "dashboard totals",
-    );
-    let top_posts: Vec<TopPost> = or_log(
-        sqlx::query_as(
-            "SELECT id, title, views FROM posts
-             WHERE is_page = 0 AND trashed_at IS NULL AND views > 0
-             ORDER BY views DESC LIMIT 5",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "top posts",
-    );
+    let (total_posts, total_drafts, total_views) = analytics::totals(&state.pool).await;
+    let top_posts = analytics::top_posts(&state.pool).await;
     let max_views = top_posts.first().map_or(1, |p| p.views.max(1));
 
     // Views per day for the last 30 days, with missing days as zero.
-    let daily: std::collections::HashMap<String, i64> = or_log(
-        sqlx::query_as(
-            "SELECT day, SUM(views) FROM daily_views
-             WHERE day >= date('now', '-29 days') GROUP BY day",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "daily views",
-    )
-    .into_iter()
-    .collect();
+    let daily = analytics::daily_views(&state.pool).await;
     let today = chrono::Utc::now().date_naive();
     let series: Vec<(chrono::NaiveDate, i64)> = (0..30)
         .rev()
@@ -204,16 +160,7 @@ pub async fn page(
         .join(" ");
     let chart_start = me.lang.day_month(series[0].0);
 
-    let referrers: Vec<(String, i64)> = or_log(
-        sqlx::query_as(
-            "SELECT host, SUM(views) AS total FROM daily_referrers
-             WHERE day >= date('now', '-29 days')
-             GROUP BY host ORDER BY total DESC LIMIT 5",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "top referrers",
-    );
+    let referrers = analytics::top_referrers(&state.pool).await;
     let max_referrer = referrers.first().map(|(_, v)| *v).unwrap_or(1).max(1);
 
     let update = if me.is_admin() {

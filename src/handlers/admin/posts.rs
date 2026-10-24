@@ -5,8 +5,8 @@ use super::{forbidden, StatusFilter};
 use crate::app::models::{CurrentUser, Post, PostForm, Tag};
 use crate::app::state::AppState;
 use crate::content::text::{display_date, display_datetime, escape_html, to_datetime_local};
-use crate::db::posts::{self, SaveError, POST_SELECT};
-use crate::db::{or_log, settings, tags};
+use crate::db::posts::{self, SaveError};
+use crate::db::{settings, tags};
 use crate::i18n::Lang;
 use crate::server::routes::post_path;
 
@@ -71,6 +71,8 @@ pub struct PostEditorTemplate {
     pub published_at_input: String,
     pub tag_checkboxes: Vec<(Tag, bool)>,
     pub revisions: Vec<RevisionRow>,
+    /// The private link to read it before it's published, while shared.
+    pub share_link: Option<String>,
     pub error: Option<String>,
     pub saved: bool,
     /// A contact form's usual heading and button text, in the site's
@@ -153,18 +155,7 @@ async fn list(
     Query(query): Query<ListQuery>,
     kind: Kind,
 ) -> Response {
-    let mut posts = or_log(
-        sqlx::query_as::<_, Post>(&format!(
-            "{POST_SELECT} WHERE is_page = ? AND (? OR author_id = ?)
-             ORDER BY published_at DESC, id DESC"
-        ))
-        .bind(kind.is_page())
-        .bind(me.can_edit_all())
-        .bind(me.id)
-        .fetch_all(&state.pool)
-        .await,
-        "list posts",
-    );
+    let mut posts = posts::for_admin_list(&state.pool, &me, kind.is_page()).await;
 
     // The trash is a list of its own; every other list leaves it out.
     let trashed: Vec<Post>;
@@ -300,16 +291,7 @@ async fn editor(
     let revisions: Vec<(i64, String)> = if post.id == 0 {
         Vec::new()
     } else {
-        or_log(
-            sqlx::query_as(
-                "SELECT id, saved_at FROM post_revisions WHERE post_id = ?
-                 ORDER BY id DESC LIMIT 10",
-            )
-            .bind(post.id)
-            .fetch_all(&state.pool)
-            .await,
-            "list revisions",
-        )
+        posts::revisions(&state.pool, post.id).await
     };
     let revisions = revisions
         .into_iter()
@@ -318,6 +300,9 @@ async fn editor(
             label: display_datetime(me.lang, site.timezone, &saved_at),
         })
         .collect();
+    let share_link = posts::preview_token(&state.pool, post.id)
+        .await
+        .map(|token| format!("{}/preview/{token}", state.config.base_url));
     let status = if error.is_some() {
         StatusCode::UNPROCESSABLE_ENTITY
     } else {
@@ -340,6 +325,7 @@ async fn editor(
             post,
             tag_checkboxes,
             revisions,
+            share_link,
             error,
             saved,
         },
@@ -455,19 +441,46 @@ pub async fn revision(
     if !posts::may_edit(&state.pool, &me, id).await {
         return forbidden(me.lang);
     }
-    let row: Option<(String, String)> = or_log(
-        sqlx::query_as("SELECT title, content FROM post_revisions WHERE id = ? AND post_id = ?")
-            .bind(rev)
-            .bind(id)
-            .fetch_optional(&state.pool)
-            .await,
-        "load revision",
-    );
+    let row = posts::revision(&state.pool, id, rev).await;
     match row {
         Some((title, content)) => {
             axum::Json(serde_json::json!({ "title": title, "content": content })).into_response()
         }
         None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// POST /admin/posts/:id/share -> Make a private link to read the post
+/// before it's published. The editor shows the link (it's a `data-live` part).
+pub async fn share(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<i64>,
+) -> StatusCode {
+    set_preview_link(&state, &me, id, true).await
+}
+
+/// DELETE /admin/posts/:id/share -> Stop sharing: the link stops working.
+pub async fn stop_sharing(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Path(id): Path<i64>,
+) -> StatusCode {
+    set_preview_link(&state, &me, id, false).await
+}
+
+async fn set_preview_link(state: &AppState, me: &CurrentUser, id: i64, shared: bool) -> StatusCode {
+    if !posts::may_edit(&state.pool, me, id).await {
+        return StatusCode::NOT_FOUND;
+    }
+    // 16 random bytes: nobody can guess a link, so only people given it can read.
+    let token = shared.then(|| crate::app::security::random_hex(16));
+    match posts::set_preview_token(&state.pool, id, token.as_deref()).await {
+        Ok(()) => StatusCode::OK,
+        Err(e) => {
+            tracing::error!("Failed to change the preview link of post {id}: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
 }
 

@@ -57,8 +57,9 @@ pub fn build<S: SessionStore + Clone>(
 
     // Layers wrap everything added before them, so the last one listed runs
     // first: access log → crash guard → sessions → compression → CSRF → setup
-    // → ETag → headers.
+    // → ETag → redirects → headers.
     let app = with_security_headers(app, state.config.production)
+        .layer(from_fn_with_state(state.clone(), middleware::redirects))
         .layer(from_fn(middleware::etag))
         .layer(from_fn_with_state(state.clone(), middleware::setup_guard))
         .layer(from_fn_with_state(state.clone(), middleware::csrf_guard))
@@ -74,7 +75,7 @@ pub fn build<S: SessionStore + Clone>(
 fn public_routes() -> Router<AppState> {
     // Uploads have random, never-reused names, so they can be cached forever.
     let uploads = Router::new()
-        .fallback_service(ServeDir::new(admin::media::UPLOAD_DIR))
+        .fallback_service(ServeDir::new(crate::services::images::UPLOAD_DIR))
         .layer(from_fn(middleware::prefer_webp))
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
@@ -88,6 +89,7 @@ fn public_routes() -> Router<AppState> {
         // A contact form sends to the address of the page it's on.
         .route("/", get(site::pages::home).post(contact_form()))
         .route("/blog", get(site::pages::blog))
+        .route("/archive", get(site::pages::archive))
         .route("/search", get(site::pages::search))
         .route(
             "/post/{slug}",
@@ -98,6 +100,7 @@ fn public_routes() -> Router<AppState> {
             post(site::comments::submit).layer(DefaultBodyLimit::max(64 * 1024)),
         )
         .route("/tag/{slug}", get(site::pages::tag))
+        .route("/preview/{token}", get(site::pages::preview))
         .route("/rss.xml", get(site::feeds::rss))
         .route("/sitemap.xml", get(site::feeds::sitemap))
         .route("/robots.txt", get(site::feeds::robots_txt))
@@ -172,6 +175,8 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
             "/admin/checklist/hide",
             post(admin::dashboard::hide_checklist),
         )
+        .route("/admin/redirects", post(admin::redirects::create))
+        .route("/admin/redirects/{id}", delete(admin::redirects::delete))
         .route("/admin/themes", get(admin::themes::page))
         .route("/admin/themes/activate", post(admin::themes::activate))
         .route(
@@ -208,6 +213,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route("/admin/pages/{id}", delete(admin::posts::delete))
         .route("/admin/pages/{id}/trash", post(admin::posts::move_to_trash))
         .route("/admin/pages/{id}/restore", post(admin::posts::restore))
+        .route(
+            "/admin/pages/{id}/share",
+            post(admin::posts::share).delete(admin::posts::stop_sharing),
+        )
         .route("/admin/pages/bulk", post(admin::posts::bulk))
         .route("/admin/pages/trash", delete(admin::posts::empty_page_trash))
         .route("/admin/tags", get(admin::tags::page))
@@ -270,6 +279,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route("/admin/posts/{id}", delete(admin::posts::delete))
         .route("/admin/posts/{id}/trash", post(admin::posts::move_to_trash))
         .route("/admin/posts/{id}/restore", post(admin::posts::restore))
+        .route(
+            "/admin/posts/{id}/share",
+            post(admin::posts::share).delete(admin::posts::stop_sharing),
+        )
         .route("/admin/posts/bulk", post(admin::posts::bulk))
         .route("/admin/posts/trash", delete(admin::posts::empty_post_trash))
         .route(

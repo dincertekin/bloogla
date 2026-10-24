@@ -10,57 +10,24 @@
 
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
-use crate::db::{or_log, tags};
+use crate::db::posts::{self, ExportedPost};
+use crate::db::{comments, media, tags, users};
 use chrono::{NaiveDateTime, TimeZone};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// A post or page as it's exported.
-#[derive(sqlx::FromRow)]
-struct Exported {
-    id: i64,
-    title: String,
-    slug: String,
-    content: String,
-    cover_image: Option<String>,
-    status: String,
-    published_at: String,
-    is_page: bool,
-    author_id: Option<i64>,
+async fn all_posts(state: &AppState) -> Vec<ExportedPost> {
+    posts::all_for_export(&state.pool).await
 }
 
-/// A comment as it's exported.
-#[derive(sqlx::FromRow)]
-struct ExportedComment {
-    post_id: i64,
-    id: i64,
-    author_name: String,
-    author_email: String,
-    content: String,
-    created_at: String,
-}
-
-async fn all_posts(state: &AppState) -> Vec<Exported> {
-    or_log(
-        sqlx::query_as(
-            "SELECT id, title, slug, content, cover_image, status, published_at, is_page,
-                    author_id
-             FROM posts WHERE trashed_at IS NULL ORDER BY published_at",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "load posts for export",
-    )
-}
-
-/// Images in Media: `(id, file name, original name)`.
+/// Images in Media, oldest first: `(id, file name, original name)`.
 async fn all_images(state: &AppState) -> Vec<(i64, String, String)> {
-    or_log(
-        sqlx::query_as("SELECT id, filename, original_name FROM media ORDER BY id")
-            .fetch_all(&state.pool)
-            .await,
-        "load media for export",
-    )
+    let mut images = media::all(&state.pool).await;
+    images.reverse();
+    images
+        .into_iter()
+        .map(|image| (image.id, image.filename, image.original_name))
+        .collect()
 }
 
 /// The WordPress export file for the whole site.
@@ -69,26 +36,13 @@ pub async fn wordpress_file(state: &AppState) -> String {
     let base = state.config.base_url.trim_end_matches('/').to_string();
     let posts = all_posts(state).await;
     let images = all_images(state).await;
-    let people: Vec<(i64, String, String)> = or_log(
-        sqlx::query_as("SELECT id, email, name FROM users ORDER BY id")
-            .fetch_all(&state.pool)
-            .await,
-        "load people for export",
-    );
+    let people = users::people(&state.pool).await;
     let post_ids: Vec<i64> = posts.iter().map(|p| p.id).collect();
     let tags_by_post = tags::for_posts(&state.pool, &post_ids).await;
-    let comments: Vec<ExportedComment> = or_log(
-        sqlx::query_as(
-            "SELECT post_id, id, author_name, author_email, content, created_at
-             FROM comments WHERE status = 'approved' ORDER BY created_at",
-        )
-        .fetch_all(&state.pool)
-        .await,
-        "load comments for export",
-    );
+    let comments = comments::all_approved(&state.pool).await;
     let logins: HashMap<i64, &str> = people
         .iter()
-        .map(|(id, email, _)| (*id, email.as_str()))
+        .map(|person| (person.id, person.email.as_str()))
         .collect();
     // Images get ids after the posts', so the two never clash.
     let first_image_id = post_ids.iter().max().copied().unwrap_or(0) + 1;
@@ -113,7 +67,8 @@ pub async fn wordpress_file(state: &AppState) -> String {
         "<wp:wxr_version>1.2</wp:wxr_version>\n<wp:base_site_url>{0}</wp:base_site_url>\n<wp:base_blog_url>{0}</wp:base_blog_url>\n",
         escape_html(&base)
     ));
-    for (id, email, name) in &people {
+    for person in &people {
+        let (id, email, name) = (person.id, &person.email, &person.name);
         xml.push_str(&format!(
             "<wp:author><wp:author_id>{id}</wp:author_id><wp:author_login>{}</wp:author_login><wp:author_email>{}</wp:author_email><wp:author_display_name>{}</wp:author_display_name></wp:author>\n",
             cdata(email),
@@ -226,7 +181,7 @@ fn dates(utc: &str, tz: chrono_tz::Tz) -> (String, String, String) {
 /// so on, in the form Hugo, Jekyll and most Markdown tools read. Values are
 /// written as JSON strings, which those tools read too, so quotes and
 /// colons in a title are safe.
-fn front_matter(post: &Exported, tag_names: &[String]) -> String {
+fn front_matter(post: &ExportedPost, tag_names: &[String]) -> String {
     let quote = |text: &str| serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
     let date = NaiveDateTime::parse_from_str(&post.published_at, "%Y-%m-%d %H:%M:%S")
         .map(|d| d.format("%Y-%m-%dT%H:%M:%SZ").to_string())
@@ -270,7 +225,7 @@ pub async fn write_markdown_archive(state: &AppState, archive: &Path) -> Result<
     let uploads = state
         .config
         .folder
-        .join(crate::handlers::admin::media::UPLOAD_DIR);
+        .join(crate::services::images::UPLOAD_DIR);
     let images: Vec<String> = all_images(state)
         .await
         .into_iter()

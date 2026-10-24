@@ -4,8 +4,8 @@
 
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
-use crate::db::or_log;
-use crate::db::posts::PUBLIC_POST_FILTER;
+use crate::db::messages;
+use crate::db::posts;
 use crate::db::settings;
 use crate::i18n::Lang;
 use crate::server::routes::post_path;
@@ -147,16 +147,7 @@ pub async fn submit(
     Form(form): Form<ContactForm>,
 ) -> Response {
     // Only a public post or page that has a contact form takes messages.
-    let found: Option<(String, bool, String)> = or_log(
-        sqlx::query_as(&format!(
-            "SELECT slug, is_page, title FROM posts
-             WHERE id = ? AND content LIKE '%[contact-form%' AND {PUBLIC_POST_FILTER}"
-        ))
-        .bind(form.page)
-        .fetch_optional(&state.pool)
-        .await,
-        "find the contact form's page",
-    );
+    let found = posts::with_contact_form(&state.pool, form.page).await;
     let Some((slug, is_page, title)) = found else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -192,14 +183,7 @@ pub async fn submit(
         return back("slow");
     }
 
-    let saved =
-        sqlx::query("INSERT INTO messages (post_id, name, email, message) VALUES (?, ?, ?, ?)")
-            .bind(form.page)
-            .bind(name)
-            .bind(email)
-            .bind(message)
-            .execute(&state.pool)
-            .await;
+    let saved = messages::add(&state.pool, form.page, name, email, message).await;
     if let Err(e) = saved {
         tracing::error!("Failed to save a message: {e}");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();

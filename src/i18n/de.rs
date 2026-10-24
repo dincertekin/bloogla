@@ -710,6 +710,31 @@ pub const LANGUAGE: Language = Language {
         // The editor: subscript and superscript buttons
         ("Subscript", "Tiefgestellt"),
         ("Superscript", "Hochgestellt"),
+        // The editor: sharing a draft with a private link
+        ("Share before publishing", "Vor dem Veröffentlichen teilen"),
+        ("Private link", "Privater Link"),
+        ("Anyone with this link can read it, as it was last saved. Search engines don't show it.", "Jeder mit diesem Link kann den Text so lesen, wie er zuletzt gespeichert wurde. Suchmaschinen zeigen ihn nicht an."),
+        ("Let someone read it before it's published, with a private link.", "Lassen Sie jemanden den Text vor der Veröffentlichung lesen, mit einem privaten Link."),
+        ("Create a link", "Link erstellen"),
+        ("Stop sharing", "Nicht mehr teilen"),
+        // Settings → Redirects
+        ("Redirects", "Weiterleitungen"),
+        ("Moved here from another site, or changed an address? Send visitors from the old address to the new one, so old links and search results keep working. Addresses of your posts that you change are redirected for you.", "Von einer anderen Website umgezogen oder eine Adresse geändert? Leiten Sie Besucher von der alten Adresse zur neuen weiter, damit alte Links und Suchergebnisse weiter funktionieren. Wenn Sie die Adresse eines Beitrags ändern, wird sie automatisch weitergeleitet."),
+        ("Old address", "Alte Adresse"),
+        ("New address", "Neue Adresse"),
+        ("An address on this site, or a whole link to another site.", "Eine Adresse auf dieser Website oder ein vollständiger Link zu einer anderen Website."),
+        ("Add Redirect", "Weiterleitung hinzufügen"),
+        ("No redirects yet.", "Noch keine Weiterleitungen."),
+        ("Leads to {address}", "Führt zu {address}"),
+        ("Delete the redirect from {address}?", "Weiterleitung von {address} löschen?"),
+        ("Visitors who open the old address will see “Page not found” again.", "Besucher, die die alte Adresse öffnen, sehen wieder „Seite nicht gefunden“."),
+        ("Enter the old address as it starts after your domain, like /old-page.", "Geben Sie die alte Adresse so ein, wie sie nach Ihrer Domain beginnt, zum Beispiel /alte-seite."),
+        ("Enter the new address, like /about or https://example.com/page.", "Geben Sie die neue Adresse ein, zum Beispiel /about oder https://example.com/seite."),
+        ("The new address must be different from the old one.", "Die neue Adresse muss sich von der alten unterscheiden."),
+        ("This old address already leads somewhere. Delete that redirect first.", "Diese alte Adresse führt bereits woanders hin. Löschen Sie zuerst diese Weiterleitung."),
+        // The archive page (/archive)
+        ("Archive", "Archiv"),
+        ("Every post on {site}, newest first.", "Alle Beiträge auf {site}, die neuesten zuerst."),
     ],
 };
 

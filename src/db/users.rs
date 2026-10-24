@@ -160,6 +160,285 @@ async fn cancel_reset_links(
         .map(|_| ())
 }
 
+/// Save a new reset link for `user_id` (replacing older ones) that works
+/// for `minutes`. Only the hash of the link's code is stored.
+pub async fn add_reset_link(
+    pool: &SqlitePool,
+    user_id: i64,
+    token_hash: &str,
+    minutes: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM password_resets WHERE user_id = ? OR expires_at < datetime('now')")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    sqlx::query(
+        "INSERT INTO password_resets (token_hash, user_id, expires_at)
+         VALUES (?, ?, datetime('now', ?))",
+    )
+    .bind(token_hash)
+    .bind(user_id)
+    .bind(format!("+{minutes} minutes"))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// The account a reset link belongs to, while the link still works.
+pub async fn reset_link_owner(pool: &SqlitePool, token_hash: &str) -> Option<i64> {
+    or_log(
+        sqlx::query_scalar(
+            "SELECT user_id FROM password_resets
+             WHERE token_hash = ? AND expires_at > datetime('now')",
+        )
+        .bind(token_hash)
+        .fetch_optional(pool)
+        .await,
+        "check password reset link",
+    )
+}
+
+// ---- People (Admin → People) ----
+
+/// Someone in the People list.
+#[derive(sqlx::FromRow)]
+pub struct Person {
+    pub id: i64,
+    pub name: String,
+    pub email: String,
+    pub role: String,
+    /// Posts they wrote that aren't in the trash.
+    pub post_count: i64,
+    pub two_factor: bool,
+}
+
+/// Everyone who can sign in, oldest account first.
+pub async fn people(pool: &SqlitePool) -> Vec<Person> {
+    or_log(
+        sqlx::query_as(
+            "SELECT u.id, u.name, u.email, u.role,
+                    (SELECT COUNT(*) FROM posts p
+                     WHERE p.author_id = u.id AND p.is_page = 0 AND p.trashed_at IS NULL)
+                        AS post_count,
+                    u.totp_secret IS NOT NULL AS two_factor
+             FROM users u ORDER BY u.id",
+        )
+        .fetch_all(pool)
+        .await,
+        "list users",
+    )
+}
+
+/// How many accounts exist (none until setup is finished).
+pub async fn count(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(pool)
+        .await
+}
+
+/// The account that signs in with this email (upper or lower case alike).
+pub async fn id_by_email(pool: &SqlitePool, email: &str) -> Option<i64> {
+    or_log(
+        sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
+            .bind(email)
+            .fetch_optional(pool)
+            .await,
+        "find account by email",
+    )
+}
+
+/// What signing in needs to know about the account with this email:
+/// `(id, password hash, session version, two-factor on)`.
+pub async fn for_sign_in(pool: &SqlitePool, email: &str) -> Option<(i64, String, i64, bool)> {
+    or_log(
+        sqlx::query_as(
+            "SELECT id, password_hash, session_version, totp_secret IS NOT NULL
+             FROM users WHERE email = ? COLLATE NOCASE",
+        )
+        .bind(email)
+        .fetch_optional(pool)
+        .await,
+        "look up login",
+    )
+}
+
+/// Someone's email and session version (it changes when they're signed out
+/// everywhere).
+pub async fn email_and_version(pool: &SqlitePool, id: i64) -> Option<(String, i64)> {
+    or_log(
+        sqlx::query_as("SELECT email, session_version FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "load account",
+    )
+}
+
+/// The emails of admins and editors: the people who hear about new comments
+/// and messages.
+pub async fn editor_emails(pool: &SqlitePool) -> Vec<String> {
+    or_log(
+        sqlx::query_scalar("SELECT email FROM users WHERE role IN ('admin', 'editor')")
+            .fetch_all(pool)
+            .await,
+        "load editors' emails",
+    )
+}
+
+/// The name of the person who signs in with this email.
+pub async fn name_by_email(pool: &SqlitePool, email: &str) -> Option<String> {
+    or_log(
+        sqlx::query_scalar("SELECT name FROM users WHERE email = ? COLLATE NOCASE")
+            .bind(email)
+            .fetch_optional(pool)
+            .await,
+        "find account name by email",
+    )
+}
+
+/// The site owner: the account made during setup.
+pub async fn owner_id(pool: &SqlitePool) -> Option<i64> {
+    or_log(
+        sqlx::query_scalar("SELECT id FROM users ORDER BY id ASC LIMIT 1")
+            .fetch_optional(pool)
+            .await,
+        "find site owner",
+    )
+}
+
+/// The email someone signs in with.
+pub async fn email_of(pool: &SqlitePool, id: i64) -> String {
+    or_log(
+        sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "load account email",
+    )
+    .unwrap_or_default()
+}
+
+/// The language someone picked for the admin, or "" for the site's.
+pub async fn language_of(pool: &SqlitePool, id: i64) -> String {
+    or_log(
+        sqlx::query_scalar("SELECT language FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "load language",
+    )
+    .unwrap_or_default()
+}
+
+/// The stored password hash, to check a password someone typed.
+pub async fn password_hash_of(pool: &SqlitePool, id: i64) -> Option<String> {
+    or_log(
+        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "load password",
+    )
+}
+
+/// Finish setup: add the site's first account (an admin) and its first
+/// settings together, and return the account's id. `None` when the site
+/// already has an account: checked inside the same step, so two setups at
+/// the same moment can't both succeed.
+pub async fn create_owner(
+    pool: &SqlitePool,
+    name: &str,
+    email: &str,
+    password_hash: &str,
+    first_settings: &[(&str, &str)],
+) -> Result<Option<i64>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let accounts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&mut *tx)
+        .await?;
+    if accounts > 0 {
+        return Ok(None);
+    }
+    let user_id = sqlx::query(
+        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')",
+    )
+    .bind(name)
+    .bind(email)
+    .bind(password_hash)
+    .execute(&mut *tx)
+    .await?
+    .last_insert_rowid();
+    for (key, value) in first_settings {
+        sqlx::query(
+            "INSERT INTO settings (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .bind(key)
+        .bind(value)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    crate::db::settings::invalidate();
+    Ok(Some(user_id))
+}
+
+/// Sign out everyone, on every device (for the command line, when the
+/// server may not be running). The sessions table only exists once the
+/// server has run, so a missing table is fine.
+pub async fn forget_all_sessions(pool: &SqlitePool) {
+    let _ = sqlx::query("DELETE FROM tower_sessions")
+        .execute(pool)
+        .await;
+}
+
+/// Add an account and return its id.
+pub async fn create(
+    pool: &SqlitePool,
+    name: &str,
+    email: &str,
+    password_hash: &str,
+    role: Role,
+) -> Result<i64, sqlx::Error> {
+    let result =
+        sqlx::query("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)")
+            .bind(name)
+            .bind(email)
+            .bind(password_hash)
+            .bind(role.as_str())
+            .execute(pool)
+            .await?;
+    Ok(result.last_insert_rowid())
+}
+
+/// Change what someone may do. `false` when there is no such account.
+pub async fn set_role(pool: &SqlitePool, id: i64, role: Role) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("UPDATE users SET role = ? WHERE id = ?")
+        .bind(role.as_str())
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Remove an account; its posts move to `new_author`, so nothing is lost.
+/// `false` when there is no such account.
+pub async fn delete(pool: &SqlitePool, id: i64, new_author: i64) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE posts SET author_id = ? WHERE author_id = ?")
+        .bind(new_author)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    let deleted = sqlx::query("DELETE FROM users WHERE id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    tx.commit().await?;
+    Ok(deleted > 0)
+}
+
 // ---- Two-factor login ----
 
 /// The authenticator key and the last time step used, when two-factor login is on.

@@ -176,6 +176,11 @@ fn to_local(utc: NaiveDateTime, tz: Tz) -> NaiveDateTime {
     utc.and_utc().with_timezone(&tz).naive_local()
 }
 
+/// The day a stored UTC time falls on in the site's time zone.
+pub fn local_date(tz: Tz, raw_date: &str) -> Option<chrono::NaiveDate> {
+    parse_datetime(raw_date).map(|dt| to_local(dt, tz).date())
+}
+
 /// Format a stored date for display, in the site's time zone:
 /// `Oct 2, 2026` / `2 Eki 2026`.
 pub fn display_date(lang: Lang, tz: Tz, raw_date: &str) -> String {

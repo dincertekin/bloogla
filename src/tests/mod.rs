@@ -8,7 +8,8 @@
 //! - `badges`: numbers next to menu items, the new-version notice
 //! - `media`: uploaded pictures and their smaller WebP copies
 //! - `setup_and_login`: first-run setup, signing in and out, password reset
-//! - `posts`: writing posts and what visitors see
+//! - `posts`: writing posts and what visitors see, private draft links
+//! - `redirects`: old addresses that lead to new ones
 //! - `restore`: restoring a backup .zip
 //! - `security`: CSRF, security headers, caching
 //! - `settings`: saving settings and your profile
@@ -21,6 +22,7 @@ mod home_page;
 mod import_export;
 mod media;
 mod posts;
+mod redirects;
 mod restore;
 mod security;
 mod settings;

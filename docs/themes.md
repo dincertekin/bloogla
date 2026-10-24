@@ -29,6 +29,7 @@ preview_image = "static/preview.png"   # optional, shown in Admin → Appearance
 | `post.html`    | Single post                                        | Yes      |
 | `tag.html`     | Posts with a tag                                   | Yes      |
 | `page.html`    | Standalone pages (falls back to `post.html`)       | No       |
+| `archive.html` | Every post by year, at `/archive` (falls back to `page.html`) | No |
 | `404.html`     | Not found page                                     | No       |
 
 Templates refer to each other by their path inside the theme, so a copied theme works under any name: `{% extends "templates/layout.html" %}`, `{% include "templates/post_card.html" %}`. For the theme's own files use `theme_url`: `<link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">`.
@@ -45,6 +46,8 @@ Files in the theme's `static/` folder are served at `/theme-assets/<theme>/stati
 - Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
 - Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small` and `post.cover_thumb`, 800px- and 400px-wide copies for `srcset`; give cards a `sizes` with their real width so phones download the small one) and `content_html`. Pictures from the media library are sent as WebP to browsers that support it, under the same `.jpg`/`.png` address, so themes don't need to do anything for it.
 - Posts also get `previous_post` and `next_post` (each with `title` and `url`, or empty for the oldest and newest post, and on pages): the older and newer post, for links at the end. `{% if previous_post %}` works everywhere.
+- The archive (`/archive`) gets `archive`: a list of years, newest first, each with `year` and `posts` (each with `title`, `url` and `date`, like `Oct 2`). Themes without `archive.html` show it with `page.html`: `post.title` is "Archive" and `content_html` is the list, with a heading per year. Owners can add it to the menu in **Settings → Reading**.
+- A post opened with a private preview link (`/preview/...`, from **Share before publishing** in the editor) is drawn with `post.html` or `page.html` like any other, without comments.
 - Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html`.
 - A contact form (the writer's `[contact-form]`) arrives inside `content_html`, built by Bloogla with the comment form's classes (`comment-form`, `comment-fields`, `comment-trap`, `comment-notice`), so a theme that styles its comment form styles it too. The form also has the class `contact-form`, for anything a theme wants to change.
 

@@ -11,7 +11,9 @@ pub mod wordpress;
 
 use crate::app::state::AppState;
 use crate::content::text::{slugify, url_decode};
-use crate::db::{or_log, posts, tags};
+use crate::db::comments::{self, NewComment};
+use crate::db::posts::{self, ImportedPost};
+use crate::db::{tags, users};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
@@ -303,13 +305,7 @@ async fn summarize(state: &AppState, export: &Export) -> Summary {
         if posts == 0 {
             continue;
         }
-        let found: Option<String> = or_log(
-            sqlx::query_scalar("SELECT name FROM users WHERE email = ? COLLATE NOCASE")
-                .bind(&author.email)
-                .fetch_optional(&state.pool)
-                .await,
-            "match imported author",
-        );
+        let found = users::name_by_email(&state.pool, &author.email).await;
         summary.authors.push(AuthorMatch {
             name: if author.name.is_empty() {
                 author.login.clone()
@@ -517,13 +513,7 @@ async fn run(
 async fn authors_here(state: &AppState, export: &Export, owner_id: i64) -> HashMap<String, i64> {
     let mut here = HashMap::new();
     for author in &export.authors {
-        let id: Option<i64> = or_log(
-            sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
-                .bind(&author.email)
-                .fetch_optional(&state.pool)
-                .await,
-            "match imported author",
-        );
+        let id = users::id_by_email(&state.pool, &author.email).await;
         here.insert(author.login.clone(), id.unwrap_or(owner_id));
     }
     here
@@ -543,22 +533,17 @@ async fn insert_post(
         item.title.trim().to_string()
     };
     let content = wordpress::without_block_markers(&item.content);
-    let id = sqlx::query(
-        "INSERT INTO posts (title, slug, content, cover_image, status, published_at, is_page,
-                            author_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-    .bind(&title)
-    .bind(slug)
-    .bind(&content)
-    .bind(cover)
-    .bind(status(item).unwrap_or("draft"))
-    .bind(publish_date(item))
-    .bind(item.kind == "page")
-    .bind(author_id)
-    .execute(&state.pool)
-    .await?
-    .last_insert_rowid();
+    let new_post = ImportedPost {
+        title: &title,
+        slug,
+        content: &content,
+        cover_image: cover,
+        status: status(item).unwrap_or("draft"),
+        published_at: &publish_date(item),
+        is_page: item.kind == "page",
+        author_id,
+    };
+    let id = posts::add_imported(&state.pool, &new_post).await?;
 
     let tag_ids = tags::with_new(&state.pool, &[], &[item.tags.join(",")]).await;
     tags::set_for_post(&state.pool, id, &tag_ids).await;
@@ -567,12 +552,7 @@ async fn insert_post(
     // leads here: old links end with it (see `site::pages::fallback`).
     let old_slug = url_decode(&item.slug);
     if !old_slug.is_empty() && old_slug != slug {
-        let _ =
-            sqlx::query("INSERT OR IGNORE INTO slug_redirects (old_slug, post_id) VALUES (?, ?)")
-                .bind(&old_slug)
-                .bind(id)
-                .execute(&state.pool)
-                .await;
+        posts::add_old_slug(&state.pool, &old_slug, id).await;
     }
     Ok(id)
 }
@@ -598,18 +578,19 @@ async fn insert_comment(state: &AppState, post_id: i64, comment: &wordpress::Com
     };
     let date = chrono::NaiveDateTime::parse_from_str(&comment.date_utc, "%Y-%m-%d %H:%M:%S")
         .unwrap_or_else(|_| chrono::Utc::now().naive_utc());
-    sqlx::query(
-        "INSERT INTO comments (post_id, author_name, author_email, content, status, created_at)
-         VALUES (?, ?, ?, ?, 'approved', ?)",
+    let saved = comments::add(
+        &state.pool,
+        &NewComment {
+            post_id,
+            author_name: author,
+            author_email: comment.email.trim(),
+            content: comment.content.trim(),
+            status: "approved",
+            created_at: Some(date.format("%Y-%m-%d %H:%M:%S").to_string()),
+        },
     )
-    .bind(post_id)
-    .bind(author)
-    .bind(comment.email.trim())
-    .bind(comment.content.trim())
-    .bind(date.format("%Y-%m-%d %H:%M:%S").to_string())
-    .execute(&state.pool)
-    .await
-    .is_ok()
+    .await;
+    saved.is_ok()
 }
 
 /// Copy every image the imported posts show from the old site into Media,
@@ -706,18 +687,13 @@ async fn copy_all_images(
             }
         }
         post.content = images::point_to_copies(&post.content, &replace);
-        let _ = sqlx::query("UPDATE posts SET content = ?, cover_image = ? WHERE id = ?")
-            .bind(&post.content)
-            .bind(cover)
-            .bind(post.id)
-            .execute(&state.pool)
-            .await;
+        posts::set_content_and_cover(&state.pool, post.id, &post.content, cover.as_deref()).await;
     }
 }
 
 /// Download one image and add it to Media. Gives back its new address.
 async fn copy_image(state: &AppState, url: &str) -> Result<String, &'static str> {
-    let max = crate::handlers::admin::media::MAX_UPLOAD_BYTES as u64;
+    let max = crate::services::images::MAX_UPLOAD_BYTES as u64;
     let address = url.to_string();
     let bytes = tokio::task::spawn_blocking(move || images::download(&address, max))
         .await
@@ -727,7 +703,7 @@ async fn copy_image(state: &AppState, url: &str) -> Result<String, &'static str>
         .next()
         .and_then(|path| path.rsplit('/').next())
         .unwrap_or("image");
-    let filename = crate::handlers::admin::media::add_image(state, &url_decode(name), bytes)
+    let filename = crate::services::images::add_image(state, &url_decode(name), bytes)
         .await
         .map_err(|_| images::NOT_IMAGE)?;
     Ok(format!("/uploads/{filename}"))

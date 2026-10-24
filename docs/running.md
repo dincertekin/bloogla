@@ -149,7 +149,10 @@ Both are in **Settings → Import & export** (admins only).
     leave the page). Nothing that's already on the site is changed.
   - Old addresses keep working once your domain points to Bloogla:
     `/2024/05/lemon-cake/` and `/lemon-cake/` lead to `/post/lemon-cake`, and
-    `/category/desserts/` to `/tag/desserts`.
+    `/category/desserts/` to `/tag/desserts`. For any other old address
+    (`/about-us.html`, a page that moved), add it in **Settings →
+    Redirects** with the address it should lead to. Redirects are only used
+    when nothing else is at the old address.
 - **Export:** **Download WordPress file** gives a file WordPress (Tools →
   Import → WordPress) and most blog tools can import, with every post and
   page (drafts included), their tags, approved comments and images (WordPress

@@ -62,7 +62,7 @@ functions, and a comment saying *why* wherever it isn't obvious.
 │   ├── templates/          #   HTML pages (Askama), one per screen
 │   ├── static/             #   CSS and JS, served at /static
 │   └── visual-editor/      #   Source of the visual editor (built into static/js/visual-editor.js)
-├── themes/                # The bundled themes: default, story, gazette (written to themes/ on first start)
+├── themes/                 # The seven bundled themes (written to themes/ on first start)
 ├── migrations/             # Database tables, applied automatically on start
 └── src/
     ├── main.rs             # Start here: reads the command and runs it
@@ -84,10 +84,11 @@ functions, and a comment saying *why* wherever it isn't obvious.
     ├── handlers/           # The code behind each URL
     │   ├── site/           #   Public website: pages, feeds, comments, analytics
     │   └── admin/          #   Admin panel: one file per screen (posts.rs, settings.rs...)
-    ├── db/                 # Reading and writing the database
+    ├── db/                 # Every database query, one file per kind of thing
     │   ├── settings.rs     #   Every site setting and its default
     │   ├── posts.rs        #   Finding, saving and deleting posts and pages
-    │   └── tags.rs, users.rs
+    │   ├── users.rs        #   People, passwords, two-factor login
+    │   └── comments.rs, media.rs, messages.rs, redirects.rs, tags.rs, analytics.rs
     ├── content/            # Turning Markdown into web pages
     │   ├── markdown.rs     #   Markdown → safe HTML, excerpts
     │   ├── shortcodes.rs   #   [youtube], [toc] and theme shortcodes
@@ -95,14 +96,48 @@ functions, and a comment saying *why* wherever it isn't obvious.
     │   └── text.rs         #   Slugs, escaping, dates
     ├── services/           # Work besides answering pages
     │   ├── email.rs        #   Sending email over SMTP (comment notifications)
+    │   ├── images.rs       #   Checking uploaded pictures, resizing them, WebP copies
     │   ├── backup.rs       #   Database backups and the downloadable .zip
     │   ├── updates.rs      #   Checking GitHub for new versions, installing them, restarting
     │   └── themes/         #   Loading and rendering themes, and their options
-    ├── i18n/               # Interface languages: en.rs, tr.rs, and mod.rs with the shared code
+    ├── i18n/               # Interface languages: de.rs, fr.rs, lt.rs, tr.rs, and mod.rs with the shared code
     └── tests/              # Tests that use the whole site like a browser (see tests/mod.rs)
 ```
 
 Created at runtime: `data/` (database, backups), `uploads/`.
+
+### Follow one request
+
+The quickest way to see how the pieces fit is to follow one click. Here is
+**Settings → Redirects → Add Redirect**:
+
+1. **The page.** The form in `admin/templates/settings.html` has
+   `hx-post="/admin/redirects"`. [htmx](https://htmx.org) sends it in the
+   background and puts the answer into the page, so nothing reloads.
+2. **The address.** `src/server/routes.rs` has
+   `.route("/admin/redirects", post(admin::redirects::create))` inside the
+   `admins` group, so only admins get through.
+3. **On the way in.** The middleware in `src/server/middleware.rs` runs
+   first: it checks the request really came from this site (CSRF), loads the
+   signed-in person (`require_login`) and checks their role (`require_admin`).
+4. **The handler.** `create` in `src/handlers/admin/redirects.rs`. Its
+   arguments tell axum what to hand it: `State(state)` (the database pool
+   and settings), `Extension(me)` (who's asking) and `Form(form)` (what was
+   typed). It checks the input and answers a mistake in plain words.
+5. **The database.** The handler calls `redirects::add` in
+   `src/db/redirects.rs`. All SQL lives in `src/db/`, so to see what is
+   stored and how, that's the one place to look.
+6. **The answer.** `RedirectItemTemplate` draws
+   `admin/templates/redirect_item.html` (Askama checks it when compiling),
+   and htmx adds the new row to the top of the list.
+
+Every admin screen works this way. Public pages are the same up to step 5;
+then a theme draws the answer (`src/services/themes/`) instead of Askama.
+
+Rust details you'll meet on the way: `let Some(x) = ... else { return ... }`
+means "stop here if there's nothing"; `?` means "stop here and pass the
+error on"; `.await` waits for the database or the network without blocking
+other visitors.
 
 ## Adding something new
 
@@ -110,6 +145,7 @@ Created at runtime: `data/` (database, backups), `uploads/`.
 - **A new admin screen:** add `admin/templates/<name>.html` and `src/handlers/admin/<name>.rs` (the template struct sits next to its handlers), add the struct to the `templates_answer_requests!` list in `src/handlers/admin/mod.rs`, then add the route in the right role group.
 - **Something on an admin page that shows saved values** (a count, a name): give it an `id` and `data-live`. After any change on the page, admin.js fetches the page again and swaps in the new version, so nobody has to reload. A change that affects the whole page (like its language) answers with `saved_and_reload` instead.
 - **A new setting:** add a field to `Settings` in `src/db/settings.rs` and give it a default there.
+- **A database query:** put it in the file for its table in `src/db/` (or a new one there) as a function with a plain name, like `comments::count_waiting(pool)`, and call that from the handler. Handlers don't write SQL themselves. (Backup and restore are the exception: they work on whole database files.)
 - **A database change:** add a new file to `migrations/` (never edit one that has already run).
 - **A test:** copy one from `src/tests/`. `TestSite::with_owner()` gives you a fresh site with the owner signed in; `site.get(...)` and `site.post(...)` work like a browser.
 - **New interface text:** wrap it in `me.t("...")` and add its translation to each language file in `src/i18n/` (`de.rs`, `fr.rs`, `lt.rs`, `tr.rs`); `cargo test` lists anything missing.
@@ -149,6 +185,11 @@ Created at runtime: `data/` (database, backups), `uploads/`.
 - **Done means tested and documented:** a test for new behaviour (or for the
   bug you fixed), the program run once by hand, and `docs/` updated for new
   settings or `BLOOGLA_*` variables.
+- **Commit messages:** one plain sentence saying what changed for the person
+  using Bloogla, like "Faster pages on phones" or "Keep tags used only by
+  drafts off the public site". Release commits start with `Release 1.x.y:`
+  and list the main changes. No prefixes like `feat:` or `fix:`, and never
+  rewrite commits that are already on GitHub.
 
 ## Releasing (maintainers)
 

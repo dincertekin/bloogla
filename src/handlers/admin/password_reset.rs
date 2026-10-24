@@ -16,7 +16,7 @@ use crate::app::security::{
 };
 use crate::app::state::AppState;
 use crate::content::text::escape_html;
-use crate::db::{or_log, settings};
+use crate::db::{settings, users};
 use crate::i18n::Lang;
 
 use askama::Template;
@@ -114,13 +114,7 @@ pub async fn send_link(
     }
 
     let email = form.email.trim().to_lowercase();
-    let user: Option<i64> = or_log(
-        sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
-            .bind(&email)
-            .fetch_optional(&state.pool)
-            .await,
-        "find account for password reset",
-    );
+    let user = users::id_by_email(&state.pool, &email).await;
     if let Some(user_id) = user {
         match create_link(&state.pool, user_id).await {
             Ok(token) => {
@@ -140,19 +134,7 @@ pub async fn send_link(
 /// Save a new reset code for `user_id` (replacing older ones) and return it.
 pub async fn create_link(pool: &SqlitePool, user_id: i64) -> Result<String, sqlx::Error> {
     let token = random_hex(32);
-    sqlx::query("DELETE FROM password_resets WHERE user_id = ? OR expires_at < datetime('now')")
-        .bind(user_id)
-        .execute(pool)
-        .await?;
-    sqlx::query(
-        "INSERT INTO password_resets (token_hash, user_id, expires_at)
-         VALUES (?, ?, datetime('now', ?))",
-    )
-    .bind(hash_token(&token))
-    .bind(user_id)
-    .bind(format!("+{LINK_MINUTES} minutes"))
-    .execute(pool)
-    .await?;
+    users::add_reset_link(pool, user_id, &hash_token(&token), LINK_MINUTES).await?;
     Ok(token)
 }
 
@@ -199,16 +181,7 @@ async fn user_for(pool: &SqlitePool, token: &str) -> Option<i64> {
     if token.len() != 64 {
         return None;
     }
-    or_log(
-        sqlx::query_scalar(
-            "SELECT user_id FROM password_resets
-             WHERE token_hash = ? AND expires_at > datetime('now')",
-        )
-        .bind(hash_token(token))
-        .fetch_optional(pool)
-        .await,
-        "check password reset link",
-    )
+    users::reset_link_owner(pool, &hash_token(token)).await
 }
 
 /// Reset pages carry the code in their address: never keep them, and never
@@ -287,13 +260,7 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
     };
     // The link is checked again as it's used up: another request may have
     // used it while the password was being hashed.
-    let user_id = match crate::db::users::reset_password(
-        &state.pool,
-        &hash_token(&form.token),
-        &hash,
-    )
-    .await
-    {
+    let user_id = match users::reset_password(&state.pool, &hash_token(&form.token), &hash).await {
         Ok(Some(id)) => id,
         Ok(None) => return used_up(),
         Err(e) => {
@@ -304,13 +271,7 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
             );
         }
     };
-    let email: String = or_log(
-        sqlx::query_scalar("SELECT email FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_one(&state.pool)
-            .await,
-        "load account email",
-    );
+    let email = users::email_of(&state.pool, user_id).await;
     log_event("password_reset", &[("user", &email)]);
     private(Redirect::to("/admin/login?reset=1").into_response())
 }

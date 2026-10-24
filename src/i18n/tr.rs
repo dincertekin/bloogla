@@ -710,5 +710,30 @@ pub const LANGUAGE: Language = Language {
         // The editor: subscript and superscript buttons
         ("Subscript", "Alt simge"),
         ("Superscript", "Üst simge"),
+        // The editor: sharing a draft with a private link
+        ("Share before publishing", "Yayınlamadan önce paylaşın"),
+        ("Private link", "Özel bağlantı"),
+        ("Anyone with this link can read it, as it was last saved. Search engines don't show it.", "Bu bağlantıya sahip herkes, son kaydedildiği hâliyle okuyabilir. Arama motorları göstermez."),
+        ("Let someone read it before it's published, with a private link.", "Özel bir bağlantıyla, yayınlanmadan önce birinin okumasını sağlayın."),
+        ("Create a link", "Bağlantı oluştur"),
+        ("Stop sharing", "Paylaşmayı durdur"),
+        // Settings → Redirects
+        ("Redirects", "Yönlendirmeler"),
+        ("Moved here from another site, or changed an address? Send visitors from the old address to the new one, so old links and search results keep working. Addresses of your posts that you change are redirected for you.", "Başka bir siteden mi taşındınız ya da bir adresi mi değiştirdiniz? Ziyaretçileri eski adresten yenisine gönderin; böylece eski bağlantılar ve arama sonuçları çalışmaya devam eder. Değiştirdiğiniz yazı adresleri sizin için otomatik olarak yönlendirilir."),
+        ("Old address", "Eski adres"),
+        ("New address", "Yeni adres"),
+        ("An address on this site, or a whole link to another site.", "Bu sitedeki bir adres ya da başka bir siteye tam bağlantı."),
+        ("Add Redirect", "Yönlendirme Ekle"),
+        ("No redirects yet.", "Henüz yönlendirme yok."),
+        ("Leads to {address}", "{address} adresine gider"),
+        ("Delete the redirect from {address}?", "{address} adresinden yönlendirme silinsin mi?"),
+        ("Visitors who open the old address will see “Page not found” again.", "Eski adresi açan ziyaretçiler yeniden “Sayfa bulunamadı” görecek."),
+        ("Enter the old address as it starts after your domain, like /old-page.", "Eski adresi alan adınızdan sonra başladığı şekliyle girin, örneğin /eski-sayfa."),
+        ("Enter the new address, like /about or https://example.com/page.", "Yeni adresi girin, örneğin /hakkimizda ya da https://example.com/sayfa."),
+        ("The new address must be different from the old one.", "Yeni adres eskisinden farklı olmalıdır."),
+        ("This old address already leads somewhere. Delete that redirect first.", "Bu eski adres zaten bir yere gidiyor. Önce o yönlendirmeyi silin."),
+        // The archive page (/archive)
+        ("Archive", "Arşiv"),
+        ("Every post on {site}, newest first.", "{site} sitesindeki tüm yazılar, en yeniler önce."),
     ],
 };

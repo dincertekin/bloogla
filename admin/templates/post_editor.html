@@ -155,6 +155,33 @@
             </section>
             {% endif %}
 
+            <!-- Only for saved posts that aren't public yet: once published,
+                 the link leads to the post's own address. -->
+            <div id="share-draft" data-live>
+            {% if post.id != 0 && public_path.is_none() %}
+            <section class="card panel">
+                <h2 class="panel-title">{{ me.t("Share before publishing") }}</h2>
+                {% if let Some(link) = share_link %}
+                <div class="form-group">
+                    <label for="share-link">{{ me.t("Private link") }}</label>
+                    <input type="text" id="share-link" class="form-control" value="{{ link }}" readonly />
+                    <span class="form-hint">{{ me.t("Anyone with this link can read it, as it was last saved. Search engines don't show it.") }}</span>
+                </div>
+                <div class="button-row">
+                    <button type="button" class="btn btn-secondary btn-sm" data-copy="{{ link }}"
+                        data-copied="{{ me.t("Copied") }}" data-copy-failed="{{ me.t("Copy failed") }}">{{ me.t("Copy link") }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm"
+                        hx-delete="{{ admin_path }}/{{ post.id }}/share" hx-swap="none">{{ me.t("Stop sharing") }}</button>
+                </div>
+                {% else %}
+                <p class="form-hint" style="margin-bottom: 0.75rem">{{ me.t("Let someone read it before it's published, with a private link.") }}</p>
+                <button type="button" class="btn btn-secondary btn-sm"
+                    hx-post="{{ admin_path }}/{{ post.id }}/share" hx-swap="none">{{ me.t("Create a link") }}</button>
+                {% endif %}
+            </section>
+            {% endif %}
+            </div>
+
             <div id="revisions" data-live>
             {% if !revisions.is_empty() %}
             <section class="card panel">

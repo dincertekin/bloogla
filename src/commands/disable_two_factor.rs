@@ -7,10 +7,7 @@ use sqlx::SqlitePool;
 use std::error::Error;
 
 pub async fn run(pool: &SqlitePool, email: &str) -> Result<(), Box<dyn Error>> {
-    let id: Option<i64> = sqlx::query_scalar("SELECT id FROM users WHERE email = ? COLLATE NOCASE")
-        .bind(email)
-        .fetch_optional(pool)
-        .await?;
+    let id = crate::db::users::id_by_email(pool, email).await;
     let id = id.ok_or_else(|| format!("No account with the email {email}."))?;
     crate::db::users::disable_two_factor(pool, id).await?;
     log_event("two_factor_disabled_from_command_line", &[("user", email)]);

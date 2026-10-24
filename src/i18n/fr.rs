@@ -715,6 +715,31 @@ pub const LANGUAGE: Language = Language {
         // The editor: subscript and superscript buttons
         ("Subscript", "Indice"),
         ("Superscript", "Exposant"),
+        // The editor: sharing a draft with a private link
+        ("Share before publishing", "Partager avant de publier"),
+        ("Private link", "Lien privé"),
+        ("Anyone with this link can read it, as it was last saved. Search engines don't show it.", "Toute personne disposant de ce lien peut le lire, tel qu'il a été enregistré en dernier. Les moteurs de recherche ne l'affichent pas."),
+        ("Let someone read it before it's published, with a private link.", "Faites-le lire à quelqu'un avant sa publication, grâce à un lien privé."),
+        ("Create a link", "Créer un lien"),
+        ("Stop sharing", "Arrêter le partage"),
+        // Settings → Redirects
+        ("Redirects", "Redirections"),
+        ("Moved here from another site, or changed an address? Send visitors from the old address to the new one, so old links and search results keep working. Addresses of your posts that you change are redirected for you.", "Vous venez d'un autre site, ou vous avez changé une adresse ? Envoyez les visiteurs de l'ancienne adresse vers la nouvelle, pour que les anciens liens et les résultats de recherche continuent de fonctionner. Les adresses de vos articles que vous modifiez sont redirigées automatiquement."),
+        ("Old address", "Ancienne adresse"),
+        ("New address", "Nouvelle adresse"),
+        ("An address on this site, or a whole link to another site.", "Une adresse de ce site, ou un lien complet vers un autre site."),
+        ("Add Redirect", "Ajouter une redirection"),
+        ("No redirects yet.", "Pas encore de redirections."),
+        ("Leads to {address}", "Mène à {address}"),
+        ("Delete the redirect from {address}?", "Supprimer la redirection depuis {address} ?"),
+        ("Visitors who open the old address will see “Page not found” again.", "Les visiteurs qui ouvrent l'ancienne adresse verront de nouveau « Page introuvable »."),
+        ("Enter the old address as it starts after your domain, like /old-page.", "Saisissez l'ancienne adresse telle qu'elle commence après votre nom de domaine, par exemple /ancienne-page."),
+        ("Enter the new address, like /about or https://example.com/page.", "Saisissez la nouvelle adresse, par exemple /a-propos ou https://example.com/page."),
+        ("The new address must be different from the old one.", "La nouvelle adresse doit être différente de l'ancienne."),
+        ("This old address already leads somewhere. Delete that redirect first.", "Cette ancienne adresse mène déjà ailleurs. Supprimez d'abord cette redirection."),
+        // The archive page (/archive)
+        ("Archive", "Archives"),
+        ("Every post on {site}, newest first.", "Tous les articles de {site}, du plus récent au plus ancien."),
     ],
 };
 
