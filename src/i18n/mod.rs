@@ -292,18 +292,19 @@ mod tests {
     }
 
     /// Messages Rust code shows through `alert(lang, "error", "...")`,
-    /// `settings_error(lang, "...")` and similar helpers.
+    /// `form_error(me.lang, "...")` and similar helpers. Any text written
+    /// right after a language (`lang,` or `me.lang,`) counts, so a new helper
+    /// is checked without adding it here.
     fn rust_message_keys(source: &str) -> Vec<String> {
         let mut keys = template_keys(source);
         let markers = [
             "\"error\",",
             "\"success\",",
             "\"info\",",
-            "settings_error(me.lang,",
+            "lang,",
             "Kind::Done,",
             "Kind::Note,",
             "Kind::Problem,",
-            "tag_form_error(me.lang,",
             "render_error(",
         ];
         for marker in markers {
@@ -324,6 +325,8 @@ mod tests {
             let call = source[at..].split(';').next().unwrap_or_default();
             keys.extend(call.split('"').skip(1).step_by(2).map(str::to_string));
         }
+        // `alert(lang, "error", ...)`: the kind of message, not its text.
+        keys.retain(|k| !matches!(k.as_str(), "error" | "success" | "info"));
         keys.retain(|k| k.chars().any(char::is_alphabetic) && !k.starts_with('/'));
         keys
     }

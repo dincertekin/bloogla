@@ -1,200 +1,125 @@
 # Contributing to Bloogla
 
-Thanks for helping! Bloogla is for people who want a website without being
-developers, so every change is judged by one question: **does it make
-Bloogla simpler, faster or safer for them?**
+Thanks for helping! Bloogla is for people who aren't developers, so every
+change answers one question: **does it make Bloogla simpler, faster or safer
+for them?**
+
+The rules (how to work, what "done" means, what must never break) are in
+[AGENTS.md](AGENTS.md). It's written so AI coding tools follow them too, but
+it's the rulebook for everyone. Please read it before your first pull
+request.
 
 ## Ways to help
 
-- **Report a bug or suggest an idea:** [open an issue](https://github.com/dincertekin/bloogla/issues/new/choose).
-  Security problems go [privately](SECURITY.md) instead.
-- **Translate:** the interface is in English, German, French, Lithuanian and Turkish. Adding a language
-  takes no programming, only a browser: see
-  [docs/translating.md](docs/translating.md). Fixes to existing translations
-  are very welcome too.
-- **Make a theme:** themes are HTML templates and CSS, no Rust needed. See
-  [docs/themes.md](docs/themes.md).
+- **Report a bug or an idea:** [open an issue](https://github.com/dincertekin/bloogla/issues/new/choose).
+  Security problems go [privately](SECURITY.md).
+- **Translate:** no programming needed. See [docs/translating.md](docs/translating.md).
+- **Make a theme:** HTML and CSS, no Rust. See [docs/themes.md](docs/themes.md).
 - **Write code:** issues labelled `good first issue` are a good start. For
-  anything big, open an issue first so we can agree on the approach.
+  something big, open an issue first.
 
-## Development setup
+## Setting up
 
-You need [Rust](https://rustup.rs) (stable). Nothing else: the database is
-SQLite and everything is compiled into one program.
+You need [Rust](https://rustup.rs). Nothing else.
 
 ```bash
 git clone https://github.com/dincertekin/bloogla
 cd bloogla
-cargo run
-# open the setup link it prints (http://localhost:8080/setup?code=...)
+cargo run    # then open the setup link it prints
 ```
 
-Your local site lives in `data/` and `uploads/` (both ignored by git). Delete
-them to start fresh.
+Your local site is in `data/` and `uploads/`. Delete them to start fresh.
 
-Before sending a pull request, run what CI runs:
+Before a pull request, run what CI runs:
 
 ```bash
 cargo fmt
 cargo clippy --all-targets -- -D warnings
-cargo test
+cargo test   # uses the whole site like a browser, checks translations and themes
 ```
 
-`cargo test` runs the whole site the way a browser uses it (see
-`src/tests/`), and also checks that every piece of interface text is
-translated and that every bundled theme draws every page.
+The visual editor is built from `admin/visual-editor/` with Node.js. You
+only need that to change the editor itself
+([how](admin/visual-editor/README.md)).
 
-The visual editor (`admin/static/js/visual-editor.js`) is built from
-`admin/visual-editor/` with Node.js; you only need that to change the editor
-itself (see its [README](admin/visual-editor/README.md)).
-
-## How the code is organised
-
-The code is written to be read by people new to Rust: plain names, small
-functions, and a comment saying *why* wherever it isn't obvious.
+## Where things are
 
 ```
-.
-├── Cargo.toml              # Dependencies, grouped by what they're for
-├── askama.toml             # Tells Askama where the admin templates are
-├── Dockerfile              # Builds a small image with just the binary
-├── admin/                  # The admin panel's look (compiled into the binary)
-│   ├── templates/          #   HTML pages (Askama), one per screen
-│   ├── static/             #   CSS and JS, served at /static
-│   └── visual-editor/      #   Source of the visual editor (built into static/js/visual-editor.js)
-├── themes/                 # The seven bundled themes (written to themes/ on first start)
-├── migrations/             # Database tables, applied automatically on start
-└── src/
-    ├── main.rs             # Start here: reads the command and runs it
-    ├── app/                # Building blocks used everywhere
-    │   ├── config.rs       #   BLOOGLA_* environment variables
-    │   ├── console.rs      #   What a person sees in the terminal window
-    │   ├── state.rs        #   AppState: what every request handler can reach
-    │   ├── models.rs       #   Shared data types: Post, Tag, Role, CurrentUser...
-    │   ├── security.rs     #   Passwords, random codes, the security log
-    │   ├── secrets.rs      #   Encrypting stored secrets (mail password, 2FA keys)
-    │   └── totp.rs         #   Two-factor login codes
-    ├── commands/           # The command line: serve, backup, reset-password, disable-2fa
-    ├── server/             # Running the website
-    │   ├── mod.rs          #   Starting the server, sessions, shutdown
-    │   ├── routes.rs       #   Every URL and the handler that answers it
-    │   ├── middleware.rs   #   CSRF, sign-in and role checks, ETags, logging...
-    │   ├── assets.rs       #   Serving the embedded admin CSS/JS
-    │   └── tls.rs          #   Built-in HTTPS
-    ├── handlers/           # The code behind each URL
-    │   ├── site/           #   Public website: pages, feeds, comments, analytics
-    │   └── admin/          #   Admin panel: one file per screen (posts.rs, settings.rs...)
-    ├── db/                 # Every database query, one file per kind of thing
-    │   ├── settings.rs     #   Every site setting and its default
-    │   ├── posts.rs        #   Finding, saving and deleting posts and pages
-    │   ├── users.rs        #   People, passwords, two-factor login
-    │   └── comments.rs, media.rs, messages.rs, redirects.rs, tags.rs, analytics.rs
-    ├── content/            # Turning Markdown into web pages
-    │   ├── markdown.rs     #   Markdown → safe HTML, excerpts
-    │   ├── shortcodes.rs   #   [youtube], [toc] and theme shortcodes
-    │   ├── seo.rs          #   Meta, Open Graph and JSON-LD tags
-    │   └── text.rs         #   Slugs, escaping, dates
-    ├── services/           # Work besides answering pages
-    │   ├── email.rs        #   Sending email over SMTP (comment notifications)
-    │   ├── images.rs       #   Checking uploaded pictures, resizing them, WebP copies
-    │   ├── backup.rs       #   Database backups and the downloadable .zip
-    │   ├── updates.rs      #   Checking GitHub for new versions, installing them, restarting
-    │   └── themes/         #   Loading and rendering themes, and their options
-    ├── i18n/               # Interface languages: de.rs, fr.rs, lt.rs, tr.rs, and mod.rs with the shared code
-    └── tests/              # Tests that use the whole site like a browser (see tests/mod.rs)
+admin/templates/     the admin's HTML, one file per screen
+admin/static/        the admin's CSS and JavaScript
+themes/              the seven bundled themes
+migrations/          database tables, applied on start
+src/main.rs          start here
+src/server/          routes.rs (every address), middleware.rs (checks on every request)
+src/handlers/admin/  the code behind each admin screen
+src/handlers/site/   the public pages
+src/db/              every database query, one file per table
+src/services/        email, backups, images, videos, import, export, themes, updates
+src/content/         Markdown, shortcodes, SEO tags, dates
+src/i18n/            translations
+src/tests/           tests that use the site like a browser
 ```
 
-Created at runtime: `data/` (database, backups), `uploads/`.
+### Follow one click
 
-### Follow one request
+Here is **Settings → Redirects → Add Redirect**, start to finish. Every admin
+screen works the same way.
 
-The quickest way to see how the pieces fit is to follow one click. Here is
-**Settings → Redirects → Add Redirect**:
+1. `admin/templates/settings.html`: the form has `hx-post="/admin/redirects"`.
+   [htmx](https://htmx.org) sends it and puts the answer in the page.
+2. `src/server/routes.rs`: `.route("/admin/redirects", post(admin::redirects::create))`,
+   in the `admins` group, so only admins get through.
+3. `src/server/middleware.rs`: checks the request came from this site and who
+   is signed in.
+4. `src/handlers/admin/redirects.rs`: `create` gets `State(state)` (the
+   database), `Extension(me)` (who's asking) and `Form(form)` (what was
+   typed), and checks the input.
+5. `src/db/redirects.rs`: `redirects::add` saves it. All SQL is in `src/db/`.
+6. `admin/templates/redirect_item.html`: the new row, which htmx adds to the
+   list.
 
-1. **The page.** The form in `admin/templates/settings.html` has
-   `hx-post="/admin/redirects"`. [htmx](https://htmx.org) sends it in the
-   background and puts the answer into the page, so nothing reloads.
-2. **The address.** `src/server/routes.rs` has
-   `.route("/admin/redirects", post(admin::redirects::create))` inside the
-   `admins` group, so only admins get through.
-3. **On the way in.** The middleware in `src/server/middleware.rs` runs
-   first: it checks the request really came from this site (CSRF), loads the
-   signed-in person (`require_login`) and checks their role (`require_admin`).
-4. **The handler.** `create` in `src/handlers/admin/redirects.rs`. Its
-   arguments tell axum what to hand it: `State(state)` (the database pool
-   and settings), `Extension(me)` (who's asking) and `Form(form)` (what was
-   typed). It checks the input and answers a mistake in plain words.
-5. **The database.** The handler calls `redirects::add` in
-   `src/db/redirects.rs`. All SQL lives in `src/db/`, so to see what is
-   stored and how, that's the one place to look.
-6. **The answer.** `RedirectItemTemplate` draws
-   `admin/templates/redirect_item.html` (Askama checks it when compiling),
-   and htmx adds the new row to the top of the list.
+Public pages are the same until step 6, where a theme draws the page.
 
-Every admin screen works this way. Public pages are the same up to step 5;
-then a theme draws the answer (`src/services/themes/`) instead of Askama.
+Three Rust patterns you'll see everywhere:
 
-Rust details you'll meet on the way: `let Some(x) = ... else { return ... }`
-means "stop here if there's nothing"; `?` means "stop here and pass the
-error on"; `.await` waits for the database or the network without blocking
-other visitors.
+- `let Some(x) = ... else { return ... };`: stop here if there's nothing.
+- `?`: stop here and pass the error on.
+- `.await`: wait for the database or network without blocking other visitors.
 
 ## Adding something new
 
-- **A new page or endpoint:** write a handler in `src/handlers/`, then add one `.route(...)` line in `src/server/routes.rs`.
-- **A new admin screen:** add `admin/templates/<name>.html` and `src/handlers/admin/<name>.rs` (the template struct sits next to its handlers), add the struct to the `templates_answer_requests!` list in `src/handlers/admin/mod.rs`, then add the route in the right role group.
-- **Something on an admin page that shows saved values** (a count, a name): give it an `id` and `data-live`. After any change on the page, admin.js fetches the page again and swaps in the new version, so nobody has to reload. A change that affects the whole page (like its language) answers with `saved_and_reload` instead.
-- **A new setting:** add a field to `Settings` in `src/db/settings.rs` and give it a default there.
-- **A database query:** put it in the file for its table in `src/db/` (or a new one there) as a function with a plain name, like `comments::count_waiting(pool)`, and call that from the handler. Handlers don't write SQL themselves. (Backup and restore are the exception: they work on whole database files.)
-- **A database change:** add a new file to `migrations/` (never edit one that has already run).
-- **A test:** copy one from `src/tests/`. `TestSite::with_owner()` gives you a fresh site with the owner signed in; `site.get(...)` and `site.post(...)` work like a browser.
-- **New interface text:** wrap it in `me.t("...")` and add its translation to each language file in `src/i18n/` (`de.rs`, `fr.rs`, `lt.rs`, `tr.rs`); `cargo test` lists anything missing.
-- **A new language:** see [docs/translating.md](docs/translating.md).
-
-## House rules
-
-- **Plain, friendly words** in everything visitors and admins see. No
-  jargon, no exclamation-mark marketing.
-- **Keep the look:** the admin panel reuses its existing components (cards,
-  buttons, badges, tabs) and colours. No gradients or emoji in the interface.
-  For bigger visual changes, open an issue with a screenshot or sketch first.
-- **No inline scripts** in admin templates; the Content Security Policy blocks
-  them, and a test checks. Behaviour lives in `admin/static/js/` and is switched
-  on with `data-` attributes.
-- **Every interface text is translated:** wrap it in `me.t("...")` and add a
-  line to each language file in `src/i18n/` (`de.rs`, `fr.rs`, `lt.rs`, `tr.rs`).
-  Every language speaks to people politely, with the formal "you" (Sie, vous,
-  siz, jūs); see [docs/translating.md](docs/translating.md).
-- **One way to do each thing.** Owners do things in the admin panel; the
-  command line is only for getting back in when the admin can't be reached.
-  A new way to do something replaces the old one.
-- **Keep it simple:** no options or code "for later", no new layers unless
-  they remove duplication that exists today. Use the dependencies already in
-  `Cargo.toml`; open an issue before adding one.
-- **Comments for a beginner:** short and friendly, explaining *why*.
-- **Fewer, finished features** beat many half-done ones. Small pull requests
-  with a test are the easiest to review.
-- **Never break a running site.** People update with one click: their
-  database, backups, themes and links must keep working afterwards. Add
-  database changes as new migrations, keep theme variables working, and add a
-  redirect when an address moves.
-- **Public pages load nothing from other servers** (no CDNs, web fonts or
-  trackers), and the server only goes online for things the owner turned on.
-- **Treat uploads and imported files as hostile:** check size and type, and
-  show a friendly message instead of crashing on a broken file.
-- **Done means tested and documented:** a test for new behaviour (or for the
-  bug you fixed), the program run once by hand, and `docs/` updated for new
-  settings or `BLOOGLA_*` variables.
-- **Commit messages:** one plain sentence saying what changed for the person
-  using Bloogla, like "Faster pages on phones" or "Keep tags used only by
-  drafts off the public site". Release commits start with `Release 1.x.y:`
-  and list the main changes. No prefixes like `feat:` or `fix:`, and never
-  rewrite commits that are already on GitHub.
+- **A page:** a handler in `src/handlers/`, and one `.route(...)` in `src/server/routes.rs`.
+- **An admin screen:** `admin/templates/<name>.html` and
+  `src/handlers/admin/<name>.rs`. Add the template to `templates_answer_requests!`
+  in `src/handlers/admin/mod.rs`, and the route to the right role group.
+- **A setting:** a field and its default in `src/db/settings.rs`.
+- **A query:** a plainly named function in `src/db/`, called from the handler.
+- **A table or column:** a new file in `migrations/`. Never edit an old one.
+- **Interface text:** `me.t("...")`, and a line in each file in `src/i18n/`.
+  `cargo test` lists what's missing.
+- **A test:** copy one from `src/tests/`. `TestSite::with_owner()` is a fresh
+  site with the owner signed in.
 
 ## Releasing (maintainers)
 
-`1.0.x` releases are fixes and dependency upkeep; `1.x.0` releases bring new features. No release may need people to edit files by hand.
+1. **Check new screens like a visitor:** Lighthouse in mobile mode on each
+   theme's home, post, tag, page and archive (keep 100 for performance and
+   accessibility), and [axe](https://github.com/dequelabs/axe-core) (WCAG 2.2
+   AA) on those pages and the admin, light and dark.
+2. **Set `version`** in `Cargo.toml`: `1.0.x` for fixes, `1.x.0` for features.
+3. **Tag and push:** `git tag v1.3.0 && git push --tags`.
 
-Set `version` in `Cargo.toml`, then push a matching tag (`git tag v1.0.0 && git push --tags`). GitHub Actions (`.github/workflows/release.yml`) builds the program for Linux servers (x86_64 and ARM), signs it, creates a GitHub release with it and the list of changes (running sites pick that up as an available update), and publishes the Docker image as `ghcr.io/<owner>/bloogla:<version>` and `:latest`. Make the package public once in GitHub (Packages → bloogla → Package settings) so anyone can pull it.
+GitHub Actions then builds the Linux and Windows programs, signs them,
+publishes the release (running sites see it in Settings → Updates) and the
+Docker image `ghcr.io/dincertekin/bloogla`.
 
-**The release signing key.** Sites only install programs signed with it, so a hacked GitHub account alone can't push code onto them. The public half is `SIGNING_KEY` in `src/services/updates.rs`; the private half is a file you keep (`bloogla-release-signing-key.pem`). Once, add it to the repository: GitHub → Settings → Secrets and variables → Actions → New repository secret, named `BLOOGLA_SIGNING_KEY`, with the file's whole text as the value (or `gh secret set BLOOGLA_SIGNING_KEY < bloogla-release-signing-key.pem`). Keep a copy somewhere safe and never commit it. If it's ever lost or leaked, make a new one (`openssl genpkey -algorithm ed25519 -out bloogla-release-signing-key.pem`), put its public half in `SIGNING_KEY` (`openssl pkey -in bloogla-release-signing-key.pem -pubout -outform DER | tail -c 32 | xxd -p -c 64`), and release that version by hand: sites can only install versions signed with the key they already have.
+**The signing key.** Sites only install programs signed with it. The public
+half is `SIGNING_KEY` in `src/services/updates.rs`. The private half,
+`bloogla-release-signing-key.pem`, is the repository secret
+`BLOOGLA_SIGNING_KEY` (`gh secret set BLOOGLA_SIGNING_KEY < bloogla-release-signing-key.pem`).
+Keep a copy safe and never commit it. If it's lost or leaked: make a new one
+(`openssl genpkey -algorithm ed25519 -out bloogla-release-signing-key.pem`),
+put its public half in `SIGNING_KEY`
+(`openssl pkey -in bloogla-release-signing-key.pem -pubout -outform DER | tail -c 32 | xxd -p -c 64`),
+and tell people to install that version by hand: sites only accept the key
+they already have.

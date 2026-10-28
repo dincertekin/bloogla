@@ -1,5 +1,5 @@
 //! Work Bloogla does besides answering a page request: sending email,
-//! backing up, preparing uploaded pictures, importing from WordPress and
+//! backing up, preparing uploaded pictures and videos, importing from WordPress and
 //! exporting, handling themes and checking for updates.
 //!
 //! Request handlers (in `handlers/`) and commands (in `commands/`) call these.
@@ -12,3 +12,4 @@ pub mod import;
 pub mod restore;
 pub mod themes;
 pub mod updates;
+pub mod videos;

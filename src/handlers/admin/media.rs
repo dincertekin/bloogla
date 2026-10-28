@@ -1,20 +1,22 @@
-//! The Media screen: uploading, listing, describing and deleting pictures,
-//! and the image chooser inside the post editor. The pictures themselves are
-//! checked and made ready for the web in `services/images.rs`.
+//! The Media screen: uploading, listing, describing and deleting pictures and
+//! short videos, and the chooser inside the post editor. The files themselves
+//! are checked in `services/images.rs` and `services/videos.rs`.
 
 use crate::app::models::{CurrentUser, Media};
 use crate::app::state::AppState;
 use crate::db::{media, settings};
 use crate::i18n::Lang;
 use crate::services::images::{add_image, MAX_UPLOAD_BYTES, UPLOAD_DIR};
+use crate::services::videos;
 
 use askama::Template;
-use axum::extract::{Extension, Multipart, Path, State};
+use axum::extract::multipart::Field;
+use axum::extract::{Extension, Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use std::path::PathBuf;
 
-/// The largest upload of several images together.
+/// The largest upload of several files together (two videos fit).
 pub const MAX_UPLOAD_REQUEST_BYTES: usize = 10 * MAX_UPLOAD_BYTES;
 
 /// Why an upload was refused (English; `lang.t` translates them).
@@ -47,6 +49,8 @@ pub struct MediaView {
     pub alt: String,
     pub size_label: String,
     pub dimensions: String,
+    /// A video (MP4 or WebM) rather than a picture.
+    pub is_video: bool,
 }
 
 impl From<Media> for MediaView {
@@ -73,7 +77,9 @@ impl From<Media> for MediaView {
             (Some(w), Some(h)) => format!("{w}×{h}"),
             _ => String::new(),
         };
+        let is_video = m.filename.ends_with(".mp4") || m.filename.ends_with(".webm");
         Self {
+            is_video,
             id: m.id,
             alt,
             url,
@@ -99,6 +105,30 @@ pub struct MediaPickerTemplate {
     pub me: CurrentUser,
     pub media: Vec<MediaView>,
     pub error: Option<String>,
+    /// Choosing a video (the editor's Video button) rather than a picture.
+    pub videos: bool,
+}
+
+/// `?videos=1`: the chooser shows videos instead of pictures.
+#[derive(serde::Deserialize)]
+pub struct PickerQuery {
+    #[serde(default)]
+    videos: Option<String>,
+}
+
+impl PickerQuery {
+    fn videos(&self) -> bool {
+        self.videos.is_some()
+    }
+}
+
+/// The library's pictures, or its videos.
+async fn media_of_kind(state: &AppState, videos: bool) -> Vec<MediaView> {
+    all_media(state)
+        .await
+        .into_iter()
+        .filter(|item| item.is_video == videos)
+        .collect()
 }
 
 async fn all_media(state: &AppState) -> Vec<MediaView> {
@@ -151,11 +181,13 @@ pub async fn upload(
 pub async fn picker(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    Query(query): Query<PickerQuery>,
 ) -> impl IntoResponse {
     MediaPickerTemplate {
         me,
-        media: all_media(&state).await,
+        media: media_of_kind(&state, query.videos()).await,
         error: None,
+        videos: query.videos(),
     }
 }
 
@@ -163,13 +195,15 @@ pub async fn picker(
 pub async fn picker_upload(
     State(state): State<AppState>,
     Extension(me): Extension<CurrentUser>,
+    Query(query): Query<PickerQuery>,
     multipart: Multipart,
 ) -> impl IntoResponse {
     let errors = receive_uploads(&state, me.lang, multipart).await;
     MediaPickerTemplate {
         me,
-        media: all_media(&state).await,
+        media: media_of_kind(&state, query.videos()).await,
         error: (!errors.is_empty()).then(|| errors.join(" · ")),
+        videos: query.videos(),
     }
 }
 
@@ -184,7 +218,7 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
             Err(e) => {
                 tracing::warn!("Upload stopped: {e}");
                 let reason = if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
-                    "The images together are larger than 200 MB. Upload fewer at a time."
+                    "The files together are larger than 200 MB. Upload fewer at a time."
                 } else {
                     "The upload didn't finish. Please try again."
                 };
@@ -197,22 +231,59 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
         }
 
         let original_name = field.file_name().unwrap_or("upload").to_string();
-        // Read a piece at a time and stop past the limit, so one huge file
-        // is refused without filling the memory, and the others still go in.
+        // The first bytes say what the file is: a picture is read into memory
+        // (it's resized there), a video goes straight to disk.
         let mut data = Vec::new();
         let mut refused = None;
-        loop {
+        let mut finished = false;
+        while data.len() < 64 && !finished {
             match field.chunk().await {
-                Ok(Some(chunk)) if data.len() + chunk.len() > MAX_UPLOAD_BYTES => {
-                    refused = Some(TOO_LARGE);
-                    break;
-                }
                 Ok(Some(chunk)) => data.extend_from_slice(&chunk),
-                Ok(None) => break,
+                Ok(None) => finished = true,
                 Err(e) => {
                     tracing::warn!("Upload stopped: {e}");
                     refused = Some(UPLOAD_CUT_SHORT);
-                    break;
+                    finished = true;
+                }
+            }
+        }
+        if refused.is_none() {
+            if let Some(kind) = videos::kind_of(&data) {
+                let saved = match receive_video(&mut field, data, finished).await {
+                    Ok(temporary) => {
+                        videos::add_video(state, &original_name, &temporary, kind).await
+                    }
+                    Err(reason) => Err(reason.to_string()),
+                };
+                if let Err(e) = saved {
+                    errors.push(format!("{original_name}: {}", lang.t_owned(&e)));
+                }
+                continue;
+            }
+            if videos::looks_like_mp4_family(&data) {
+                errors.push(format!(
+                    "{original_name}: {}",
+                    lang.t_owned(&videos::not_a_video())
+                ));
+                continue;
+            }
+        }
+        // A picture: read the rest a piece at a time and stop past the limit,
+        // so one huge file is refused without filling the memory, and the
+        // others still go in. (The first piece can be big too.)
+        if data.len() > MAX_UPLOAD_BYTES {
+            refused = refused.or(Some(TOO_LARGE));
+        }
+        while refused.is_none() && !finished {
+            match field.chunk().await {
+                Ok(Some(chunk)) if data.len() + chunk.len() > MAX_UPLOAD_BYTES => {
+                    refused = Some(TOO_LARGE);
+                }
+                Ok(Some(chunk)) => data.extend_from_slice(&chunk),
+                Ok(None) => finished = true,
+                Err(e) => {
+                    tracing::warn!("Upload stopped: {e}");
+                    refused = Some(UPLOAD_CUT_SHORT);
                 }
             }
         }
@@ -230,6 +301,62 @@ async fn receive_uploads(state: &AppState, lang: Lang, mut multipart: Multipart)
     }
 
     errors
+}
+
+/// Save the rest of a video upload (after its first bytes, `start`) to a
+/// temporary file in `uploads/`, a piece at a time. Gives back where it is,
+/// or why it was refused; nothing is left behind then.
+async fn receive_video(
+    field: &mut Field<'_>,
+    start: Vec<u8>,
+    finished: bool,
+) -> Result<PathBuf, &'static str> {
+    use tokio::io::AsyncWriteExt;
+
+    // A dot first and a random name: never listed, and nobody can guess it
+    // while it's still arriving.
+    let temporary =
+        PathBuf::from(UPLOAD_DIR).join(format!(".upload-{}", crate::app::security::random_hex(12)));
+    let result = async {
+        tokio::fs::create_dir_all(UPLOAD_DIR)
+            .await
+            .map_err(|_| "could not save file")?;
+        let mut file = tokio::fs::File::create(&temporary)
+            .await
+            .map_err(|_| "could not save file")?;
+        file.write_all(&start)
+            .await
+            .map_err(|_| "could not save file")?;
+        let mut size = start.len() as u64;
+        if size > videos::MAX_VIDEO_BYTES {
+            return Err(videos::VIDEO_TOO_LARGE);
+        }
+        // Nothing more to read when the whole file came in the first piece.
+        let mut next = if finished {
+            None
+        } else {
+            field.chunk().await.map_err(|_| UPLOAD_CUT_SHORT)?
+        };
+        while let Some(chunk) = next {
+            size += chunk.len() as u64;
+            if size > videos::MAX_VIDEO_BYTES {
+                return Err(videos::VIDEO_TOO_LARGE);
+            }
+            file.write_all(&chunk)
+                .await
+                .map_err(|_| "could not save file")?;
+            next = field.chunk().await.map_err(|_| UPLOAD_CUT_SHORT)?;
+        }
+        file.flush().await.map_err(|_| "could not save file")
+    }
+    .await;
+    match result {
+        Ok(()) => Ok(temporary),
+        Err(reason) => {
+            let _ = tokio::fs::remove_file(&temporary).await;
+            Err(reason)
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]

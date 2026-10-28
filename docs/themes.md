@@ -1,115 +1,173 @@
 # Writing themes
 
-Bloogla comes with seven themes, each a good starting point for your own:
+A theme is a folder in `themes/`: a `theme.toml`, HTML templates in
+`templates/` ([Tera](https://keats.github.io/tera/docs/)) and files in
+`static/`. No Rust needed.
 
-| Theme      | Folder            | For                                                            |
-| ---------- | ----------------- | -------------------------------------------------------------- |
-| Default    | `themes/default`  | A clean blog: the newest post large, then a grid of cards      |
-| Story      | `themes/story`    | Calm reading, in the style of Medium                           |
-| Gazette    | `themes/gazette`  | A newspaper front page                                         |
-| Folio      | `themes/folio`    | Photographs first: a large lead picture and a picture grid     |
-| Notebook   | `themes/notebook` | Writing: one quiet column, titles listed by year               |
-| Atelier    | `themes/atelier`  | Warm and friendly: rounded cards and a welcome card            |
-| Brief      | `themes/brief`    | A business or project's news, with a strong logo header        |
+## Start in four steps
 
-A theme is a folder in `themes/` with a `theme.toml` and Tera templates in `templates/`. The easiest start is a copy of `themes/default` with a new folder name. Install a theme by copying its folder into `themes/` and restarting Bloogla; it then shows up in **Admin → Appearance**.
+1. Copy `themes/default` to `themes/my-theme`.
+2. Change the name in `theme.toml`.
+3. Restart Bloogla and pick your theme in **Admin → Appearance**.
+4. Edit the templates and CSS. While Bloogla runs with `cargo run`, changes
+   show when you reload the page.
 
 ```toml
 name = "My Theme"
 version = "1.0.0"
 author = "Your Name"
 description = "One sentence about it."
-preview_image = "static/preview.png"   # optional, shown in Admin → Appearance
+preview_image = "static/preview.png"   # optional, shown in Appearance
 ```
 
+A theme with a mistake is never used: Appearance shows what's wrong, and the
+site keeps the default theme.
 
-| Template       | Used for                                           | Required |
-| -------------- | -------------------------------------------------- | -------- |
-| `index.html`   | Home page and search results                       | Yes      |
-| `post.html`    | Single post                                        | Yes      |
-| `tag.html`     | Posts with a tag                                   | Yes      |
-| `page.html`    | Standalone pages (falls back to `post.html`)       | No       |
-| `archive.html` | Every post by year, at `/archive` (falls back to `page.html`) | No |
-| `404.html`     | Not found page                                     | No       |
+The seven bundled themes are good starting points: Default (a blog with
+cards), Story (calm reading), Gazette (a newspaper), Folio (photographs),
+Notebook (one quiet column), Atelier (warm, rounded) and Brief (a business's
+news).
 
-Templates refer to each other by their path inside the theme, so a copied theme works under any name: `{% extends "templates/layout.html" %}`, `{% include "templates/post_card.html" %}`. For the theme's own files use `theme_url`: `<link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">`.
+## Templates
 
-A theme with a mistake (a template that doesn't parse, a missing required template, a broken `theme.toml`) is never used: Admin → Appearance shows what's wrong, and the site keeps using the default theme.
+| Template       | Shows                                   | Required |
+| -------------- | --------------------------------------- | -------- |
+| `index.html`   | The home page and search results        | Yes      |
+| `post.html`    | One post                                | Yes      |
+| `tag.html`     | Posts with a tag                        | Yes      |
+| `page.html`    | A page (else `post.html`)               | No       |
+| `archive.html` | Every post by year, at `/archive` (else `page.html`) | No |
+| `404.html`     | "Page not found"                        | No       |
 
-Lists of posts give each one a `post.url` (search results include pages too).
+Refer to other templates by their path in the theme:
+`{% extends "templates/layout.html" %}`. Link to your own files with
+`theme_url` and the version, so browsers keep them until the theme changes:
 
-Every template gets `blog_name`, `blog_description`, `base_url`, `lang` (e.g. `tr`), `t` (translated interface text, e.g. `{{ t.back_to_all_posts }}`), `menu` (list of `label`/`url`), `blog_url`, `tags`, `search_query`, `show_views`, `seo_head`, `scheme_script`, `asset_version`, `theme_url` and `theme_options`. Put `{{ seo_head | safe }}` inside `<head>`: besides the SEO tags, it carries the verification tags the owner adds in **Settings → Site**, and on posts and pages with formulas, the KaTeX files that draw them (formulas are `<span data-math-style="inline">` or `"display"` in `content_html`).
+```html
+<link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">
+```
 
-Files in the theme's `static/` folder are served at `/theme-assets/<theme>/static/...`. Add `?v={{ asset_version }}` (the theme's version) to those URLs: browsers then keep them for a year, and a new theme version is picked up at once.
+## What templates get
 
-- `blog_url` is where the list of posts is: `/`, or `/blog` when the owner picks a page as the home page (**Settings → Reading**). Link "back to all posts" to it rather than to `/`. The home page itself is drawn with `page.html`, like any page.
-- Listings also get `posts` and `pagination` (`current`, `total_pages`, `prev_url`, `next_url`).
-- Single pages get `post` (with `post.author_name`, and `post.cover_width`/`post.cover_height` for images from the media library, and `post.cover_small` and `post.cover_thumb`, 800px- and 400px-wide copies for `srcset`; give cards a `sizes` with their real width so phones download the small one) and `content_html`. Pictures from the media library are sent as WebP to browsers that support it, under the same `.jpg`/`.png` address, so themes don't need to do anything for it.
-- Posts also get `previous_post` and `next_post` (each with `title` and `url`, or empty for the oldest and newest post, and on pages): the older and newer post, for links at the end. `{% if previous_post %}` works everywhere.
-- The archive (`/archive`) gets `archive`: a list of years, newest first, each with `year` and `posts` (each with `title`, `url` and `date`, like `Oct 2`). Themes without `archive.html` show it with `page.html`: `post.title` is "Archive" and `content_html` is the list, with a heading per year. Owners can add it to the menu in **Settings → Reading**.
-- A post opened with a private preview link (`/preview/...`, from **Share before publishing** in the editor) is drawn with `post.html` or `page.html` like any other, without comments.
-- Posts with comments on also get `comments_enabled`, `comments`, `comment_action` and `comment_notice`; see the default theme's `comments.html`.
-- A contact form (the writer's `[contact-form]`) arrives inside `content_html`, built by Bloogla with the comment form's classes (`comment-form`, `comment-fields`, `comment-trap`, `comment-notice`), so a theme that styles its comment form styles it too. The form also has the class `contact-form`, for anything a theme wants to change.
+**Every template:**
+
+| Variable | What it is |
+| -------- | ---------- |
+| `blog_name`, `blog_description`, `base_url` | The site's name, description and address |
+| `lang` | The site's language code, like `tr` |
+| `t` | Interface text in the site's language: `{{ t.back_to_all_posts }}` |
+| `menu` | The menu: a list with `label` and `url` |
+| `blog_url` | Where the posts are: `/`, or `/blog` when a page is the home page. Link "all posts" here |
+| `tags` | Tags with public posts |
+| `search_query` | What was searched for |
+| `show_views` | Whether to show view counts |
+| `seo_head` | Put `{{ seo_head \| safe }}` in `<head>`: SEO tags, verification tags, and the formula files on pages with formulas |
+| `scheme_script` | Put `{{ scheme_script \| safe }}` in `<head>` (see [Light and dark](#light-and-dark)) |
+| `theme_url`, `asset_version` | Your theme's address and version |
+| `theme_options` | The [options](#theme-options) the owner chose |
+
+**Lists** (home, tag, search): `posts` (each with `post.url`; search
+results include pages) and `pagination` (`current`, `total_pages`,
+`prev_url`, `next_url`).
+
+**A post or page:** `post` and `content_html` (the text, as HTML). `post`
+includes `title`, `url`, `created_at` (the date, ready to show),
+`reading_time`, `tags`, `views`, `author_name` and the cover: `cover_image`,
+`cover_width`, `cover_height`, and `cover_small` and `cover_thumb` (800 and
+400 pixels wide, for `srcset`).
+
+**Posts only:** `previous_post` and `next_post` (each with `title` and `url`,
+empty at the ends), and with comments on: `comments_enabled`, `comments`,
+`comment_action` and `comment_notice` (see Default's `comments.html`).
+
+**The archive:** `archive`, a list of years (newest first), each with `year`
+and `posts` (each with `title`, `url` and `date`, like `Oct 2`). Without
+`archive.html`, it's shown with `page.html`, the list in `content_html`.
+
+**Inside `content_html`,** style these too:
+
+- uploaded videos and `[video]`: `<video class="media">`;
+- the contact form: the comment form's classes (`comment-form`,
+  `comment-fields`, `comment-trap`, `comment-notice`) plus `contact-form`;
+- formulas: `<span data-math-style="inline">` or `"display"`.
+
+A draft opened with a private preview link looks like a normal post, without
+comments.
 
 ## Theme options
 
-A theme can offer settings that admins change in **Admin → Appearance**, without touching code. List them in `theme.toml`; templates read them as `theme_options.<name>`:
+Settings the owner changes in **Appearance**. List them in `theme.toml`;
+templates read `theme_options.<name>`:
 
 ```toml
 [[options]]
 name = "accent_color"
 label = "Accent color"
-type = "color"            # text, textarea, color, checkbox, select (with choices = [...]) or image
+type = "color"   # text, textarea, color, checkbox, select (with choices = [...]) or image
 default = "#2563eb"
 hint = "Used for links, buttons and highlights."
 ```
 
 ```html
 <style>:root { --accent: {{ theme_options.accent_color }}; }</style>
-{% if theme_options.show_powered_by %}Powered by Bloogla{% endif %}
 ```
 
-Values are checked before they're saved (colors must look like `#2563eb`, images must be from the media library or `https://`, a select only accepts its choices), so they're safe to use in styles.
+Values are checked before they're saved (colors look like `#2563eb`, images
+come from Media or `https://`, a select only takes its choices), so they're
+safe in styles.
 
-Every bundled theme offers the same six, so changing theme keeps the same kind of choices: **Logo** (`logo`, an image shown instead of the site title), **Light or dark** (`color_scheme`, a select: "Follow the visitor's device", "Always light" or "Always dark"), **Let visitors switch between light and dark** (`scheme_button`, a checkbox, on at first), **Accent color**, **Footer text** and **Show "Powered by Bloogla"**. Atelier adds a welcome card and Brief a heading and a menu button. Labels, hints and choices are English and are translated in the admin like any other text, so a bundled theme's new option needs a line in each language file (`cargo test` lists missing ones).
+Every bundled theme has the same six, so switching themes keeps the same
+choices: `logo`, `color_scheme` ("Follow the visitor's device", "Always
+light", "Always dark"), `scheme_button` (on at first), accent color, footer
+text and "Powered by Bloogla". A new option in a bundled theme needs its
+label, hint and choices in each language file (`cargo test` lists missing
+ones).
 
 ### Light and dark
 
-The bundled themes put `data-scheme="light"` or `data-scheme="dark"` on `<html>` when "Always light" or "Always dark" is chosen, and write their dark colors for both cases:
+When the owner picks "Always light" or "Always dark", `<html>` gets
+`data-scheme="light"` or `"dark"`. Write your dark colors for both cases:
 
 ```css
 @media (prefers-color-scheme: dark) {
-    :root:not([data-scheme="light"]) { --bg: #121214; /* ... */ }
+    :root:not([data-scheme="light"]) { --bg: #121214; }
 }
-:root[data-scheme="dark"] { --bg: #121214; /* ... */ }
+:root[data-scheme="dark"] { --bg: #121214; }
 ```
 
-Their `templates/colors.html` sets the accent color, and a lighter shade of it for dark mode (`color-mix(in srgb, <accent> 55%, white)`), so links stay readable on a dark background whatever color an admin picks. Copy it into your theme and include it in `<head>`.
+To let visitors switch: copy `templates/colors.html`,
+`templates/scheme_button.html` and `static/js/scheme.js` from a bundled theme,
+include the first two, and put `{{ scheme_script | safe }}` in `<head>`. It
+applies the visitor's choice before the page is drawn. The choice stays in
+their browser, never in a cookie.
 
-Visitors can also choose for themselves with a button that goes from "same as the device" to "always light" to "always dark" and back: include `templates/scheme_button.html` in your header and copy `static/js/scheme.js` from a bundled theme (`colors.html` loads it, with `defer`). The button shows only when the site follows the visitor's device and `scheme_button` is on. Put `{{ scheme_script | safe }}` in `<head>`: these few lines put the visitor's saved choice on `<html>` as `data-scheme` before the page is drawn, so your dark colors written as above just work. They're in the page itself, so phones don't wait for one more file, and the page's security policy allows exactly that script (by its hash) and no other inline script. The choice stays in the visitor's browser (`localStorage`), never in a cookie. The button's labels are `t.scheme_device`, `t.scheme_light` and `t.scheme_dark`.
+## Rules
 
-### Moving between pages
+- **Speed first.** Don't animate page changes. The first big picture uses
+  `fetchpriority="high" decoding="sync"`; pictures further down use
+  `loading="lazy" decoding="async"`.
+- **No inline scripts.** Pages have a security policy: scripts, styles and
+  fonts come from the site; images and media from any HTTPS address; embeds
+  from YouTube and Vimeo. Put JavaScript in `static/js/`. If you need more,
+  list it in `theme.toml`:
 
-The bundled themes don't animate page changes: speed comes first. Browsers keep showing the old page until the new one is ready and then show it whole, so a click never waits on motion. If your theme adds a transition, keep it short and never hide or dim the new content while it plays.
+  ```toml
+  [csp]
+  font-src = ["https://fonts.gstatic.com"]
+  ```
 
-The first big picture on a page (a post's cover, the newest post on the home page) uses `fetchpriority="high"` and `decoding="sync"`, so it's drawn together with the page instead of leaving an empty space for a moment. Pictures further down use `loading="lazy"` and `decoding="async"`.
+- **Only `static/` is public.** Templates and `theme.toml` are never served.
+- **Images:** pictures from Media are sent as WebP to browsers that support
+  it, at the same address. Give card images a `sizes` with their real width,
+  so phones download the small copy.
 
-## Scripts and the security policy
+## Shortcodes
 
-Theme pages are sent with a Content Security Policy: scripts, styles and fonts load from the site itself, images and media from any HTTPS address, and embeds from YouTube and Vimeo. Inline `<script>` blocks and `onclick=` attributes don't run, so put JavaScript in files under `static/js/`. If a theme needs more (web fonts, for example), list the extra sources in `theme.toml`:
+Add `shortcodes/<name>.html` to make `[name ...]` work in posts. The template
+gets `args` (values) and `params` (`key=value` pairs). Default's
+`shortcodes/note.html` turns `[note "Text" kind="warning"]` into a box.
 
-```toml
-[csp]
-style-src = ["https://fonts.googleapis.com"]
-font-src = ["https://fonts.gstatic.com"]
-```
+## Updating a bundled theme
 
-The default theme loads its syntax highlighter (`static/js/prism.js`, with about 20 common languages) only on pages that contain code.
-
-## Theme shortcodes
-
-Add `shortcodes/<name>.html` to a theme to make `[name ...]` available in posts. The template gets `args` (positional values) and `params` (`key=value` pairs). The default theme's `shortcodes/note.html` turns `[note "Text" kind="warning"]` into a highlighted box.
-
-## Updating the bundled theme
-
-Bump `version` in `theme.toml`. On start, Bloogla replaces an older installed copy and keeps the previous one in `data/theme-backups/`.
+Raise `version` in its `theme.toml`. On start, Bloogla replaces the older
+copy and keeps it in `data/theme-backups/`.

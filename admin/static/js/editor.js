@@ -15,7 +15,6 @@
         rendering: form.dataset.textRendering,
         previewFailed: form.dataset.textPreviewFailed,
         linkPrompt: form.dataset.textLinkPrompt,
-        videoPrompt: form.dataset.textVideoPrompt,
         contactForm: form.dataset.textContactForm,
         visualPlaceholder: form.dataset.textVisualPlaceholder,
         writingArea: form.dataset.textWritingArea,
@@ -359,16 +358,23 @@
             }
             run().extendMarkRange("link").setLink({ href: url }).run();
         },
-        // Videos are shortcodes: [youtube URL] or [vimeo URL].
-        video: () => {
-            const url = (window.prompt(text.videoPrompt, "") || "").trim();
-            if (!url) return editor.commands.focus();
-            const name = /vimeo\.com/.test(url) ? "vimeo" : "youtube";
-            run().insertContent({ type: "shortcode", attrs: { text: `[${name} ${url}]` } }).run();
-            // No cover yet: use the YouTube video's thumbnail.
-            const youtube = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/);
-            if (youtube && !coverInput.value) setCover(`https://i.ytimg.com/vi/${youtube[1]}/hqdefault.jpg`);
-        },
+        // Videos are shortcodes: [video /uploads/clip.mp4] for one from
+        // Media, [youtube URL] or [vimeo URL] for the others.
+        video: () =>
+            openMediaPicker(
+                (url) => {
+                    const name = url.startsWith("/uploads/") ? "video" : /vimeo\.com/.test(url) ? "vimeo" : "youtube";
+                    // After what's selected, never in its place: a video
+                    // just added stays selected, and the next one must not
+                    // replace it.
+                    const after = editor.state.selection.to;
+                    run().insertContentAt(after, { type: "shortcode", attrs: { text: `[${name} ${url}]` } }).run();
+                    // No cover yet: use the YouTube video's thumbnail.
+                    const youtube = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/);
+                    if (youtube && !coverInput.value) setCover(`https://i.ytimg.com/vi/${youtube[1]}/hqdefault.jpg`);
+                },
+                { videos: true }
+            ),
         // Asks for the heading and button text (contactFormDone adds it).
         // With a contact form selected, changes that one.
         contactForm: () => {

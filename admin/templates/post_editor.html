@@ -29,6 +29,9 @@
     </span>
 </div>
 
+<!-- The title field is the page's real heading; this names the page for screen readers. -->
+<h1 class="visually-hidden">{% if post.id != 0 %}{{ post.title }}{% else if post.is_page %}{{ me.t("New Page") }}{% else %}{{ me.t("New Post") }}{% endif %}</h1>
+
 <form id="editor-form" method="POST" data-post-id="{{ post.id }}"
     data-text-unsaved-from="{{ me.t("You have unsaved changes from {when}.") }}"
     data-text-loaded-version="{{ me.t("Loaded the version from {date}. Save to keep it.") }}"
@@ -38,7 +41,6 @@
     data-text-link-prompt="{{ me.t("Link address") }}"
     data-text-visual-placeholder="{{ me.t("Start writing…") }}"
     data-text-writing-area="{% if post.is_page %}{{ me.t("Page text") }}{% else %}{{ me.t("Post text") }}{% endif %}"
-    data-text-video-prompt="{{ me.t("Paste a YouTube or Vimeo link") }}"
     data-text-contact-form="{{ me.t("Contact form") }}"
     data-text-saved="{{ me.t("Saved.") }}"
     data-text-save-failed="{{ me.t("Couldn't save your changes. Please try again.") }}"

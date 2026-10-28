@@ -480,8 +480,8 @@ async fn save_image(
         original_name: &original_name,
         mime_type: image.mime_type,
         size_bytes: image.bytes.len() as i64,
-        width: image.width as i64,
-        height: image.height as i64,
+        width: Some(image.width as i64),
+        height: Some(image.height as i64),
     };
     media::add(&state.pool, &new_media).await.map_err(|e| {
         tracing::error!("Failed to record upload: {e}");

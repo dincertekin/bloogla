@@ -1,4 +1,5 @@
-//! The media library: the pictures people uploaded, and their smaller copies.
+//! The media library: the pictures and videos people uploaded, and the
+//! pictures' smaller copies.
 //! The files themselves are in `uploads/`; this is the list of them.
 
 use crate::app::models::Media;
@@ -15,7 +16,7 @@ pub type PictureCopies = (
     Option<i64>,
 );
 
-/// A picture about to be added to the library.
+/// A picture or video about to be added to the library.
 pub struct NewMedia<'a> {
     pub filename: &'a str,
     pub small_filename: Option<&'a str>,
@@ -23,11 +24,12 @@ pub struct NewMedia<'a> {
     pub original_name: &'a str,
     pub mime_type: &'a str,
     pub size_bytes: i64,
-    pub width: i64,
-    pub height: i64,
+    /// A picture's size in pixels (`None` for videos).
+    pub width: Option<i64>,
+    pub height: Option<i64>,
 }
 
-/// Every picture, newest first.
+/// Every picture and video, newest first.
 pub async fn all(pool: &SqlitePool) -> Vec<Media> {
     or_log(
         sqlx::query_as(
@@ -59,7 +61,7 @@ pub async fn copies_of(pool: &SqlitePool, filenames: &[&str]) -> Vec<PictureCopi
     or_log(query.fetch_all(pool).await, "find picture copies")
 }
 
-/// Add a picture whose files are already saved.
+/// Add a picture or video whose files are already saved.
 pub async fn add(pool: &SqlitePool, media: &NewMedia<'_>) -> Result<(), sqlx::Error> {
     sqlx::query(
         "INSERT INTO media (filename, small_filename, thumb_filename, original_name, mime_type,

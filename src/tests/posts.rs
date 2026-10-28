@@ -500,3 +500,26 @@ async fn a_page_called_archive_keeps_its_address() {
         .body
         .contains("Our own list of old things."));
 }
+
+#[tokio::test]
+async fn lists_of_posts_always_have_a_description_for_search_results() {
+    let mut site = TestSite::with_owner().await;
+    site.post(
+        "/admin/posts",
+        &[
+            ("title", "Basil"),
+            ("content", "Green."),
+            ("status", "published"),
+            ("new_tags", "Garden"),
+        ],
+    )
+    .await;
+    site.new_visitor();
+
+    // A new site has no description yet: the home page still gets one.
+    let home = site.get("/").await.body;
+    assert!(home.contains(r#"<meta name="description" content="The latest posts on Test Blog.">"#));
+    // Each tag page describes itself, instead of repeating the site's.
+    let tag = site.get("/tag/garden").await.body;
+    assert!(tag.contains(r#"<meta name="description" content="Posts about Garden on Test Blog.">"#));
+}

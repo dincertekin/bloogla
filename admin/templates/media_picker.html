@@ -1,6 +1,12 @@
-<form class="upload-inline" hx-post="/admin/media/picker" hx-encoding="multipart/form-data" hx-target="#picker-body">
+
+<form class="upload-inline" hx-post="/admin/media/picker{% if videos %}?videos=1{% endif %}" hx-encoding="multipart/form-data" hx-target="#picker-body">
+    {% if videos %}
+    <input type="file" name="files" multiple accept="video/mp4,video/webm" required
+        aria-label="{{ me.t("Videos to upload") }}" />
+    {% else %}
     <input type="file" name="files" multiple accept="image/jpeg,image/png,image/gif,image/webp" required
         aria-label="{{ me.t("Images to upload") }}" />
+    {% endif %}
     <button type="submit" class="btn btn-secondary btn-sm">{{ me.t("Upload") }}</button>
 </form>
 
@@ -9,14 +15,30 @@
 {% endif %}
 
 {% if media.is_empty() %}
-<p class="empty-state">{{ me.t("No images yet. Upload one above.") }}</p>
+<p class="empty-state">{% if videos %}{{ me.t("No videos yet. Upload a short one above, or add one from YouTube or Vimeo below.") }}{% else %}{{ me.t("No images yet. Upload one above.") }}{% endif %}</p>
 {% else %}
 <div class="picker-grid">
     {% for item in media %}
     <button type="button" class="picker-item" data-url="{{ item.url }}" data-alt="{{ item.alt }}"
         title="{{ item.original_name }}">
+        {% if item.is_video %}
+        <video src="{{ item.url }}#t=0.1" preload="metadata" muted playsinline aria-hidden="true"></video>
+        <span class="visually-hidden">{{ item.original_name }}</span>
+        {% else %}
         <img src="{{ item.thumb_url }}" alt="{{ item.alt }}" loading="lazy" decoding="async" />
+        {% endif %}
     </button>
     {% endfor %}
 </div>
+{% endif %}
+
+{% if videos %}
+<!-- Long videos play from YouTube or Vimeo (see "Video" in admin/static/js/editor.js). -->
+<form class="form-group" data-embed-form style="margin-top: 1.25rem; margin-bottom: 0">
+    <label for="embed-address">{{ me.t("Or a video on YouTube or Vimeo") }}</label>
+    <div class="upload-inline" style="margin-bottom: 0">
+        <input type="url" id="embed-address" class="form-control" placeholder="https://www.youtube.com/watch?v=…" required />
+        <button type="submit" class="btn btn-secondary btn-sm">{{ me.t("Add") }}</button>
+    </div>
+</form>
 {% endif %}

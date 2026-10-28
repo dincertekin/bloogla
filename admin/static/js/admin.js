@@ -389,15 +389,28 @@ document.addEventListener("keydown", (event) => {
 });
 
 // ---- Media picker: openMediaPicker((url, alt) => ...) ----
+// Shows the pictures in Media. With { videos: true } it shows the videos
+// instead, and a field for a YouTube or Vimeo address, which reaches the
+// callback the same way as a chosen video's address.
 
 let mediaPickerCallback = null;
 
-function openMediaPicker(callback) {
+function openMediaPicker(callback, { videos = false } = {}) {
     mediaPickerCallback = callback;
     const modal = document.getElementById("media-modal");
-    htmx.ajax("GET", "/admin/media/picker", { target: "#picker-body" });
+    const title = document.getElementById("media-modal-title");
+    title.textContent = videos ? title.dataset.videos : title.dataset.images;
+    htmx.ajax("GET", videos ? "/admin/media/picker?videos=1" : "/admin/media/picker", { target: "#picker-body" });
     openModal(modal);
 }
+
+document.getElementById("media-modal")?.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-embed-form]");
+    if (!form || !mediaPickerCallback) return;
+    event.preventDefault();
+    mediaPickerCallback(form.querySelector("input").value.trim(), "");
+    closeModal(event.currentTarget);
+});
 
 document.getElementById("media-modal")?.addEventListener("click", (event) => {
     const item = event.target.closest(".picker-item");
@@ -621,15 +634,46 @@ if (tabs) {
             const active = link.dataset.tab === current;
             link.classList.toggle("active", active);
             link.setAttribute("aria-selected", String(active));
+            // Tab reaches only the open tab; the arrow keys move between them.
+            link.tabIndex = active ? 0 : -1;
         });
         panels.forEach((panel) => (panel.hidden = panel.dataset.tabPanel !== current));
     };
+    const choose = (link) => {
+        history.replaceState(null, "", "#" + link.dataset.tab);
+        openTab(link.dataset.tab);
+    };
+    // Screen readers announce which panel belongs to which tab.
+    links.forEach((link) => {
+        const panel = panels.find((p) => p.dataset.tabPanel === link.dataset.tab);
+        if (!panel) return;
+        link.id ||= "tab-" + link.dataset.tab;
+        panel.id ||= "tab-panel-" + link.dataset.tab;
+        link.setAttribute("aria-controls", panel.id);
+        panel.setAttribute("role", "tabpanel");
+        panel.setAttribute("aria-labelledby", link.id);
+    });
     tabs.addEventListener("click", (event) => {
         const link = event.target.closest("[data-tab]");
         if (!link) return;
         event.preventDefault();
-        history.replaceState(null, "", "#" + link.dataset.tab);
-        openTab(link.dataset.tab);
+        choose(link);
+    });
+    // Left and right arrows (and Home, End) open the next tab, as with tabs
+    // anywhere else on a computer.
+    tabs.addEventListener("keydown", (event) => {
+        const at = links.indexOf(event.target.closest("[data-tab]"));
+        if (at < 0) return;
+        const next = {
+            ArrowRight: (at + 1) % links.length,
+            ArrowLeft: (at - 1 + links.length) % links.length,
+            Home: 0,
+            End: links.length - 1,
+        }[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        choose(links[next]);
+        links[next].focus();
     });
     tabs.hidden = false;
     document.body.classList.add("has-tabs");

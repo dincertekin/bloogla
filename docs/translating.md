@@ -1,103 +1,84 @@
 # Translating Bloogla
 
-Bloogla speaks English, Deutsch, Français, Lietuvių and Türkçe today. Every language added means more
-people can run a website in their own words: the admin panel, the themes and
-the emails all use it. **You don't need to know Rust or install anything** to
-help.
+Bloogla speaks English, Deutsch, Français, Lietuvių and Türkçe. A new
+language changes the admin panel, the themes and the emails. **You don't
+need to program or install anything.**
 
-- [Three ways to help](#three-ways-to-help)
+- [Ways to help](#three-ways-to-help)
 - [Adding a language](#adding-a-language)
 - [Writing good translations](#writing-good-translations)
 
 ## Three ways to help
 
-1. **Fix a word.** Spotted something odd in an existing translation? Open
-   [`src/i18n/tr.rs`](../src/i18n/tr.rs) on GitHub, click the pencil
-   (**Edit this file**), change it and choose **Propose changes**. Or just
+1. **Fix a word.** Open the language's file in
+   [`src/i18n/`](../src/i18n/) on GitHub, click the pencil, change it, and
+   choose **Propose changes**. Or just
    [tell us](https://github.com/dincertekin/bloogla/issues/new?template=translation.yml).
-2. **Add a language.** Follow the steps below. It's about 490 short texts, so
-   it's fine to send a part and continue later.
-3. **Review one.** Native speakers checking a new language before it's
-   released make the biggest difference. Say hello in a
+2. **Add a language.** See below. It's about 700 short texts; sending part
+   of it and finishing later is fine.
+3. **Check one.** A native speaker reading a new language before it's
+   released helps the most. Say hello in a
    [translation issue](https://github.com/dincertekin/bloogla/issues/new?template=translation.yml).
 
 ## Adding a language
 
-A language is one file in [`src/i18n/`](../src/i18n/). Each line pairs the
-English text with yours:
+A language is one file. Each line pairs the English text with yours:
 
 ```rust
 ("Save Changes", "Değişiklikleri Kaydet"),
 ("by {name}", "{name} tarafından"),
 ```
 
-**In your browser (no installs):**
+In your browser:
 
-1. Open [`src/i18n/tr.rs`](../src/i18n/tr.rs) on GitHub and copy all of it
-   (the copy button above the file).
-2. Go to the [`src/i18n`](../src/i18n/) folder, choose **Add file → Create new
-   file**, and name it after your language's
+1. Open [`src/i18n/tr.rs`](../src/i18n/tr.rs) on GitHub and copy all of it.
+2. In [`src/i18n`](../src/i18n/), choose **Add file → Create new file**. Name
+   it with your language's
    [two-letter code](https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes),
-   for example `nl.rs` for Dutch. Paste the copy.
-3. Change the top of the file to your language:
+   like `nl.rs` for Dutch, and paste.
+3. Change the top of the file:
 
    ```rust
    //! Nederlands (Dutch).
    ...
        code: "nl",
-       name: "Nederlands",          // your language's own name
-       months: [                    // short month names, January first
+       name: "Nederlands",      // your language's own name
+       months: [                // short month names, January first
            "jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec",
        ],
-       date: "{d} {m} {y}",         // how a date looks: 9 okt 2026
-       day_month: "{d} {m}",        // and without the year: 9 okt
+       date: "{d} {m} {y}",     // a date: 9 okt 2026
+       day_month: "{d} {m}",    // without the year: 9 okt
    ```
 
-   `{d}` is the day, `{m}` the month name and `{y}` the year; use them in
-   your language's order (English writes `{m} {d}, {y}`, "Oct 9, 2026").
-4. Translate the **right-hand** text of each line. Leave the left-hand English
-   exactly as it is: it's how Bloogla finds your translation.
-5. Open [`src/i18n/mod.rs`](../src/i18n/mod.rs) and add your language in two
-   places (the pencil again):
+4. Translate the **right-hand** text of each line. Don't change the English
+   on the left: it's how Bloogla finds your text.
+5. In [`src/i18n/mod.rs`](../src/i18n/mod.rs), add your language in two
+   places:
 
    ```rust
-   mod en;
-   mod nl;      // ← add
-   mod tr;
+   mod nl;   // next to the other `mod` lines
    ...
-   pub const LANGUAGES: &[&Language] = &[&en::LANGUAGE, &nl::LANGUAGE, &tr::LANGUAGE];
+   pub const LANGUAGES: &[&Language] = &[&en::LANGUAGE, /* ... */ &nl::LANGUAGE];
    ```
 
-6. Choose **Propose changes** and open a pull request. Bloogla's tests run on
-   it automatically and list anything missing or mistyped; you'll get help
-   with any of it.
+6. Choose **Propose changes** and open a pull request. The tests check it and
+   list anything missing. We'll help with the rest.
 
-**On your computer** (if you have [Rust](https://rustup.rs)): do the same
-steps in your editor, then run `cargo test`. It lists every text your file
-doesn't translate yet, and `cargo run` shows your language right away: pick
-it in **Profile → Language**.
+With [Rust](https://rustup.rs) on your computer, `cargo test` lists what's
+missing, and `cargo run` shows your language (**Profile → Language**).
 
 ## Writing good translations
 
-- **Keep the `{placeholders}`** exactly as written, like `{name}` or `{n}`;
-  Bloogla puts the real name or number there. You can move them to wherever
-  your sentence needs them.
-- **Write like the English does:** short, friendly, plain. Bloogla is for
-  people who aren't developers, so prefer everyday words to technical ones
-  ("address" rather than "URL", "sign in" rather than "authenticate").
-- **Always use the polite, formal "you"**, and the same everywhere: *Sie*
-  in German, *vous* in French, *siz* in Turkish, *jūs* in Lithuanian. People
-  of every age run websites with Bloogla, and many are speaking to it for the
-  first time; the polite form is never wrong. Keep the tone warm and simple
-  all the same: polite doesn't mean stiff.
-- **Counts:** English has a text for one and for many (`"{n} comment"` and
-  `"{n} comments"`). If your language changes words in other ways (Russian,
-  Arabic, Polish…), choose wording that works for any number, like
-  "Comments: {n}". If it uses the singular for zero too (like French), tell
-  us in the pull request and we'll switch the rule.
-- **Keep names as they are:** Bloogla, Gmail, Docker, YouTube.
-- **Not sure about a text?** Search for it in the code to see where it's
-  used, or ask in your pull request.
+- **Keep `{placeholders}`** like `{name}` and `{n}` exactly as written. You
+  can move them to where your sentence needs them.
+- **Short, friendly and plain.** Bloogla is for people who aren't
+  developers: "address", not "URL"; "sign in", not "authenticate".
+- **Always the polite "you"**: *Sie*, *vous*, *siz*, *jūs*. Warm, but never
+  informal.
+- **Counts:** English has one text for one and one for many (`"{n} comment"`,
+  `"{n} comments"`). If your language works differently, use wording that
+  fits any number ("Comments: {n}"), and tell us in the pull request.
+- **Keep names** as they are: Bloogla, Gmail, Docker, YouTube.
 
 Thank you! Your name goes in the release notes of the version your language
 first appears in.

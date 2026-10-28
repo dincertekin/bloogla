@@ -28,9 +28,13 @@
         </div>
     </header>
 
-    {% block band %}{% endblock %}
-    <main id="main" class="container main-content">
-        {% block content %}{% endblock %}
+    {# The band holds the page's heading, so it's part of <main> (where
+       "Skip to content" leads); the styles are on the inner box. #}
+    <main id="main">
+        {% block band %}{% endblock %}
+        <div class="container main-content">
+            {% block content %}{% endblock %}
+        </div>
     </main>
 
     <footer class="site-footer">

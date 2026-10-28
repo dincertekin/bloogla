@@ -34,9 +34,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Every release starts with which file to download, so nobody has
+          # to guess between the programs and their .sig files. GitHub's
+          # list of changes follows it.
+          version="${GITHUB_REF_NAME#v}"
+          cat > downloads.md <<EOF
+          ## Which file do I need?
+
+          | Your computer or server | Download |
+          |---|---|
+          | Windows | \`bloogla-x86_64-windows.exe\` |
+          | Most Linux servers (Intel or AMD) | \`bloogla-x86_64-linux\` |
+          | ARM servers (Raspberry Pi, AWS Graviton, Oracle Ampere) | \`bloogla-aarch64-linux\` |
+          | Docker | \`docker pull ghcr.io/${GITHUB_REPOSITORY}:${version}\` |
+
+          You don't need the \`.sig\` files: Bloogla uses them to check its own updates.
+          EOF
           # A draft left by an earlier, failed run is reused.
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes --title "Bloogla ${GITHUB_REF_NAME#v}"
+            || gh release create "$GITHUB_REF_NAME" --draft --verify-tag --notes-file downloads.md --generate-notes --title "Bloogla $version"
 
   programs:
     needs: draft

@@ -114,7 +114,23 @@ async fn latest_posts(
     // The home page is the site itself; other lists have their own address.
     let number = page.unwrap_or(1);
     if address != "/" || number > 1 {
-        let head = listing_head(state, site, &site.blog_name, &with_page(address, number));
+        // Until the owner describes the site (Settings → Site), search
+        // results still get a sentence instead of a blank.
+        let latest = site
+            .language
+            .tv("The latest posts on {site}.", &site.blog_name);
+        let description = if site.blog_description.trim().is_empty() {
+            latest.as_str()
+        } else {
+            site.blog_description.as_str()
+        };
+        let head = listing_head(
+            state,
+            site,
+            &site.blog_name,
+            description,
+            &with_page(address, number),
+        );
         context.insert("seo_head", &head);
     }
 
@@ -125,14 +141,22 @@ async fn latest_posts(
 /// the home page). Its canonical link is its own address, page included;
 /// pointing at the home page would tell search engines it's a copy of the
 /// home page, and they'd leave it out.
-fn listing_head(state: &AppState, site: &Settings, title: &str, address: &str) -> String {
+/// The SEO block of a list of posts. `description` is what search results
+/// show under the title.
+fn listing_head(
+    state: &AppState,
+    site: &Settings,
+    title: &str,
+    description: &str,
+    address: &str,
+) -> String {
     let canonical_url = format!("{}{address}", state.config.base_url);
     seo_head(
         state,
         site,
         &SeoMeta {
             title,
-            description: &site.blog_description,
+            description,
             canonical_url: &canonical_url,
             image: None,
             kind: SeoKind::Website,
@@ -365,7 +389,15 @@ pub async fn tag(
     let address = with_page(&base_path, query.page.unwrap_or(1));
     context.insert(
         "seo_head",
-        &listing_head(&state, &site, &tag.name, &address),
+        &listing_head(
+            &state,
+            &site,
+            &tag.name,
+            &site
+                .language
+                .tv2("Posts about {tag} on {site}.", &tag.name, &site.blog_name),
+            &address,
+        ),
     );
     context.insert("tag_name", &tag.name);
     context.insert("posts", &posts);

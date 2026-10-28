@@ -17,7 +17,7 @@
 
     <div class="admin-layout">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" aria-label="{{ me.t("Menu") }}">
             <div>
                 <div class="sidebar-head">
                     <a href="/admin" class="sidebar-brand" id="sidebar-brand" data-live>{{ blog_name }}</a>
@@ -227,11 +227,12 @@
         </div>
     </div>
 
-    <!-- Shared media chooser, opened with openMediaPicker(callback) -->
+    <!-- Shared media chooser, opened with openMediaPicker(callback, { videos }) -->
     <div id="media-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="media-modal-title">
         <div class="modal-card" style="max-width: 720px">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem">
-                <h3 id="media-modal-title" style="font-size: 1.125rem">{{ me.t("Choose an image") }}</h3>
+                <h3 id="media-modal-title" style="font-size: 1.125rem" data-images="{{ me.t("Choose an image") }}"
+                    data-videos="{{ me.t("Add a video") }}">{{ me.t("Choose an image") }}</h3>
                 <button type="button" class="btn btn-ghost btn-sm" data-modal-close aria-label="{{ me.t("Close") }}">✕</button>
             </div>
             <div id="picker-body">

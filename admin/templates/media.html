@@ -4,7 +4,7 @@
 <div class="page-header">
     <div>
         <h1>{{ me.t("Media") }}</h1>
-        <p>{{ me.t("Images you upload here can be used in any post or page. Describe each one: screen readers read the description aloud, and search engines use it too.") }}</p>
+        <p>{{ me.t("Images and videos you upload here can be used in any post or page. Describe each image: screen readers read the description aloud, and search engines use it too.") }}</p>
     </div>
 </div>
 
@@ -18,20 +18,30 @@
     <form action="/admin/media" method="POST" enctype="multipart/form-data" hx-post="/admin/media"
         hx-encoding="multipart/form-data" hx-target="#media-page" hx-select="#media-page" hx-swap="outerHTML">
         <div class="form-group">
-            <label for="files">{{ me.t("Upload images") }}</label>
+            <label for="files">{{ me.t("Upload images or videos") }}</label>
             <input type="file" id="files" name="files" class="form-control" multiple
-                accept="image/jpeg,image/png,image/gif,image/webp" required />
+                accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm" required />
             <span class="form-hint">
-                {{ me.t("JPEG, PNG, GIF or WebP, up to 20 MB at a time. Large photos are resized and their location data is removed.") }}
+                {{ me.t("Images: JPEG, PNG, GIF or WebP, up to 20 MB. Large photos are resized and their location data is removed.") }}
+                {{ me.t("Videos: MP4 or WebM, up to 100 MB, kept as they are without their location data. Big videos make your backups bigger and use your server's traffic, so put long ones on YouTube or Vimeo.") }}
             </span>
         </div>
         <button type="submit" class="btn btn-primary">{{ me.t("Upload") }}</button>
     </form>
 </section>
 
-<div id="media-list" class="media-grid" data-empty-text="{{ me.t("No images yet.") }}" {% if media.is_empty() %}hidden{% endif %}>
+<div id="media-list" class="media-grid" data-empty-text="{{ me.t("No images or videos yet.") }}" {% if media.is_empty() %}hidden{% endif %}>
     {% for item in media %}
     <div class="card media-card" id="media-{{ item.id }}" data-item>
+        {% if item.is_video %}
+        <!-- `#t=0.1` shows the first moment as the tile's picture. -->
+        <video src="{{ item.url }}#t=0.1" class="media-thumb" controls preload="metadata" playsinline
+            aria-label="{{ item.original_name }}"></video>
+        <div class="media-info">
+            <strong title="{{ item.original_name }}">{{ item.original_name }}</strong>
+            <span>{{ me.t("Video") }} · {{ item.size_label }}</span>
+        </div>
+        {% else %}
         <a href="{{ item.url }}" target="_blank">
             <img src="{{ item.thumb_url }}" alt="{{ item.alt }}" class="media-thumb" loading="lazy" decoding="async" />
         </a>
@@ -39,6 +49,8 @@
             <strong title="{{ item.original_name }}">{{ item.original_name }}</strong>
             <span>{{ item.dimensions }} · {{ item.size_label }}</span>
         </div>
+        {% endif %}
+        {% if !item.is_video %}
         <form class="alt-field" hx-post="/admin/media/{{ item.id }}/alt" hx-trigger="change"
             hx-target="find .alt-status" hx-swap="innerHTML">
             <label for="alt-{{ item.id }}">{{ me.t("Description") }}</label>
@@ -46,14 +58,20 @@
                 maxlength="250" placeholder="{{ me.t("What's in the picture?") }}" />
             <span class="alt-status form-hint" aria-live="polite"></span>
         </form>
+        {% endif %}
         <div class="button-row">
             <button type="button" class="btn btn-secondary btn-sm" data-copy="{{ base_url }}{{ item.url }}"
                 data-copied="{{ me.t("Copied") }}" data-copy-failed="{{ me.t("Copy failed") }}">{{ me.t("Copy link") }}</button>
             {% if me.can_edit_all() %}
             <button type="button" class="btn btn-ghost-danger btn-sm" style="flex: 0" aria-label="{{ me.t("Delete") }}"
                 data-delete-url="/admin/media/{{ item.id }}" data-delete-target="#media-{{ item.id }}"
+                {% if item.is_video %}
+                data-confirm-title="{{ me.t("Delete this video?") }}"
+                data-confirm-text="{{ me.t("Posts that use it will show an empty video player.") }}"
+                {% else %}
                 data-confirm-title="{{ me.t("Delete this image?") }}"
-                data-confirm-text="{{ me.t("Posts that use it will show a broken image.") }}">
+                data-confirm-text="{{ me.t("Posts that use it will show a broken image.") }}"
+                {% endif %}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                     aria-hidden="true">
@@ -68,7 +86,7 @@
     {% endfor %}
 </div>
 
-<p class="empty-state" data-empty-for="media-list" {% if !media.is_empty() %}hidden{% endif %}>{{ me.t("No images yet.") }}</p>
+<p class="empty-state" data-empty-for="media-list" {% if !media.is_empty() %}hidden{% endif %}>{{ me.t("No images or videos yet.") }}</p>
 </div>
 {% endblock %}
 

@@ -1,28 +1,67 @@
 # Security
 
-How Bloogla protects a site, and what to keep in mind when running one. To
-report a vulnerability, see [SECURITY.md](../SECURITY.md).
+How Bloogla protects your site. To report a problem, see
+[SECURITY.md](../SECURITY.md).
 
-- **Content Security Policy:** The admin panel, login and setup only run scripts from Bloogla's own files (no inline scripts, no `eval`), so injected HTML can't run code. Admin JavaScript lives in `admin/static/js/`; a test fails if inline scripts return to the templates.
-- **CSRF:** Cross-site `POST`/`DELETE` requests are rejected using the browser's `Sec-Fetch-Site` header, falling back to an `Origin` check against `BLOOGLA_BASE_URL`.
-- **Rate Limiting:** Per-address limits on login and comments. After 5 failed sign-ins in 15 minutes, an account accepts one attempt per minute from anywhere, which stops guessing spread across many addresses (accounts are slowed, never locked, so nobody can lock the owner out). Behind a reverse proxy on the same machine, make it overwrite `X-Forwarded-For` so visitors can't fake their address; if it adds to the header instead, Bloogla uses the address it added last. Behind a CDN such as Cloudflare, that's the CDN's address, so all visitors share one limit unless the proxy passes on the visitor's real address.
-- **Visibility:** Drafts and not-yet-due scheduled posts are hidden from every public page, search, RSS and sitemap. Publish times are entered and shown in the site's time zone (**Settings**).
-- **Backups:** Admins can download everything (database and images) as one .zip in **Settings → Backup**, and restore one there. A restore shows what's in the backup first, saves the site as it is now in `data/backups/`, and only takes the database and images from the .zip: other files in it, and names that point outside Bloogla's folder, are ignored. On the server there are also daily copies of the database in `data/backups/` (on unless turned off in **Settings → Backup**).
-- **Forgotten passwords:** **Forgot password?** on the sign-in page emails a link (when email is set up). It works once, for an hour, and only its hash is stored; the page answers the same whether or not the address has an account. Using it signs the account out everywhere; two-factor login stays on. Changing the password or the email cancels links sent earlier, and changing the email in Profile asks for the current password, because links go to that address. Without email, the page explains who can help, and `bloogla reset-password` works on the server.
-- **Importing from WordPress:** the export file is read as data, never run. Copying its images only downloads from public internet addresses (this server and private networks are refused, also after a redirect), at most 30 seconds and 20 MB per image and three redirects, and each one is checked like an upload. A backup of the site is saved before anything is imported.
-- **Trash:** deleted posts and pages go to the trash first and can be restored; they're deleted for good after 30 days. Emptying the trash asks first and saves a backup of the site in `data/backups/` before it starts.
-- **Code for every page (Settings → Site):** only `<meta>` tags and `<link>` tags with `rel="me"`, `"author"` or `"alternate"` and an `https://` address are kept, written out cleanly. Scripts, styles, event attributes, `http-equiv` and links that would load files from other sites are refused, so the page's security policy stays strict and nothing loads from elsewhere.
-- **Uploads:** Files are checked by content (JPEG, PNG, GIF, WebP only), at most 20 MB and 12,000 pixels wide or tall each, and stored under random names. Still pictures are turned upright, made at most 2,000 pixels wide or tall, stripped of metadata (EXIF and XMP: GPS location, camera, date), and get 800px and 400px copies for phones. JPEG and PNG pictures also get a smaller WebP copy, which browsers that support WebP receive instead (the address stays the same); a still GIF is saved as a PNG. Animations (GIF, animated WebP) are kept as they are, up to 5 MB, so pages stay quick to load; an animated WebP loses its metadata.
-- **Themes:** Only files in a theme's `static/` folder are public; templates and `theme.toml` are not served.
-- **Two-factor login (optional, recommended):** Turn it on in Profile with any authenticator app and your current password; you get 10 one-time recovery codes. New recovery codes also ask for the password. Both sign the account out on other devices. If the password changes while someone is at the code step of signing in, they have to start again. Nobody is forced to use it. Admins can turn it off for someone who lost their phone, and `bloogla disable-2fa EMAIL` works on the server.
-- **Private files:** On Linux, `data/` (database, `secret.key`, backups) can only be opened by the account running Bloogla. If the folder can't be changed (some Docker volumes and shared folders), Bloogla logs a warning and starts anyway.
-- **Stored secrets:** The mail server password and two-factor keys are encrypted with a key in `data/secret.key`. Keep that file with your backups; without it you re-enter the mail password and set up two-factor login again.
-- **Setup:** A fresh site can only be set up with the one-time code from the setup link Bloogla prints at start.
-- **Passwords:** At least 12 characters with a lowercase letter, an uppercase letter, a number and a symbol. Forms show what's missing as you type, and the server checks again. Rules live in `src/app/security.rs`.
-- **Sessions:** HTTP-only, same-site cookies (HTTPS-only in production); expired sessions are removed hourly. Changing a password (or an admin resetting it) or the email signs that account out on every other device.
-- **Security log:** Sign-ins, failed sign-ins, password, email and role changes and new people are logged as `security event=...` lines. Find them with `grep "security event"` in the log (or `docker logs bloogla`).
-- **Dependencies:** CI runs `cargo audit` on every push and weekly, and Dependabot proposes updates.
+## Signing in
 
-Sign-in failures and current-password checks in Profile share the same account
-limit. A successful password confirmation does not clear earlier failures. The
-limit counts completed failures; checks already in progress may finish together.
+- **Passwords** need 12 characters with a lowercase letter, an uppercase
+  letter, a number and a symbol.
+- **Guessing is slowed down.** After 5 wrong passwords in 15 minutes, an
+  account accepts one try per minute. Accounts are never locked, so nobody
+  can lock you out.
+- **Two-factor login** is optional and recommended (Profile). You get 10
+  recovery codes. An admin, or `bloogla disable-2fa EMAIL`, can turn it off
+  for someone who lost their phone.
+- **Forgot password?** emails a link that works once, for an hour. Using it
+  signs that account out everywhere.
+- **Changing a password or email** asks for the current password and signs
+  the account out on other devices.
+- **Setup** needs the one-time code from the link Bloogla prints when it
+  starts.
+- **Sign-ins and changes to accounts are logged.** Find them with
+  `grep "security event"` in the log (or `docker logs bloogla`).
+
+## Uploads and imports
+
+- **Images** are checked by their content (JPEG, PNG, GIF, WebP; up to 20 MB
+  and 12,000 pixels). Photos are turned upright, made at most 2,000 pixels
+  wide, and lose their metadata: where they were taken, the camera, the
+  date.
+- **Videos** are checked by their content (MP4 or WebM, up to 100 MB). An
+  MP4 loses where it was filmed and the phone's name; the video itself isn't
+  changed.
+- **Every file gets a random name.** Names and paths inside uploaded files
+  are never trusted.
+- **WordPress imports** are read as data, never run. Images are only copied
+  from public internet addresses (never this server or a private network),
+  with limits on size, time and redirects. A backup is saved first.
+- **Restoring a backup** only takes the database and the uploads from the
+  `.zip`, and saves your site as it is now first.
+
+## Your data
+
+- **Drafts and scheduled posts** stay hidden everywhere: pages, search, RSS
+  and the sitemap. A draft you share has a private link only.
+- **The mail password and two-factor keys** are encrypted with
+  `data/secret.key`. Keep that file with your backups.
+- **On Linux, `data/`** can only be opened by the account running Bloogla.
+- **Analytics** use no cookies and store no IP addresses.
+
+## Behind the scenes
+
+- **Strict Content Security Policy:** the admin runs only Bloogla's own
+  scripts, so text someone slips into a page can't run code.
+- **Forged requests are refused:** changes must come from your own site
+  (checked with the browser's `Sec-Fetch-Site` and `Origin` headers).
+- **Code for every page** (Settings → Site) accepts only `<meta>` tags and a
+  few safe `<link>` tags. Scripts and styles are refused.
+- **Themes** only publish their `static/` folder.
+- **Updates are signed.** Bloogla installs only programs signed with
+  Bloogla's release key.
+- **Dependencies** are checked for known problems on every change and every
+  week (`cargo audit`, Dependabot).
+
+**Behind a reverse proxy:** make it overwrite `X-Forwarded-For`, so visitors
+can't fake their address. Behind a CDN like Cloudflare, all visitors share
+one limit unless the proxy passes on their real address.

@@ -5,6 +5,7 @@
 //! Each test makes its own [`TestSite`] with a fresh database, so tests don't
 //! affect each other. To add a test, copy one from a file next to this one.
 //!
+//! - `accessibility`: keyboard and screen reader basics
 //! - `badges`: numbers next to menu items, the new-version notice
 //! - `media`: uploaded pictures and their smaller WebP copies
 //! - `setup_and_login`: first-run setup, signing in and out, password reset
@@ -14,7 +15,9 @@
 //! - `security`: CSRF, security headers, caching
 //! - `settings`: saving settings and your profile
 //! - `themes`: every bundled theme draws every page
+//! - `videos`: short videos in Media
 
+mod accessibility;
 mod account_changes;
 mod badges;
 mod contact;
@@ -30,6 +33,7 @@ mod setup_and_login;
 mod shared_failures;
 mod themes;
 mod trash;
+mod videos;
 
 use crate::app::config::Config;
 use crate::app::state::AppState;

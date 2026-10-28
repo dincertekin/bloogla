@@ -23,6 +23,17 @@ use std::time::{Duration, Instant};
 const RATE_LIMIT: usize = 5;
 const RATE_WINDOW: Duration = Duration::from_secs(10 * 60);
 
+/// What search results show under the site's name: the owner's description
+/// (Settings → Site), or until there is one, a sentence instead of a blank.
+fn site_description(site: &Settings) -> String {
+    if site.blog_description.trim().is_empty() {
+        site.language
+            .tv("The latest posts on {site}.", &site.blog_name)
+    } else {
+        site.blog_description.clone()
+    }
+}
+
 /// Context every theme template receives: site info, menu, tags and default
 /// SEO tags.
 async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
@@ -32,7 +43,7 @@ async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
         site,
         &SeoMeta {
             title: &site.blog_name,
-            description: &site.blog_description,
+            description: &site_description(site),
             canonical_url: &state.config.base_url,
             image: None,
             kind: SeoKind::Website,

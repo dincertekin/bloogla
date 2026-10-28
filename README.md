@@ -21,15 +21,15 @@
   <a href="#themes">Themes</a> ·
   <a href="docs/running.md">Docs</a> ·
   <a href="docs/translating.md">Translate</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="#would-you-like-to-support-bloogla">Support</a>
 </p>
 
 ---
 
-Bloogla is a modern alternative to WordPress for people who just want a fast,
-good-looking website. There's no PHP, no database server and no plugins to
-keep updated: one file runs the site, the admin panel and the HTTPS
-certificate.
+Bloogla is a lighter WordPress for people who want a fast, good-looking
+website without the upkeep. One file runs the site, the admin panel and the
+HTTPS certificate: no PHP, no database server, no plugins.
 
 - **Simple** — set up in the browser, write in a visual editor, done.
 - **Fast** — pages are tiny and served in milliseconds, even on the smallest server.
@@ -38,17 +38,11 @@ certificate.
 
 ## Quick start
 
-**On your computer**, to try it or write locally: download Bloogla from the
+**On Windows:** download `bloogla-x86_64-windows.exe` from the
 [latest release](https://github.com/dincertekin/bloogla/releases/latest) and
-open it. It opens the setup page in your browser.
-
-| Your computer | Download |
-| --- | --- |
-| Windows | `bloogla-x86_64-windows.exe` |
-
-The first time, Windows asks whether to trust it;
-[here's what to click](docs/running.md#on-your-computer). On a Mac, use
-Docker (below) or [build it yourself](docs/running.md#on-your-computer).
+open it. The setup page opens in your browser
+([what to click the first time](docs/running.md#on-your-computer)). On a
+Mac, use Docker.
 
 **On a server with Docker** (point your domain at the server first):
 
@@ -58,22 +52,22 @@ docker run -d --name bloogla --restart unless-stopped -p 80:80 -p 443:443 \
 docker logs bloogla   # open the setup link it prints
 ```
 
-**On a server without Docker:** download the program for your server from the
-[latest release](https://github.com/dincertekin/bloogla/releases/latest) and run it:
+**On a server without Docker:** download the program from the
+[latest release](https://github.com/dincertekin/bloogla/releases/latest):
 
 ```bash
 chmod +x bloogla-x86_64-linux
 BLOOGLA_TLS_DOMAINS=example.com ./bloogla-x86_64-linux
 ```
 
-With `BLOOGLA_TLS_DOMAINS`, HTTPS certificates come from Let's Encrypt
-automatically. More in [Running Bloogla](docs/running.md).
+HTTPS comes from Let's Encrypt by itself. More in
+[Running Bloogla](docs/running.md).
 
 ## Features
 
 |                     |                                                                                              |
 | ------------------- | -------------------------------------------------------------------------------------------- |
-| **Writing**         | Visual editor, drafts and scheduling, a private link to share a draft, pages, tags, image library, revisions, a trash, changing many posts at once, YouTube and Vimeo embeds, formulas (`$E = mc^2$`, drawn with KaTeX) |
+| **Writing**         | Visual editor, drafts and scheduling, a private link to share a draft, pages, tags, images and short videos, revisions, a trash, changing many posts at once, YouTube and Vimeo embeds, formulas (`$E = mc^2$`, drawn with KaTeX) |
 | **Your site**       | Seven themes with light and dark mode (visitors can switch), a page or your latest posts as the home page, menus, search, comments and a contact form with spam protection, an archive of every post by year, RSS, sitemap |
 | **Found on Google** | Meta tags, Open Graph, structured data, clean addresses with automatic redirects (and your own, for old addresses), verification tags for Google, Bing and Mastodon |
 | **Analytics**       | Views and referring sites per day, without cookies or personal data                          |
@@ -99,48 +93,55 @@ automatically. More in [Running Bloogla](docs/running.md).
   </tr>
 </table>
 
-Pick one in **Appearance** and change its logo, colors, light or dark mode
-and texts without touching code. Want your own? Themes are plain HTML and CSS: see
-[Writing themes](docs/themes.md).
+Pick one in **Appearance** and change its logo, colors and texts without
+touching code. Themes are plain HTML and CSS:
+[make your own](docs/themes.md).
 
 ## Updating
 
-Open **Settings → Updates** and click **Check for updates**. On Linux and
-Macs, **Install** downloads the new version, checks it's a genuine signed
-Bloogla release, and restarts in a few seconds. You can also let Bloogla
-check every day and install new versions by itself.
+Download a backup first (**Settings → Backup**). Then:
 
-On Windows, download the new `.exe` and use it in place of the old one. With
-Docker, run `docker pull ghcr.io/dincertekin/bloogla`, then start the
-container again with the same command; your site lives in the `bloogla`
-volume. Download a backup first either way (**Settings → Backup**).
-[All the details](docs/running.md#updating).
+- **Linux:** **Settings → Updates → Install**. It checks the new version is
+  a genuine, signed Bloogla and restarts in a few seconds.
+- **Docker:** `docker pull ghcr.io/dincertekin/bloogla`, then start the
+  container again with the same command.
+- **Windows:** replace the `.exe` with the new one.
+
+[More about updating](docs/running.md#updating).
 
 ## Documentation
 
-- [Running Bloogla](docs/running.md): servers, configuration, commands, updates, backups, moving from WordPress
-- [Writing themes](docs/themes.md): templates, options, the security policy
-- [Translating](docs/translating.md): adding your language, no programming needed
-- [Security](docs/security.md): how a Bloogla site is protected
-- [Contributing](CONTRIBUTING.md): development setup, code tour, house rules
-
-## Help translate Bloogla
-
-Bloogla speaks English, Deutsch, Français, Lietuvių and Türkçe. Want it in your language? A language is
-one file of short texts, and you can add it right in your browser, no
-programming needed. The [translation guide](docs/translating.md) shows how,
-or [say hello](https://github.com/dincertekin/bloogla/issues/new?template=translation.yml)
-if you'd like to help review one.
+- [Running Bloogla](docs/running.md): servers, updates, backups, moving from WordPress
+- [Writing themes](docs/themes.md)
+- [Translating](docs/translating.md): no programming needed
+- [Security](docs/security.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## Contributing
 
-Bug reports, translations, themes and code are all welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md); it takes one command (`cargo run`) to
-have a local site running. Found a security issue? Please report it
-[privately](SECURITY.md).
+Bug reports, translations, themes and code are all welcome.
+
+- **Translate:** add your language in the browser with the
+  [translation guide](docs/translating.md).
+- **Code:** start with [CONTRIBUTING.md](CONTRIBUTING.md); `cargo run` gives
+  you a local site.
+- **Security issue?** Please report it [privately](SECURITY.md).
 
 Built with [Rust](https://www.rust-lang.org), [axum](https://github.com/tokio-rs/axum),
 [SQLite](https://sqlite.org) and [htmx](https://htmx.org).
+
+## Would you like to support Bloogla?
+
+Bloogla is free, and it stays free. If it helps you, you can:
+
+- **[Buy me a coffee](https://buymeacoffee.com/dincertekin)**, or click
+  **Sponsor** at the top of the
+  [GitHub page](https://github.com/dincertekin/bloogla): it keeps the work
+  going.
+- **Give it a star** on GitHub, so more people find it.
+- **Tell a friend** who wants a website without the hassle.
+
+Thank you!
 
 ## Star history
 

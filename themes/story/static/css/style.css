@@ -70,6 +70,8 @@
     --line-strong: #e6e6e6;
     --accent: #1a8917;
     --accent-hover: #156d12;
+    /* Text on an accent background: white here, dark on the lighter green of dark mode. */
+    --on-accent: #ffffff;
     --code-bg: #f9f9f9;
     --code-text: #242424;
     --code-comment: #6b6b6b;
@@ -93,6 +95,7 @@
         --line-strong: #2e2e2e;
         --accent: #4cc35a;
         --accent-hover: #74d37f;
+        --on-accent: #111111;
         --code-bg: #1b1b1b;
         --code-text: #e6e6e6;
         --code-comment: #a0a0a0;
@@ -114,6 +117,7 @@
     --line-strong: #2e2e2e;
     --accent: #4cc35a;
     --accent-hover: #74d37f;
+    --on-accent: #111111;
     --code-bg: #1b1b1b;
     --code-text: #e6e6e6;
     --code-comment: #a0a0a0;
@@ -1024,7 +1028,7 @@ a {
     border: 0;
     border-radius: 999px;
     background: var(--accent);
-    color: #ffffff;
+    color: var(--on-accent);
     cursor: pointer;
 }
 
