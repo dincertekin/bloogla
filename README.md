@@ -36,6 +36,19 @@ HTTPS certificate: no PHP, no database server, no plugins.
 - **Safe** — strict security by default, two-factor login, signed updates.
 - **Yours** — your data in one folder, one-click backups, no tracking.
 
+## Screenshots
+
+![A blog running on Bloogla with the default theme](.github/assets/screenshot-site.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/screenshot-editor.png" alt="The visual editor in the admin panel"><br><b>The visual editor</b></td>
+    <td width="50%"><img src=".github/assets/screenshot-themes.png" alt="Choosing a theme in the admin panel"><br><b>Themes</b></td>
+  </tr>
+</table>
+
+<sub>Screenshots use demo posts.</sub>
+
 ## Quick start
 
 **On Windows:** download `bloogla-x86_64-windows.exe` from the
