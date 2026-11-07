@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dincertekin/bloogla/stargazers"><img src="https://img.shields.io/github/stars/dincertekin/bloogla?style=flat&logo=github&color=111827" alt="GitHub stars"></a>
   <a href="https://github.com/dincertekin/bloogla/releases/latest"><img src="https://img.shields.io/github/v/release/dincertekin/bloogla?color=111827" alt="Latest release"></a>
   <a href="https://github.com/dincertekin/bloogla/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/dincertekin/bloogla/ci.yml?label=tests" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111827" alt="MIT license"></a>
@@ -200,15 +199,6 @@ Bloogla is free, and it stays free. If it helps you, you can:
 - **Tell a friend** who wants a website without the hassle.
 
 Thank you!
-
-## Star history
-
-<a href="https://star-history.com/#dincertekin/bloogla&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=dincertekin/bloogla&type=Date&theme=dark">
-    <img alt="Star history" src="https://api.star-history.com/svg?repos=dincertekin/bloogla&type=Date" width="600">
-  </picture>
-</a>
 
 ## License
 
