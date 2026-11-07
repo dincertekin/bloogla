@@ -1,0 +1,23 @@
+# Bloogla
+
+> Bloogla is a free, open-source blog engine and CMS: a lighter WordPress alternative in one small program, written in Rust. One program runs the website, the admin panel and the HTTPS certificate, with no PHP, no database server and no plugins. MIT licensed.
+
+Key facts:
+
+- Runs as a single program on Linux (x86_64, ARM) and Windows, or with Docker (also on a Mac). Gets HTTPS certificates from Let's Encrypt by itself.
+- Writing: visual editor, drafts and scheduling, private draft links, pages, tags, images and short videos, revisions, a trash, YouTube and Vimeo embeds, formulas with KaTeX.
+- Sites: seven bundled themes with light and dark mode, menus, search, comments and a contact form with spam protection, RSS, sitemap. Themes are plain HTML and CSS (Tera templates).
+- SEO: meta tags, Open Graph, structured data, clean addresses with automatic redirects.
+- Privacy: analytics without cookies or stored IP addresses; public pages load nothing from other servers.
+- Moving: imports WordPress exports (posts, pages, drafts, tags, comments, images, old addresses); exports a WordPress file or Markdown.
+- Safety: daily backups, one-click backup and restore, signed updates installed from the admin panel, two-factor login.
+- Languages: English, German, French, Lithuanian and Turkish.
+
+## Docs
+
+- [README](https://github.com/dincertekin/bloogla/blob/main/README.md): features, screenshots, quick start, questions
+- [Running Bloogla](https://github.com/dincertekin/bloogla/blob/main/docs/running.md): servers, updates, backups, moving from WordPress
+- [Writing themes](https://github.com/dincertekin/bloogla/blob/main/docs/themes.md)
+- [Translating](https://github.com/dincertekin/bloogla/blob/main/docs/translating.md)
+- [Security](https://github.com/dincertekin/bloogla/blob/main/docs/security.md)
+- [Releases](https://github.com/dincertekin/bloogla/releases/latest)

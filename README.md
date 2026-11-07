@@ -19,6 +19,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#features">Features</a> ·
   <a href="#themes">Themes</a> ·
+  <a href="#questions">Questions</a> ·
   <a href="docs/running.md">Docs</a> ·
   <a href="docs/translating.md">Translate</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -109,6 +110,50 @@ HTTPS comes from Let's Encrypt by itself. More in
 Pick one in **Appearance** and change its logo, colors and texts without
 touching code. Themes are plain HTML and CSS:
 [make your own](docs/themes.md).
+
+## Questions
+
+**Is Bloogla a WordPress alternative?**
+Yes. It does what most WordPress blogs need (posts, pages, comments, themes,
+a visual editor, analytics and backups) in one program, with no PHP, no
+database server and no plugins to keep updated.
+
+**Can I move my WordPress site to Bloogla?**
+Yes. In WordPress, use **Tools → Export → All content**, then import the
+file in Bloogla's **Settings → Import & export**. Posts, pages, drafts,
+tags, approved comments and images come along, and old addresses keep
+working. More in [Moving from WordPress](docs/running.md#moving-from-wordpress-and-exporting).
+
+**What do I need to run it?**
+A Linux server (x86_64 or ARM) or a Windows computer: the download is one
+program. Docker works too, also on a Mac. Point your domain at the server
+and Bloogla gets its HTTPS certificate from Let's Encrypt by itself.
+
+**Is it free?**
+Yes. Bloogla is open source under the MIT license, and there is no paid
+version.
+
+**Does it track my visitors?**
+No. Analytics count views and referring sites per day without cookies or
+stored IP addresses, and public pages load nothing from other servers: no
+web fonts, scripts or trackers.
+
+**How do updates work?**
+On Linux, **Settings → Updates → Install** downloads the new version, checks
+its signature and restarts in a few seconds. Checking for new versions stays
+off until you turn it on. More in [Updating](docs/running.md#updating).
+
+**What if I want to leave?**
+**Settings → Import & export** gives you a WordPress file, or Markdown files
+with your images. A backup `.zip` holds the whole site.
+
+**Can I make my own theme?**
+Yes. Themes are plain HTML and CSS: [Writing themes](docs/themes.md).
+
+**Which languages does it speak?**
+The admin panel, the themes and emails are in English, Deutsch, Français,
+Lietuvių and Türkçe. You can [add yours](docs/translating.md) without any
+programming.
 
 ## Updating
 
