@@ -1,8 +1,8 @@
 //! Passwords, random tokens and code hashing.
 
-use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 use argon2::Argon2;
-use rand::{Rng, RngCore};
+use rand::{Rng, RngExt};
 use sha2::{Digest, Sha256};
 
 /// Shortest password allowed, in characters.
@@ -104,12 +104,10 @@ pub fn log_event(event: &str, details: &[(&str, &str)]) {
 /// Hash a password with Argon2id for storing in the database.
 pub fn hash_password(password: &str) -> Result<String, String> {
     // A fresh random salt (16 bytes, as Argon2 recommends) for each password.
-    let mut salt_bytes = [0u8; 16];
-    rand::rng().fill_bytes(&mut salt_bytes);
-    let salt =
-        SaltString::encode_b64(&salt_bytes).map_err(|e| format!("Password salt failed: {e}"))?;
+    let mut salt = [0u8; 16];
+    rand::rng().fill_bytes(&mut salt);
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password_with_salt(password.as_bytes(), &salt)
         .map(|h| h.to_string())
         .map_err(|e| format!("Password hashing failed: {e}"))
 }
@@ -120,11 +118,9 @@ pub fn hash_password(password: &str) -> Result<String, String> {
 /// the response time doesn't reveal which email addresses have accounts.
 pub fn verify_password(password: &str, stored_hash: Option<&str>) -> bool {
     const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHRzb21lc2FsdA$J6ycAUHrfWLDxBqrLOjqEexZqnyJhGFRQnwxe4XiExI";
-    let Ok(hash) = PasswordHash::new(stored_hash.unwrap_or(DUMMY_HASH)) else {
-        return false;
-    };
+    // A stored hash that can't be read simply doesn't match.
     let matches = Argon2::default()
-        .verify_password(password.as_bytes(), &hash)
+        .verify_password(password.as_bytes(), stored_hash.unwrap_or(DUMMY_HASH))
         .is_ok();
     matches && stored_hash.is_some()
 }
@@ -230,6 +226,17 @@ mod tests {
         assert!(verify_password("correct horse", Some(&hash)));
         assert!(!verify_password("wrong horse", Some(&hash)));
         assert!(!verify_password("correct horse", None));
+    }
+
+    /// New hashes look like the ones earlier versions saved (Argon2id with
+    /// the same costs and a 16-byte salt), so either version can read them.
+    #[test]
+    fn new_hashes_keep_the_saved_format() {
+        let hash = hash_password("correct horse").unwrap();
+        let parts: Vec<&str> = hash.split('$').collect();
+        assert_eq!(parts[1..4], ["argon2id", "v=19", "m=19456,t=2,p=1"]);
+        assert_eq!(parts[4].len(), 22, "16 bytes of salt, in Base64");
+        assert!(!verify_password("x", Some("not a hash")));
     }
 
     #[test]

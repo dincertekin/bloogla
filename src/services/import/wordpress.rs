@@ -104,30 +104,32 @@ pub fn read(xml: &[u8]) -> Result<Export, &'static str> {
         })?;
         match event {
             Event::Start(start) => {
-                let name = String::from_utf8_lossy(start.name().as_ref()).into_owned();
+                let name = start.name().as_ref().to_string();
                 if name == "category" {
                     in_tag = start.attributes().flatten().any(|attribute| {
-                        attribute.key.as_ref() == b"domain"
-                            && matches!(attribute.value.as_ref(), b"category" | b"post_tag")
+                        attribute.key.as_ref() == "domain"
+                            && matches!(attribute.value.as_ref(), "category" | "post_tag")
                     });
                 }
                 open.push(name);
                 text.clear();
             }
-            Event::Text(part) => text.push_str(&part.decode().map_err(|_| DAMAGED)?),
-            Event::CData(part) => text.push_str(&String::from_utf8_lossy(&part.into_inner())),
+            // The reader already turned the file into text; line endings
+            // become `\n` as XML says.
+            Event::Text(part) => text.push_str(&part.xml10_content()),
+            Event::CData(part) => text.push_str(&part.into_inner()),
             // `&amp;`, `&#233;`...: XML's way of writing characters.
             Event::GeneralRef(reference) => {
                 if let Ok(Some(character)) = reference.resolve_char_ref() {
                     text.push(character);
                 } else {
-                    let name: &[u8] = &reference;
+                    let name: &str = &reference;
                     match name {
-                        b"amp" => text.push('&'),
-                        b"lt" => text.push('<'),
-                        b"gt" => text.push('>'),
-                        b"quot" => text.push('"'),
-                        b"apos" => text.push('\''),
+                        "amp" => text.push('&'),
+                        "lt" => text.push('<'),
+                        "gt" => text.push('>'),
+                        "quot" => text.push('"'),
+                        "apos" => text.push('\''),
                         _ => {}
                     }
                 }

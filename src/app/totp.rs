@@ -16,7 +16,7 @@ const ALLOWED_DRIFT: i64 = 1;
 
 /// A new random secret key (160 bits, as authenticator apps expect).
 pub fn new_secret() -> Vec<u8> {
-    use rand::RngCore;
+    use rand::Rng;
     let mut key = vec![0u8; 20];
     rand::rng().fill_bytes(&mut key);
     key
