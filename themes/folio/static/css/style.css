@@ -243,6 +243,19 @@ a {
     background: var(--line);
 }
 
+/* The grid's picture shape (Appearance). */
+.tiles-square .tile-cover img,
+.tiles-square .tile-blank {
+    aspect-ratio: 1 / 1;
+    height: auto;
+}
+
+.tiles-portrait .tile-cover img,
+.tiles-portrait .tile-blank {
+    aspect-ratio: 4 / 5;
+    height: auto;
+}
+
 /* A story without a picture shows its first words instead. */
 .tile-blank {
     padding: 1.25rem;
@@ -1100,4 +1113,63 @@ button:active,
 
 .header-content .site-nav {
     margin-left: auto;
+}
+
+/* Titles: lines of about the same length, so a long title never ends with
+   one word alone. */
+h1,
+h2,
+h3 {
+    text-wrap: balance;
+}
+
+/* Printing: only the writing, black on white (also in dark mode), without
+   the parts that only work on a screen. Links show where they lead. */
+@media print {
+    *,
+    *::before,
+    *::after {
+        color: #000 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+    }
+
+    .site-header,
+    .site-footer,
+    .skip-link,
+    .search-form,
+    .scheme-toggle,
+    .post-nav,
+    .pagination,
+    .comments,
+    .subscribe {
+        display: none !important;
+    }
+
+    main p a[href^="http"]::after,
+    main li a[href^="http"]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.85em;
+        word-break: break-all;
+    }
+
+    img,
+    pre,
+    blockquote,
+    table,
+    figure {
+        break-inside: avoid;
+    }
+
+    h1,
+    h2,
+    h3 {
+        break-after: avoid;
+    }
 }

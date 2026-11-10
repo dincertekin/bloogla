@@ -1,6 +1,8 @@
-{#- A list of writing with a heading for each year. Posts come newest first,
+{#- A list of writing with a heading for each year (or one list, when
+    grouping is off in Appearance). Posts come newest first,
     so a new heading starts whenever the year changes. `set_global` keeps the
     year from one round of the loop to the next. -#}
+{% if theme_options.group_by_year %}
 {% set_global year = "" %}
 {% for post in posts %}
 {% set this_year = post.published_at | truncate(length=4, end="") %}
@@ -19,3 +21,16 @@
         </li>
 {% if loop.last %}</ol></section>{% endif %}
 {% endfor %}
+{% elif posts %}
+{#- Grouping by year is off (Appearance): one list. -#}
+<ol class="entries">
+    {% for post in posts %}
+    <li>
+        <a href="{{ post.url }}">
+            <time class="mono">{{ post.created_at }}</time>
+            <span class="entry-title">{{ post.title }}</span>
+        </a>
+    </li>
+    {% endfor %}
+</ol>
+{% endif %}

@@ -490,6 +490,32 @@ a {
     padding-right: 0;
 }
 
+/* Three stories in a row (Appearance), on wide screens: the rule between
+   stories moves with the columns. */
+@media (min-width: 961px) {
+    .grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-three .grid-story:nth-child(4n + 1) {
+        padding-left: 1.25rem;
+        border-left: 1px solid var(--rule);
+    }
+
+    .grid-three .grid-story:nth-child(4n) {
+        padding-right: 1.25rem;
+    }
+
+    .grid-three .grid-story:nth-child(3n + 1) {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .grid-three .grid-story:nth-child(3n) {
+        padding-right: 0;
+    }
+}
+
 @media (max-width: 960px) {
     .grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1391,4 +1417,64 @@ button:active,
 /* Beside the search, at the right of the bar above the masthead. */
 .topbar .scheme-toggle {
     margin-left: 0.5rem;
+}
+
+/* Titles: lines of about the same length, so a long title never ends with
+   one word alone. */
+h1,
+h2,
+h3 {
+    text-wrap: balance;
+}
+
+/* Printing: only the writing, black on white (also in dark mode), without
+   the parts that only work on a screen. Links show where they lead. */
+@media print {
+    *,
+    *::before,
+    *::after {
+        color: #000 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+    }
+
+    .site-header,
+    .site-footer,
+    .skip-link,
+    .search-form,
+    .scheme-toggle,
+    .post-nav,
+    .pagination,
+    .comments,
+    .subscribe,
+    .sections {
+        display: none !important;
+    }
+
+    main p a[href^="http"]::after,
+    main li a[href^="http"]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.85em;
+        word-break: break-all;
+    }
+
+    img,
+    pre,
+    blockquote,
+    table,
+    figure {
+        break-inside: avoid;
+    }
+
+    h1,
+    h2,
+    h3 {
+        break-after: avoid;
+    }
 }

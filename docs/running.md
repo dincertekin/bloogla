@@ -108,12 +108,40 @@ itself (**Install new versions automatically**). Both are off at first.
   site as it is now in `data/backups/` first, then replaces everything.
 - **Daily copies:** Bloogla keeps the last 7 days of the database in
   `data/backups/`. Turn this off in **Settings → Backup**.
+- **Copies somewhere else:** backups on the server are lost with the server.
+  In **Settings → Backup → Copy backups to storage**, fill in storage you
+  rent from Backblaze B2, Cloudflare R2, Amazon S3 or another S3-compatible
+  service (make a private bucket and a key that can write to it). Bloogla
+  checks it by saving a small file, `bloogla-check.txt`, then sends a backup
+  of the whole site every day as `bloogla-monday.zip`, `bloogla-tuesday.zip`
+  and so on: the last 7 days. To restore one, download it from your
+  storage's website and choose it under **Restore**. The Dashboard's
+  **Site health** says when the last copy arrived, or why it didn't.
 - **Keep `data/secret.key` with your backups.** Without it, you type your
   mail password again and everyone sets up two-factor login again.
 
 If Bloogla won't start: stop it, unpack the backup `.zip` into its folder,
 delete `data/bloogla.db-wal` and `data/bloogla.db-shm` if they're there, and
 start it again.
+
+## Email subscriptions
+
+Readers can get new posts by email. Set up email first (**Settings →
+Email**), then tick **Let readers subscribe to new posts by email** in
+**Settings → Subscribers**. A "Get new posts by email" form appears under
+your posts; readers confirm their address with a link.
+
+When you publish a post with **Email this post to subscribers** ticked (in
+the editor, under Status), subscribers get its title, its beginning and a
+link to read it, within a minute of it appearing on your site. Each post is
+sent once. Every email has an unsubscribe link, and you can remove people
+in **Settings → Subscribers**.
+
+Some email providers send only a few hundred emails a day; ask yours if you
+expect many subscribers.
+
+Each tag also has its own feed, for readers who follow one topic:
+`/tag/recipes/rss.xml`.
 
 ## Moving from WordPress, and exporting
 

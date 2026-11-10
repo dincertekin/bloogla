@@ -43,8 +43,13 @@ How Bloogla protects your site. To report a problem, see
 
 - **Drafts and scheduled posts** stay hidden everywhere: pages, search, RSS
   and the sitemap. A draft you share has a private link only.
-- **The mail password and two-factor keys** are encrypted with
-  `data/secret.key`. Keep that file with your backups.
+- **The mail password, the storage secret key and two-factor keys** are
+  encrypted with `data/secret.key`. Keep that file with your backups.
+- **Subscribers** confirm their address with a link before they get
+  anything; addresses nobody confirmed are deleted after 7 days. Only admins
+  see the list. Every email has a one-click unsubscribe link.
+- **Copying backups to storage** only sends them to an `https://` address,
+  signed with your keys, and never follows a redirect elsewhere.
 - **On Linux, `data/`** can only be opened by the account running Bloogla.
 - **Analytics** use no cookies and store no IP addresses.
 

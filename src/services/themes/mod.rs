@@ -32,10 +32,22 @@ use options::ThemeOption;
 /// Where installed themes live, one folder each.
 const THEMES_DIR: &str = "themes";
 
+/// Parts every bundled theme uses (comments, pagination, the light and dark
+/// button, code highlighting...), kept once in `themes/_shared/` instead of
+/// in each theme. A theme that has its own copy of one uses its own; one
+/// that doesn't gets this one. It isn't a theme itself, and it's built into
+/// Bloogla, not installed.
+pub const SHARED: &str = "_shared";
+
 /// Themes shipped with Bloogla.
+// A site's own folders, made when Bloogla is started inside `themes/` by
+// mistake, are never built in: they hold its database and secret key.
 #[derive(RustEmbed)]
 #[folder = "themes/"]
 #[exclude = "*.DS_Store"]
+#[exclude = "data/*"]
+#[exclude = "uploads/*"]
+#[exclude = "themes/*"]
 struct BundledThemes;
 
 /// The `theme.toml` of a theme.
@@ -224,8 +236,9 @@ impl Themes {
                 let Some(id) = entry.file_name().to_str().map(str::to_string) else {
                     continue;
                 };
-                // Hidden folders (like .git) aren't themes.
-                if !id.starts_with('.') {
+                // Hidden folders (like .git) aren't themes, and neither are
+                // the shared parts (in the source folder, during development).
+                if !id.starts_with('.') && id != SHARED {
                     themes.reload(&id);
                 }
             }
@@ -291,6 +304,34 @@ fn is_valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
 }
 
+/// Add the shared templates (`templates/comments.html`...) that the theme
+/// doesn't have a copy of itself.
+fn add_shared_templates(tera: &mut Tera) -> tera::Result<()> {
+    let prefix = format!("{SHARED}/");
+    let own: std::collections::HashSet<String> =
+        tera.get_template_names().map(str::to_string).collect();
+    let shared: Vec<(String, String)> = BundledThemes::iter()
+        .filter_map(|path| {
+            let name = path.strip_prefix(&prefix)?.to_string();
+            let is_template = name.starts_with("templates/") && name.ends_with(".html");
+            if !is_template || own.contains(&name) {
+                return None;
+            }
+            let file = BundledThemes::get(&path)?;
+            Some((name, String::from_utf8_lossy(&file.data).into_owned()))
+        })
+        .collect();
+    tera.add_raw_templates(shared)
+}
+
+/// A shared file a theme's page asks for at `static/<path>` and doesn't have
+/// itself (`/theme-assets/<theme>/static/js/prism.js`): its contents and type.
+pub fn shared_static(path: &str) -> Option<(Vec<u8>, String)> {
+    let file = BundledThemes::get(&format!("{SHARED}/static/{path}"))?;
+    let kind = file.metadata.mimetype().to_string();
+    Some((file.data.into_owned(), kind))
+}
+
 /// Read a theme's `theme.toml` and templates from `dir`.
 /// When the newest file in a theme's folder changed. Its `static/` files are
 /// served as they are, so only the templates and `theme.toml` count.
@@ -349,7 +390,7 @@ fn load_theme(id: &str, dir: &Path) -> LoadedTheme {
         return broken(meta, format!("theme.toml: {problem}"));
     }
     let pattern = format!("{}/**/*.html", dir.display());
-    let tera = match Tera::new(&pattern) {
+    let mut tera = match Tera::new(&pattern) {
         Ok(tera) => tera,
         Err(e) => {
             // Paths inside the theme are enough: `templates/index.html`.
@@ -360,6 +401,9 @@ fn load_theme(id: &str, dir: &Path) -> LoadedTheme {
             return broken(meta, error.trim_start_matches(['\n', '*', ' ']).to_string());
         }
     };
+    if let Err(e) = add_shared_templates(&mut tera) {
+        return broken(meta, describe_error(&e));
+    }
     if let Some(missing) = REQUIRED_TEMPLATES
         .iter()
         .find(|name| !tera.get_template_names().any(|t| t == **name))
@@ -481,6 +525,38 @@ fn theme_error(lang: crate::i18n::Lang, detail: &str) -> Response {
 mod tests {
     use super::*;
 
+    /// A site made inside `themes/` by mistake holds a database and a
+    /// secret key: none of it may be built into Bloogla or installed.
+    #[test]
+    fn a_site_folder_inside_themes_is_never_built_in() {
+        for path in BundledThemes::iter() {
+            assert!(
+                !["data/", "uploads/", "themes/"]
+                    .iter()
+                    .any(|p| path.starts_with(p)),
+                "{path}"
+            );
+        }
+        assert!(BundledThemes::get("_shared/templates/comments.html").is_some());
+    }
+
+    /// A theme's own copy of a shared template wins over the shared one.
+    #[test]
+    fn a_themes_own_template_wins_over_the_shared_one() {
+        let mut tera = Tera::default();
+        tera.add_raw_template("templates/pagination.html", "mine")
+            .unwrap();
+        add_shared_templates(&mut tera).unwrap();
+        let context = tera::Context::new();
+        assert_eq!(
+            tera.render("templates/pagination.html", &context).unwrap(),
+            "mine"
+        );
+        assert!(tera
+            .get_template_names()
+            .any(|t| t == "templates/comments.html"));
+    }
+
     #[test]
     fn themes_can_add_policy_sources_but_not_break_the_header() {
         let mut meta: ThemeMeta = toml::from_str(
@@ -525,6 +601,10 @@ mod tests {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("themes");
         for entry in fs::read_dir(dir).unwrap().flatten() {
             let id = entry.file_name().to_string_lossy().to_string();
+            // Only the bundled themes, not the shared parts (or anything else).
+            if id == SHARED || !is_bundled(&id) {
+                continue;
+            }
             if let Some(error) = load_theme(&id, &entry.path()).info.error {
                 panic!("theme {id} doesn't load: {error}");
             }

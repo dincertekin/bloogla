@@ -26,7 +26,7 @@
     font-style: normal;
     font-display: swap;
     font-weight: 200 900;
-    src: url("../fonts/source-serif-4-latin-ext-wght-normal.woff2") format("woff2");
+    src: url("../fonts/source-serif-4-latin-ext-opsz-normal.woff2") format("woff2");
     unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
@@ -35,7 +35,7 @@
     font-style: normal;
     font-display: swap;
     font-weight: 200 900;
-    src: url("../fonts/source-serif-4-latin-wght-normal.woff2") format("woff2");
+    src: url("../fonts/source-serif-4-latin-opsz-normal.woff2") format("woff2");
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
@@ -44,7 +44,7 @@
     font-style: italic;
     font-display: swap;
     font-weight: 200 900;
-    src: url("../fonts/source-serif-4-latin-ext-wght-italic.woff2") format("woff2");
+    src: url("../fonts/source-serif-4-latin-ext-opsz-italic.woff2") format("woff2");
     unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
@@ -53,7 +53,7 @@
     font-style: italic;
     font-display: swap;
     font-weight: 200 900;
-    src: url("../fonts/source-serif-4-latin-wght-italic.woff2") format("woff2");
+    src: url("../fonts/source-serif-4-latin-opsz-italic.woff2") format("woff2");
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
@@ -339,6 +339,12 @@ a {
     gap: 0 4rem;
 }
 
+/* Without the column beside it, the feed sits in the middle. */
+.feed-layout.no-sidebar {
+    grid-template-columns: minmax(0, 728px);
+    justify-content: center;
+}
+
 .feed {
     max-width: 728px;
     padding-top: 2.5rem;
@@ -469,9 +475,15 @@ a {
     padding: 2.5rem 0 0 2.5rem;
 }
 
-.widget {
+/* The whole column stays in view while the feed scrolls. It sticks as one
+   block: sticking each widget on its own would pile them on top of each
+   other. */
+.sidebar-inner {
     position: sticky;
     top: 1.5rem;
+}
+
+.widget {
     margin-bottom: 2.5rem;
 }
 
@@ -521,7 +533,7 @@ a {
         margin-top: 1rem;
     }
 
-    .widget {
+    .sidebar-inner {
         position: static;
     }
 }
@@ -591,8 +603,21 @@ a {
     margin-bottom: 2.5rem;
 }
 
+/* "Large" text size (Appearance): a little bigger for easier reading. */
+.text-large .post-body {
+    font-size: 1.375rem;
+}
+
+.text-large .comment-body {
+    font-size: 1.125rem;
+}
+
+/* Article text uses Source Serif's text design (optical size 14): wider and
+   steadier than the size browsers would pick for 20px, and close to the
+   text face Medium uses. Titles and the site name pick their own size. */
 .post-body {
     font-family: var(--serif);
+    font-variation-settings: "opsz" 14;
     font-size: 1.25rem;
     line-height: 1.6;
     letter-spacing: -0.003em;
@@ -934,6 +959,7 @@ a {
 
 .comment-body {
     font-family: var(--serif);
+    font-variation-settings: "opsz" 14;
     font-size: 1.05rem;
 }
 
@@ -1323,5 +1349,65 @@ button:active,
     .scheme-changing * {
         transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease,
             fill 0.3s ease, stroke 0.3s ease !important;
+    }
+}
+
+/* Titles: lines of about the same length, so a long title never ends with
+   one word alone. */
+h1,
+h2,
+h3 {
+    text-wrap: balance;
+}
+
+/* Printing: only the writing, black on white (also in dark mode), without
+   the parts that only work on a screen. Links show where they lead. */
+@media print {
+    *,
+    *::before,
+    *::after {
+        color: #000 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+    }
+
+    .site-header,
+    .site-footer,
+    .skip-link,
+    .search-form,
+    .scheme-toggle,
+    .post-nav,
+    .pagination,
+    .comments,
+    .subscribe,
+    .sidebar {
+        display: none !important;
+    }
+
+    main p a[href^="http"]::after,
+    main li a[href^="http"]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.85em;
+        word-break: break-all;
+    }
+
+    img,
+    pre,
+    blockquote,
+    table,
+    figure {
+        break-inside: avoid;
+    }
+
+    h1,
+    h2,
+    h3 {
+        break-after: avoid;
     }
 }

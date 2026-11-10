@@ -91,6 +91,7 @@ pub async fn run(config: Config, pool: SqlitePool) -> Result<(), Box<dyn std::er
     let sessions = SessionManagerLayer::new(session_store.clone()).with_secure(config.production);
 
     spawn_maintenance(pool.clone(), session_store);
+    crate::services::subscriptions::spawn_sender(state.clone());
     tokio::spawn(crate::services::images::make_missing_thumbs(pool.clone()));
     // Post views are counted in memory and saved every few seconds.
     crate::handlers::site::analytics::spawn_view_saver(pool.clone());
@@ -146,8 +147,9 @@ pub fn listen(addr: SocketAddr) -> Result<std::net::TcpListener, String> {
     Ok(listener)
 }
 
-/// Hourly housekeeping: the daily database backup (when it's on in
-/// Settings → Backup), emptying trash older than 30 days and removing
+/// Hourly housekeeping: the daily database backup and the copy to storage
+/// (when they're on in Settings → Backup), forgetting subscribers who never
+/// confirmed, emptying trash older than 30 days and removing
 /// expired sign-in sessions.
 fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
     tokio::spawn(async move {
@@ -162,7 +164,10 @@ fn spawn_maintenance(pool: SqlitePool, session_store: SqliteStore) {
             if crate::db::settings::load(&pool).await.auto_backup {
                 crate::services::backup::run_daily_backup(&pool).await;
             }
+            let uploads = std::path::Path::new(crate::services::images::UPLOAD_DIR);
+            crate::services::storage::run_daily_copy(&pool, uploads).await;
             crate::db::posts::delete_old_trash(&pool).await;
+            crate::db::subscribers::delete_unconfirmed(&pool).await;
             if let Err(e) = session_store.delete_expired().await {
                 tracing::error!("Could not remove expired sessions: {e}");
             }

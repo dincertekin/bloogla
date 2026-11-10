@@ -1,6 +1,6 @@
 name = "Folio"
 author = "Bloogla Team"
-version = "1.0.6"
+version = "1.0.8"
 description = "Photographs first: the newest story as one large picture, then a grid of pictures. For photography, travel and food."
 preview_image = "static/preview.svg"
 
@@ -46,3 +46,11 @@ name = "show_powered_by"
 label = "Show “Powered by Bloogla”"
 type = "checkbox"
 default = true
+
+[[options]]
+name = "tile_shape"
+label = "Shape of the pictures in the grid"
+type = "select"
+choices = ["Landscape", "Square", "Portrait"]
+default = "Landscape"
+hint = "Pictures are cropped to this shape; the post shows them whole."

@@ -27,8 +27,31 @@ async fn main() {
     };
 
     server::init_logging();
+    #[cfg(debug_assertions)]
+    run_in_main_folder_of_source();
     if let Err(e) = command.run().await {
         app::console::failed(&e.to_string());
         std::process::exit(1);
+    }
+}
+
+/// Bloogla keeps its site (`data/`, `uploads/`, `themes/`) in the folder it
+/// starts in. `cargo run` typed inside a folder of the source code, like
+/// `themes/`, would make a second site there, and its `data` folder would
+/// show up as a theme. So a development build started anywhere inside the
+/// source code runs in its main folder instead. Release builds, and
+/// development builds started outside the source code, are left alone.
+#[cfg(debug_assertions)]
+fn run_in_main_folder_of_source() {
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let Ok(here) = std::env::current_dir() else {
+        return;
+    };
+    if here != source && here.starts_with(source) && std::env::set_current_dir(source).is_ok() {
+        tracing::info!(
+            "Development build started in {}: running in {} instead.",
+            here.display(),
+            source.display()
+        );
     }
 }

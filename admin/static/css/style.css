@@ -809,6 +809,96 @@ input::-ms-clear {
     font-weight: 500;
 }
 
+/* Dashboard: "Site health" reuses the checklist rows; a "!" marks what to fix */
+.health-rows .checklist-step.done .checklist-text {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.health-rows .checklist-step.warn .checklist-icon {
+    stroke: var(--text-primary);
+}
+
+/* Dashboard: boxes each person can move and hide (Customize, dashboard.js) */
+.dashboard-section {
+    position: relative;
+    margin-bottom: 1.25rem;
+}
+
+.dashboard-section > .card,
+.dashboard-section > .stats-grid {
+    margin-bottom: 0;
+}
+
+/* While customizing, every box shows a dashed edge. Totals is a row of
+   three cards with no box of its own, so each of its cards gets one. */
+.dashboard-sections.is-customizing .dashboard-section > .card,
+.dashboard-sections.is-customizing .dashboard-section .stat-card {
+    outline: 1px dashed var(--border-light);
+    outline-offset: 4px;
+}
+
+.drag-handle {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: grab;
+    /* Dragging with a finger moves the box, not the page. */
+    touch-action: none;
+}
+
+.drag-handle:hover {
+    color: var(--text-primary);
+}
+
+.drag-handle:focus-visible {
+    outline: 2px solid var(--accent-black);
+    outline-offset: 2px;
+}
+
+/* The box being dragged follows the pointer above the others. */
+.dashboard-section.is-dragging {
+    z-index: 2;
+}
+
+.dashboard-section.is-dragging .drag-handle {
+    cursor: grabbing;
+}
+
+/* While dragging, no text gets selected and the cursor stays a hand. */
+.dashboard-sections.is-sorting {
+    user-select: none;
+    cursor: grabbing;
+}
+
+/* The box being dragged lifts a little above the others (the pop-up
+   shadow, so it suits light and dark). */
+.dashboard-section.is-dragging > .card,
+.dashboard-section.is-dragging .stat-card {
+    box-shadow: var(--shadow-modal);
+}
+
+.dashboard-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.dashboard-customize-status:not(:empty) {
+    margin-bottom: 1rem;
+}
+
 /* Less common fields, folded away (Settings → Email) */
 .advanced-fields {
     margin-bottom: 1.25rem;

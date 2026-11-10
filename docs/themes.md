@@ -61,7 +61,7 @@ Refer to other templates by their path in the theme:
 | `tags` | Tags with public posts |
 | `search_query` | What was searched for |
 | `show_views` | Whether to show view counts |
-| `seo_head` | Put `{{ seo_head \| safe }}` in `<head>`: SEO tags, verification tags, and the formula files on pages with formulas |
+| `seo_head` | Put `{{ seo_head \| safe }}` in `<head>`: SEO tags, verification tags, a `generator` tag naming Bloogla (without its version), and the formula files on pages with formulas |
 | `scheme_script` | Put `{{ scheme_script \| safe }}` in `<head>` (see [Light and dark](#light-and-dark)) |
 | `theme_url`, `asset_version` | Your theme's address and version |
 | `theme_options` | The [options](#theme-options) the owner chose |
@@ -78,7 +78,14 @@ includes `title`, `url`, `created_at` (the date, ready to show),
 
 **Posts only:** `previous_post` and `next_post` (each with `title` and `url`,
 empty at the ends), and with comments on: `comments_enabled`, `comments`,
-`comment_action` and `comment_notice` (see Default's `comments.html`).
+`comment_action` and `comment_notice` (see `comments.html` in
+[Shared parts](#shared-parts)).
+
+**Email subscriptions:** put `{{ subscribe_form | safe }}` at the end of a
+post, before the comments. It's the "Get new posts by email" form when the
+owner turned subscriptions on (Settings → Subscribers), and empty otherwise
+(and on pages). It uses the comment form's classes plus `contact-form` and
+`subscribe-form`, so it looks like your contact form. Added in Bloogla 1.4.
 
 **The archive:** `archive`, a list of years (newest first), each with `year`
 and `posts` (each with `title`, `url` and `date`, like `Oct 2`). Without
@@ -135,9 +142,9 @@ When the owner picks "Always light" or "Always dark", `<html>` gets
 :root[data-scheme="dark"] { --bg: #121214; }
 ```
 
-To let visitors switch: copy `templates/colors.html`,
-`templates/scheme_button.html` and `static/js/scheme.js` from a bundled theme,
-include the first two, and put `{{ scheme_script | safe }}` in `<head>`. It
+To let visitors switch: include `templates/colors.html` and
+`templates/scheme_button.html` (both [shared](#shared-parts), so you don't
+need copies), and put `{{ scheme_script | safe }}` in `<head>`. It
 applies the visitor's choice before the page is drawn. The choice stays in
 their browser, never in a cookie.
 
@@ -167,7 +174,22 @@ Add `shortcodes/<name>.html` to make `[name ...]` work in posts. The template
 gets `args` (values) and `params` (`key=value` pairs). Default's
 `shortcodes/note.html` turns `[note "Text" kind="warning"]` into a box.
 
+## Shared parts
+
+A few parts are built into Bloogla, so every theme can use them without its
+own copy: `templates/comments.html`, `templates/pagination.html`,
+`templates/colors.html`, `templates/scheme_button.html`, and
+`static/js/comments.js`, `scheme.js`, `code.js` and `prism.js` (code
+highlighting). Include or link them as if they were in your theme:
+`{% include "templates/comments.html" %}`,
+`{{ theme_url }}/static/js/prism.js`.
+
+To change one, put your own file at the same place in your theme: yours is
+used instead. The originals are in `themes/_shared/` in Bloogla's source.
+
 ## Updating a bundled theme
 
 Raise `version` in its `theme.toml`. On start, Bloogla replaces the older
-copy and keeps it in `data/theme-backups/`.
+copy and keeps it in `data/theme-backups/`. After changing a file in
+`themes/_shared/`, raise the version of every bundled theme, so sites
+reload them.

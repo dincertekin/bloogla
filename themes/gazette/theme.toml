@@ -1,6 +1,6 @@
 name = "Gazette"
 author = "Bloogla Team"
-version = "1.1.11"
+version = "1.1.13"
 description = "A newspaper theme: a centred masthead, a front page with a lead story and ruled columns, and classic serif headlines."
 preview_image = "static/preview.svg"
 
@@ -45,3 +45,11 @@ name = "show_powered_by"
 label = "Show “Powered by Bloogla”"
 type = "checkbox"
 default = true
+
+[[options]]
+name = "front_columns"
+label = "Stories in a row on the front page"
+type = "select"
+choices = ["Four", "Three"]
+default = "Four"
+hint = "Below the lead story, on wide screens."

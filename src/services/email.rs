@@ -1,5 +1,5 @@
-//! Outgoing email over SMTP: comment and message notifications, and test
-//! emails.
+//! Outgoing email over SMTP: comment and message notifications, test
+//! emails, and new posts for subscribers (`services/subscriptions.rs`).
 //!
 //! The mail server is configured in Settings (host, port, security, login,
 //! sender). Nothing is sent until that's filled in.
@@ -64,6 +64,9 @@ pub struct Email {
     pub html: String,
     /// Where replies go, when not to the sender (a visitor's message).
     pub reply_to: Option<String>,
+    /// The unsubscribe link of an email to a subscriber. Email apps show
+    /// their own "Unsubscribe" button for it (`List-Unsubscribe`).
+    pub unsubscribe: Option<String>,
 }
 
 fn mailer(settings: &SmtpSettings) -> Result<AsyncSmtpTransport<Tokio1Executor>, String> {
@@ -104,6 +107,19 @@ fn build_message(settings: &SmtpSettings, email: &Email) -> Result<Message, Stri
     let mut builder = Message::builder().from(from).to(to);
     if let Some(reply_to) = email.reply_to.as_deref().and_then(|a| a.parse().ok()) {
         builder = builder.reply_to(reply_to);
+    }
+    if let Some(link) = &email.unsubscribe {
+        use lettre::message::header::{HeaderName, HeaderValue};
+        let header = |name: &'static str, value: String| {
+            HeaderValue::new(HeaderName::new_from_ascii_str(name), value)
+        };
+        builder = builder
+            .raw_header(header("List-Unsubscribe", format!("<{link}>")))
+            // The button in the email app unsubscribes right away (RFC 8058).
+            .raw_header(header(
+                "List-Unsubscribe-Post",
+                "List-Unsubscribe=One-Click".to_string(),
+            ));
     }
     builder
         .subject(email.subject.clone())
@@ -181,6 +197,7 @@ pub fn notify_new_comment(state: &AppState, post_title: String, author: String, 
                 text: text.clone(),
                 html: html.clone(),
                 reply_to: None,
+                unsubscribe: None,
             };
             if let Err(e) = send(&state, &email).await {
                 tracing::warn!("Comment notification to {} failed: {e}", email.to);
@@ -247,6 +264,7 @@ pub fn notify_new_message(state: &AppState, message: NewMessage) {
                 text: text.clone(),
                 html: html.clone(),
                 reply_to: Some(message.email.clone()),
+                unsubscribe: None,
             };
             if let Err(e) = send(&state, &email).await {
                 tracing::warn!("Message notification to {} failed: {e}", email.to);

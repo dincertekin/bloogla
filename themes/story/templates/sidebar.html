@@ -1,5 +1,6 @@
 {# The column next to the feed: what the site is about and its topics. #}
 <aside class="sidebar">
+    <div class="sidebar-inner">
     {% if blog_description %}
     <section class="widget">
         <h2 class="widget-title">{{ blog_name }}</h2>
@@ -16,4 +17,5 @@
         </div>
     </section>
     {% endif %}
+    </div>
 </aside>

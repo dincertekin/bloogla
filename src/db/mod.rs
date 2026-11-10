@@ -10,6 +10,7 @@ pub mod messages;
 pub mod posts;
 pub mod redirects;
 pub mod settings;
+pub mod subscribers;
 pub mod tags;
 pub mod users;
 

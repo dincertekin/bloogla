@@ -93,13 +93,13 @@ fn automatic_backups() -> Vec<PathBuf> {
 }
 
 fn newest_automatic_backup_age() -> Option<Duration> {
+    last_automatic_backup()?.elapsed().ok()
+}
+
+/// When the newest daily backup was saved, for the Dashboard's site health.
+pub fn last_automatic_backup() -> Option<std::time::SystemTime> {
     let newest = automatic_backups().pop()?;
-    std::fs::metadata(newest)
-        .ok()?
-        .modified()
-        .ok()?
-        .elapsed()
-        .ok()
+    std::fs::metadata(newest).ok()?.modified().ok()
 }
 
 fn prune_automatic_backups() {

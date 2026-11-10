@@ -7,6 +7,8 @@
 //!
 //! - `accessibility`: keyboard and screen reader basics
 //! - `badges`: numbers next to menu items, the new-version notice
+//! - `demo`: the demo content `cargo run` adds
+//! - `dashboard`: moving and hiding the Dashboard's boxes
 //! - `media`: uploaded pictures and their smaller WebP copies
 //! - `setup_and_login`: first-run setup, signing in and out, password reset
 //! - `posts`: writing posts and what visitors see, private draft links
@@ -14,6 +16,8 @@
 //! - `restore`: restoring a backup .zip
 //! - `security`: CSRF, security headers, caching
 //! - `settings`: saving settings and your profile
+//! - `site_health`: the Dashboard's Site health card
+//! - `subscriptions`: readers getting new posts by email
 //! - `themes`: every bundled theme draws every page
 //! - `videos`: short videos in Media
 
@@ -21,6 +25,9 @@ mod accessibility;
 mod account_changes;
 mod badges;
 mod contact;
+mod dashboard;
+#[cfg(debug_assertions)]
+mod demo;
 mod home_page;
 mod import_export;
 mod media;
@@ -31,6 +38,8 @@ mod security;
 mod settings;
 mod setup_and_login;
 mod shared_failures;
+mod site_health;
+mod subscriptions;
 mod themes;
 mod trash;
 mod videos;

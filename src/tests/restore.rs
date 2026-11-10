@@ -287,3 +287,86 @@ async fn signed_out_visitors_cant_restore() {
     let page = site.post("/admin/backup/restore", &[]).await;
     assert_eq!(page.status, StatusCode::UNAUTHORIZED);
 }
+
+/// A backup made by Bloogla 1.0 still restores: the database is upgraded
+/// on the next start, and its posts, people and pictures read as before.
+#[tokio::test]
+async fn a_backup_from_version_1_0_still_restores() {
+    let mut site = TestSite::with_owner().await;
+
+    // A database exactly as 1.0 left it: only the first migration applied.
+    // (Migration files are never edited, so this one is 1.0's.)
+    let old = site.folder.join("old");
+    std::fs::create_dir_all(old.join("migrations")).unwrap();
+    std::fs::write(
+        old.join("migrations/20261009000000_schema.sql"),
+        include_str!("../../migrations/20261009000000_schema.sql"),
+    )
+    .unwrap();
+    let old_database = old.join("bloogla.db");
+    let pool = sqlx::SqlitePool::connect(&format!("sqlite://{}?mode=rwc", old_database.display()))
+        .await
+        .unwrap();
+    sqlx::migrate::Migrator::new(old.join("migrations"))
+        .await
+        .unwrap()
+        .run(&pool)
+        .await
+        .unwrap();
+    for sql in [
+        "INSERT INTO users (email, password_hash, name, role) VALUES ('old@example.com', 'x', 'Old Owner', 'admin')",
+        "INSERT INTO media (filename, small_filename, original_name, mime_type, size_bytes, width, height)
+         VALUES ('photo.jpg', NULL, 'Photo.jpg', 'image/jpeg', 9, 1600, 900)",
+        "INSERT INTO posts (title, slug, content, cover_image, status, author_id)
+         VALUES ('From version one', 'from-version-one', 'Old **text**', '/uploads/photo.jpg', 'published', 1)",
+        "INSERT INTO tags (name, slug) VALUES ('Archive', 'archive-tag')",
+        "INSERT INTO post_tags (post_id, tag_id) VALUES (1, 1)",
+        "INSERT INTO settings (key, value) VALUES ('blog_name', 'Old Blog')",
+    ] {
+        sqlx::query(sql).execute(&pool).await.unwrap();
+    }
+    pool.close().await;
+    let backup = zip_of(&[
+        ("data/bloogla.db", &std::fs::read(&old_database).unwrap()),
+        ("uploads/photo.jpg", b"old photo"),
+    ]);
+
+    let checked = site
+        .upload(
+            "/admin/backup/restore/check",
+            "backup",
+            "backup.zip",
+            &backup,
+        )
+        .await;
+    assert!(
+        checked.body.contains("From version one"),
+        "{}",
+        checked.body
+    );
+    site.post("/admin/backup/restore", &[]).await;
+    restore::finish_pending(&site.folder).unwrap();
+
+    // The next start upgrades the database; everything reads.
+    let restored = crate::db::connect(&format!(
+        "sqlite://{}",
+        site.folder.join("data/bloogla.db").display()
+    ))
+    .await
+    .expect("the old database upgrades");
+    let post = crate::db::posts::find(&restored, 1)
+        .await
+        .expect("the post");
+    assert_eq!(post.title, "From version one");
+    assert_eq!(post.cover_width, Some(1600));
+    assert!(post.trashed_at.is_none());
+    let tags = crate::db::tags::for_posts(&restored, &[1]).await;
+    assert_eq!(tags[&1][0].name, "Archive");
+    let owner: String = sqlx::query_scalar("SELECT name FROM users WHERE id = 1")
+        .fetch_one(&restored)
+        .await
+        .unwrap();
+    assert_eq!(owner, "Old Owner");
+    assert!(site.folder.join("uploads/photo.jpg").exists());
+    restored.close().await;
+}

@@ -16,6 +16,7 @@ pub mod profile;
 pub mod redirects;
 pub mod settings;
 pub mod setup;
+pub mod subscribers;
 pub mod tags;
 pub mod themes;
 pub mod updates;

@@ -75,6 +75,11 @@ pub struct PostEditorTemplate {
     pub share_link: Option<String>,
     pub error: Option<String>,
     pub saved: bool,
+    /// Pictures in the post without a description, for a gentle reminder.
+    pub pictures_without_description: i64,
+    /// "Email this post to subscribers": `Some(ticked)` while it can still
+    /// be sent (subscriptions on, a post that isn't public or sent yet).
+    pub email_subscribers: Option<bool>,
     /// A contact form's usual heading and button text, in the site's
     /// language (what visitors see unless the writer changes them).
     pub contact_heading: &'static str,
@@ -300,6 +305,17 @@ async fn editor(
             label: display_datetime(me.lang, site.timezone, &saved_at),
         })
         .collect();
+    let email_subscribers = if site.subscriptions_on && !post.is_page {
+        if post.id == 0 {
+            // New posts go to subscribers unless the box is unticked.
+            Some(true)
+        } else {
+            let (ticked, sent) = posts::email_state(&state.pool, post.id).await;
+            (!sent && !posts::is_live(&post)).then_some(ticked)
+        }
+    } else {
+        None
+    };
     let share_link = posts::preview_token(&state.pool, post.id)
         .await
         .map(|token| format!("{}/preview/{token}", state.config.base_url));
@@ -322,6 +338,10 @@ async fn editor(
             public_path: (post.id != 0 && posts::is_live(&post))
                 .then(|| post_path(&post.slug, post.is_page)),
             published_at_input: to_datetime_local(site.timezone, &post.published_at),
+            pictures_without_description: crate::content::markdown::pictures_without_description(
+                &post.content,
+            ),
+            email_subscribers,
             post,
             tag_checkboxes,
             revisions,
@@ -389,6 +409,13 @@ async fn editor_with_error(
     editor(state, me, post, &tags, Some(message), false).await
 }
 
+/// Save "Email this post to subscribers", when the editor showed it.
+async fn save_email_choice(state: &AppState, id: i64, form: &PostForm) {
+    if form.email_choice.is_some() && settings::load(&state.pool).await.subscriptions_on {
+        posts::set_email_subscribers(&state.pool, id, form.email_subscribers.is_some()).await;
+    }
+}
+
 /// POST /admin/posts, /admin/pages -> Create, then continue in the editor.
 async fn create(
     State(state): State<AppState>,
@@ -397,7 +424,10 @@ async fn create(
     kind: Kind,
 ) -> Response {
     match posts::create(&state.pool, &me, kind.is_page(), &form).await {
-        Ok(id) => Redirect::to(&format!("{}/{id}/edit?saved=1", kind.admin_path())).into_response(),
+        Ok(id) => {
+            save_email_choice(&state, id, &form).await;
+            Redirect::to(&format!("{}/{id}/edit?saved=1", kind.admin_path())).into_response()
+        }
         Err(SaveError::MissingTitle) => {
             let author = Some(me.id);
             editor_with_error(&state, me, 0, kind.is_page(), author, &form).await
@@ -416,6 +446,7 @@ pub async fn update(
 ) -> Response {
     match posts::update(&state.pool, &me, id, &form).await {
         Ok(()) => {
+            save_email_choice(&state, id, &form).await;
             let is_page = posts::owner(&state.pool, id).await.is_some_and(|(_, p)| p);
             let kind = if is_page { Kind::Page } else { Kind::Post };
             Redirect::to(&format!("{}/{id}/edit?saved=1", kind.admin_path())).into_response()

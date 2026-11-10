@@ -175,6 +175,9 @@ pub async fn update(
     Form(form): Form<ProfileForm>,
 ) -> Response {
     let email = form.email.trim();
+    if form.name.trim().is_empty() {
+        return alert(me.lang, "error", "Add your name. It's shown on your posts.");
+    }
     if !email.contains('@') {
         return alert(me.lang, "error", "Enter a valid email address.");
     }

@@ -62,6 +62,32 @@ pub async fn set_color_scheme(
         .map(|_| ())
 }
 
+/// Someone's Dashboard layout, as saved (see `handlers/admin/dashboard.rs`).
+pub async fn dashboard_layout(pool: &SqlitePool, id: i64) -> String {
+    or_log(
+        sqlx::query_scalar("SELECT dashboard_layout FROM users WHERE id = ?")
+            .bind(id)
+            .fetch_optional(pool)
+            .await,
+        "dashboard layout",
+    )
+    .unwrap_or_default()
+}
+
+/// Save the order and visibility of someone's Dashboard boxes.
+pub async fn set_dashboard_layout(
+    pool: &SqlitePool,
+    id: i64,
+    layout: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET dashboard_layout = ? WHERE id = ?")
+        .bind(layout)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map(|_| ())
+}
+
 /// Save someone's name, email and language. A new email signs the account
 /// out on every device and cancels emailed reset links, which went to the
 /// old address. Returns the account's session version (new if it changed).

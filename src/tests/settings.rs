@@ -201,3 +201,65 @@ async fn verification_tags_go_on_every_page_and_scripts_dont() {
     assert!(home.contains("google-site-verification"));
     assert!(!home.contains("tracker.example"));
 }
+
+#[tokio::test]
+async fn backup_storage_is_saved_with_its_secret_locked() {
+    let mut site = TestSite::with_owner().await;
+    let fields = |endpoint: &'static str| {
+        [
+            ("storage_on", "1"),
+            ("storage_endpoint", endpoint),
+            ("storage_region", "eu-central-003"),
+            ("storage_bucket", "my-backups"),
+            ("storage_access_key", "key-id"),
+            ("storage_secret_key", "very-secret"),
+        ]
+    };
+
+    // Keys never travel without HTTPS.
+    let refused = site
+        .post("/admin/settings/storage", &fields("http://s3.example.com"))
+        .await;
+    assert_eq!(refused.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(refused.body.contains("must start with https://"));
+    assert!(!crate::db::settings::load(&site.pool).await.storage_on);
+
+    // Saving off needs nothing else and checks nothing.
+    let saved = site
+        .post(
+            "/admin/settings/storage",
+            &[("storage_bucket", "my-backups")],
+        )
+        .await;
+    assert!(saved.body.contains("Saved."), "{}", saved.body);
+
+    // Saved on: the secret key is stored encrypted and read back.
+    site.post(
+        "/admin/settings/storage",
+        &fields("https://storage.invalid"),
+    )
+    .await;
+    let stored: String =
+        sqlx::query_scalar("SELECT value FROM settings WHERE key = 'storage_secret_key'")
+            .fetch_one(&site.pool)
+            .await
+            .unwrap();
+    assert!(!stored.contains("very-secret"));
+    let settings = crate::db::settings::load(&site.pool).await;
+    assert!(settings.storage_on);
+    assert_eq!(settings.storage_secret_key, "very-secret");
+    // The address doesn't exist, so the check failed, and the Dashboard says so.
+    assert!(!settings.storage_last_problem.is_empty());
+    assert!(site
+        .get("/admin")
+        .await
+        .body
+        .contains("The last copy to your storage failed."));
+
+    let page = site.get("/admin/settings").await.body;
+    assert!(page.contains("Copy backups to storage"));
+    assert!(
+        !page.contains("very-secret"),
+        "the secret isn't shown again"
+    );
+}

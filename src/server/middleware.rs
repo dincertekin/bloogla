@@ -200,8 +200,9 @@ pub async fn theme_static_only(req: Request, next: Next) -> Response {
     // Inside `/theme-assets`, so the path looks like `/<theme>/static/...`.
     let mut segments = req.uri().path().trim_start_matches('/').split('/');
     let theme = segments.next().unwrap_or_default();
-    // Hidden folders are unfinished theme uploads.
-    if theme.is_empty() || theme.starts_with('.') || segments.next() != Some("static") {
+    // Hidden folders are unfinished theme uploads; `_shared` isn't a theme.
+    let not_a_theme = theme.starts_with('.') || theme == crate::services::themes::SHARED;
+    if theme.is_empty() || not_a_theme || segments.next() != Some("static") {
         return StatusCode::NOT_FOUND.into_response();
     }
     let versioned = req

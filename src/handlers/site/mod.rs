@@ -6,6 +6,7 @@ pub mod comments;
 pub mod contact;
 pub mod feeds;
 pub mod pages;
+pub mod subscribe;
 
 use crate::app::state::AppState;
 use crate::content::seo::{render_head, SeoKind, SeoMeta, SiteInfo};
@@ -69,6 +70,8 @@ async fn base_context(state: &AppState, site: &Settings) -> tera::Context {
     context.insert("lang", site.language.code());
     context.insert("t", &site.language.theme_strings());
     context.insert("seo_head", &seo_head);
+    // Filled in on posts when subscriptions are on (see `render_post`).
+    context.insert("subscribe_form", "");
     context
 }
 

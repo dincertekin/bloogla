@@ -19,6 +19,11 @@
     {{ me.t("Saved.") }}{% if let Some(path) = public_path %} <a href="{{ path }}" target="_blank" style="color: inherit">{{ me.t("View it on your site") }}</a>.{% endif %}
 </div>
 {% endif %}
+{% if pictures_without_description > 0 %}
+<div class="alert alert-info" role="status">
+    {{ me.count(pictures_without_description, "{n} picture in this post has no description, so people who use a screen reader won't know what it shows. Describe it in Media, then insert it again.", "{n} pictures in this post have no description, so people who use a screen reader won't know what they show. Describe them in Media, then insert them again.") }}
+</div>
+{% endif %}
 </div>
 
 <div id="draft-banner" class="alert alert-info" role="status" hidden>
@@ -116,6 +121,19 @@
                     <input type="datetime-local" id="published_at" name="published_at" class="form-control"
                         value="{{ published_at_input }}" />
                     <span class="form-hint">{{ me.tv("In your site's time zone ({zone}). Leave empty to use the current time.", timezone) }}</span>
+                </div>
+                <!-- Gone once the post is public or sent (refreshed after saving). -->
+                <div id="email-subscribers" data-live>
+                {% if let Some(ticked) = email_subscribers %}
+                <label class="check-row" style="margin-bottom: 1rem">
+                    <input type="hidden" name="email_choice" value="1" />
+                    <input type="checkbox" name="email_subscribers" value="1" {% if ticked %}checked{% endif %} />
+                    <span>
+                        {{ me.t("Email this post to subscribers") }}
+                        <small>{{ me.t("Sent once, when the post appears on your site.") }}</small>
+                    </span>
+                </label>
+                {% endif %}
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%">{{ me.t("Save") }}</button>
                 <p class="form-hint" style="margin-top: 0.5rem; text-align: center" data-save-note aria-live="polite">{{ me.t("Ctrl+S or ⌘S also saves.") }}</p>

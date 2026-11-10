@@ -11,8 +11,9 @@
 {% endblock %}
 
 {% block content %}
-{# The first page of the home page shows the newest post large. #}
-{% set featured = search_query == "" and tag_name is not defined and pagination.current == 1 %}
+{# The first page of the home page shows the newest post large (unless
+   it's turned off in Appearance). #}
+{% set featured = theme_options.show_featured and search_query == "" and tag_name is not defined and pagination.current == 1 %}
 
 {% if search_query %}
 <h1 class="section-title">{{ t.search_results_for_query | replace(from="{query}", to=search_query) }}</h1>

@@ -20,6 +20,11 @@ async fn a_published_post_shows_up_everywhere() {
         post.body.contains("rel=\"canonical\""),
         "SEO tags are there"
     );
+    assert!(
+        post.body
+            .contains(r#"<meta name="generator" content="Bloogla">"#),
+        "says it runs Bloogla, without the version"
+    );
 
     for (path, what) in [
         ("/", "home page"),
@@ -522,4 +527,108 @@ async fn lists_of_posts_always_have_a_description_for_search_results() {
     // Each tag page describes itself, instead of repeating the site's.
     let tag = site.get("/tag/garden").await.body;
     assert!(tag.contains(r#"<meta name="description" content="Posts about Garden on Test Blog.">"#));
+}
+
+#[tokio::test]
+async fn each_tag_has_its_own_feed() {
+    let mut site = TestSite::with_owner().await;
+    for (title, tag) in [("Lemon Cake", "Recipes"), ("Rainy Lisbon", "Travel")] {
+        site.post(
+            "/admin/posts",
+            &[
+                ("title", title),
+                ("content", "Text"),
+                ("status", "published"),
+                ("new_tags", tag),
+            ],
+        )
+        .await;
+    }
+    site.new_visitor();
+
+    let feed = site.get("/tag/recipes/rss.xml").await;
+    assert_eq!(feed.status, StatusCode::OK);
+    assert!(feed.header("content-type").starts_with("application/xml"));
+    assert!(feed.body.contains("lemon-cake"));
+    assert!(!feed.body.contains("rainy-lisbon"), "only the tag's posts");
+    assert!(feed.body.contains("/tag/recipes/rss.xml\" rel=\"self\""));
+
+    let tag_page = site.get("/tag/recipes").await;
+    assert!(
+        tag_page.body.contains("/tag/recipes/rss.xml\">"),
+        "feed readers can find it from the tag page"
+    );
+    assert_eq!(
+        site.get("/tag/no-such-tag/rss.xml").await.status,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn the_editor_reminds_about_pictures_without_a_description() {
+    let mut site = TestSite::with_owner().await;
+    site.post(
+        "/admin/posts",
+        &[
+            ("title", "Holiday"),
+            (
+                "content",
+                "![](/uploads/a.jpg)\n\n![The sea at dawn](/uploads/b.jpg)",
+            ),
+            ("status", "draft"),
+        ],
+    )
+    .await;
+    let reminder = "1 picture in this post has no description";
+    assert!(site
+        .get("/admin/posts/1/edit")
+        .await
+        .body
+        .contains(reminder));
+
+    site.post(
+        "/admin/posts/1/edit",
+        &[
+            ("title", "Holiday"),
+            ("content", "![A beach](/uploads/a.jpg)"),
+            ("status", "draft"),
+        ],
+    )
+    .await;
+    assert!(!site
+        .get("/admin/posts/1/edit")
+        .await
+        .body
+        .contains(reminder));
+}
+
+#[tokio::test]
+async fn a_site_without_an_icon_shows_bloogla_s_logo() {
+    let mut site = TestSite::with_owner().await;
+    site.new_visitor();
+    let home = site.get("/").await.body;
+    assert!(home.contains(r#"<link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">"#));
+    assert!(home.contains(r#"<link rel="apple-touch-icon" href="/static/img/logo-180.png">"#));
+
+    let favicon = site.get("/favicon.ico").await;
+    assert_eq!(favicon.status, StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(favicon.location(), "/static/img/logo-180.png");
+    for (path, kind) in [
+        ("/static/img/logo.svg", "image/svg+xml"),
+        ("/static/img/logo-180.png", "image/png"),
+    ] {
+        let file = site.get(path).await;
+        assert_eq!(file.status, StatusCode::OK, "{path}");
+        assert!(file.header("content-type").starts_with(kind), "{path}");
+    }
+
+    // An icon chosen in Settings takes its place.
+    crate::db::settings::save(&site.pool, &[("site_icon", "/uploads/icon.png".into())])
+        .await
+        .unwrap();
+    assert!(!site.get("/").await.body.contains("logo.svg"));
+    assert_eq!(
+        site.get("/favicon.ico").await.location(),
+        "/uploads/icon.png"
+    );
 }

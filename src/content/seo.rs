@@ -5,6 +5,12 @@ use super::text::{escape_html, to_iso8601};
 
 use serde_json::json;
 
+/// Bloogla's logo, the icon of sites that haven't chosen one (Settings →
+/// Site), and of the admin panel's sign-in and setup pages. The PNG is for
+/// phones' home screens and for `/favicon.ico`.
+pub const DEFAULT_ICON: &str = "/static/img/logo.svg";
+pub const DEFAULT_ICON_PNG: &str = "/static/img/logo-180.png";
+
 /// What a public page represents, for Open Graph and JSON-LD.
 pub enum SeoKind<'a> {
     Website,
@@ -55,6 +61,9 @@ pub fn render_head(meta: &SeoMeta, site: &SiteInfo) -> String {
         head.push('\n');
     };
 
+    // Tells tools that count blog engines that this site runs Bloogla.
+    // Without the version, so nobody can spot sites that missed an update.
+    tag(r#"<meta name="generator" content="Bloogla">"#.to_string());
     if !meta.description.is_empty() {
         tag(format!(
             r#"<meta name="description" content="{}">"#,
@@ -68,9 +77,13 @@ pub fn render_head(meta: &SeoMeta, site: &SiteInfo) -> String {
             escape_html(icon)
         ));
     } else {
-        // No icon set: an empty one, so browsers don't request /favicon.ico
-        // and log an error.
-        tag(r#"<link rel="icon" href="data:,">"#.to_string());
+        // No icon chosen: Bloogla's own (a handwritten B), from this site.
+        tag(format!(
+            r#"<link rel="icon" href="{DEFAULT_ICON}" type="image/svg+xml">"#
+        ));
+        tag(format!(
+            r#"<link rel="apple-touch-icon" href="{DEFAULT_ICON_PNG}">"#
+        ));
     }
     if meta.noindex {
         tag(r#"<meta name="robots" content="noindex">"#.to_string());

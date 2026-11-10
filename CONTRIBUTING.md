@@ -29,6 +29,10 @@ cargo run    # then open the setup link it prints
 ```
 
 Your local site is in `data/` and `uploads/`. Delete them to start fresh.
+After setup, `cargo run` fills it with demo content (posts, pages, tags,
+comments and a message, like a personal site) so themes and screens have
+something to show. Release builds never add it: it's in
+`src/services/demo.rs`, which only development builds include.
 
 Before a pull request, run what CI runs:
 

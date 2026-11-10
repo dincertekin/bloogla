@@ -44,7 +44,7 @@
 <p class="empty-state">{{ t.no_posts_found }}</p>
 {% endfor %}
 
-<section class="tiles" aria-label="{{ t.more_stories }}">
+<section class="tiles{% if theme_options.tile_shape == "Square" %} tiles-square{% elif theme_options.tile_shape == "Portrait" %} tiles-portrait{% endif %}" aria-label="{{ t.more_stories }}">
     {% for post in posts %}
     {% if lead and loop.first %}{# Shown across the page above. #}{% else %}
     {% include "templates/tile.html" %}

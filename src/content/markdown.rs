@@ -28,6 +28,28 @@ pub fn to_safe_html(markdown: &str) -> String {
     without_heading_links(&html)
 }
 
+/// How many pictures in a post have no description (`alt` text), for the
+/// editor's reminder. Counted in the rendered HTML, so Markdown images and
+/// `<img>` tags are both seen.
+pub fn pictures_without_description(markdown: &str) -> i64 {
+    let html = to_safe_html(markdown);
+    let mut count = 0;
+    for (start, _) in html.match_indices("<img ") {
+        let tag = &html[start
+            ..html[start..]
+                .find('>')
+                .map_or(html.len(), |end| start + end)];
+        let described = tag
+            .split(" alt=\"")
+            .nth(1)
+            .is_some_and(|rest| !rest.starts_with('"'));
+        if !described {
+            count += 1;
+        }
+    }
+    count
+}
+
 /// comrak gives each heading an id and adds an empty link to it at the end
 /// (`<h2 id="costs">Costs<a href="#costs" class="anchor"></a></h2>`). The
 /// id stays, so `#costs` links still work; the empty link goes, because

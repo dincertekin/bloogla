@@ -98,6 +98,144 @@ pub async fn save_settings(
     }
 }
 
+/// What the "Copy to storage" card shows.
+pub struct StorageCard {
+    pub on: bool,
+    pub endpoint: String,
+    pub region: String,
+    pub bucket: String,
+    pub access_key: String,
+    pub has_secret_key: bool,
+    /// When the last copy arrived, in the site's time zone.
+    pub last_copied: Option<String>,
+    /// Why the last copy failed (English; the template translates it).
+    pub last_problem: Option<String>,
+}
+
+impl StorageCard {
+    pub fn new(site: &settings::Settings, me: &CurrentUser) -> Self {
+        StorageCard {
+            on: site.storage_on,
+            endpoint: site.storage_endpoint.clone(),
+            region: site.storage_region.clone(),
+            bucket: site.storage_bucket.clone(),
+            access_key: site.storage_access_key.clone(),
+            has_secret_key: !site.storage_secret_key.is_empty(),
+            last_copied: (!site.storage_last_copied.is_empty()).then(|| {
+                crate::content::text::display_datetime(
+                    me.lang,
+                    site.timezone,
+                    &site.storage_last_copied,
+                )
+            }),
+            last_problem: (!site.storage_last_problem.is_empty())
+                .then(|| site.storage_last_problem.clone()),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct StorageForm {
+    storage_on: Option<String>,
+    #[serde(default)]
+    storage_endpoint: String,
+    #[serde(default)]
+    storage_region: String,
+    #[serde(default)]
+    storage_bucket: String,
+    #[serde(default)]
+    storage_access_key: String,
+    /// Left empty to keep the saved key.
+    #[serde(default)]
+    storage_secret_key: String,
+}
+
+/// POST /admin/settings/storage -> Save where backups are copied, then
+/// check it works by saving a small file there.
+pub async fn save_storage(
+    State(state): State<AppState>,
+    Extension(me): Extension<CurrentUser>,
+    Form(form): Form<StorageForm>,
+) -> Response {
+    let on = form.storage_on.is_some();
+    let endpoint = form
+        .storage_endpoint
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    if on && !endpoint.starts_with("https://") {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            alert(
+                me.lang,
+                "error",
+                crate::services::storage::Problem::Address.message(),
+            ),
+        )
+            .into_response();
+    }
+    let mut values = vec![
+        ("storage_on", on.to_string()),
+        ("storage_endpoint", endpoint),
+        ("storage_region", form.storage_region.trim().to_string()),
+        ("storage_bucket", form.storage_bucket.trim().to_string()),
+        (
+            "storage_access_key",
+            form.storage_access_key.trim().to_string(),
+        ),
+    ];
+    if !form.storage_secret_key.trim().is_empty() {
+        values.push((
+            "storage_secret_key",
+            form.storage_secret_key.trim().to_string(),
+        ));
+    }
+    if let Err(e) = settings::save(&state.pool, &values).await {
+        tracing::error!("Failed to save storage settings: {e}");
+        return alert(
+            me.lang,
+            "error",
+            "Couldn't save your changes. Please try again.",
+        );
+    }
+    log_event(
+        "backup_storage_changed",
+        &[("user", &me.email), ("on", &on.to_string())],
+    );
+    if !on {
+        return alert(me.lang, "success", "Saved.");
+    }
+
+    let site = settings::load(&state.pool).await;
+    let Some(storage) = crate::services::storage::Storage::from_settings(&site) else {
+        return alert(
+            me.lang,
+            "error",
+            "Saved. Fill in every field to start copying backups.",
+        );
+    };
+    let checked = crate::services::storage::check(storage).await;
+    // Remembered, so Site health on the Dashboard says it too.
+    let problem = checked
+        .as_ref()
+        .err()
+        .map_or("", |problem| problem.message());
+    if let Err(e) = settings::save(&state.pool, &[("storage_last_problem", problem.into())]).await {
+        tracing::error!("Could not save how the storage check went: {e}");
+    }
+    match checked {
+        Ok(()) => alert(
+            me.lang,
+            "success",
+            "Saved. Bloogla could save a file in your storage, so backups will be copied there every day.",
+        ),
+        Err(problem) => {
+            tracing::warn!("Checking the backup storage failed: {problem:?}");
+            alert(me.lang, "error", problem.message())
+        }
+    }
+}
+
 /// The Restore card: the upload form, or what a checked backup contains.
 #[derive(Default)]
 pub struct RestoreCard {

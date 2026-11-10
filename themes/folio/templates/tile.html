@@ -7,8 +7,10 @@
             {% if post.cover_width %}width="{{ post.cover_width }}" height="{{ post.cover_height }}"{% endif %} />
     </a>
     {% else %}
-    {# Plain text: the excerpt can hold links, which can't sit inside this one. #}
-    <a class="tile-blank" href="{{ post.url }}" tabindex="-1" aria-hidden="true">{{ post.content | striptags | truncate(length=220) }}</a>
+    {# Plain text: the excerpt can hold links, which can't sit inside this one.
+       It arrives escaped (`&apos;`), and `striptags` leaves no tags, so it's
+       shown as it is instead of being escaped a second time. #}
+    <a class="tile-blank" href="{{ post.url }}" tabindex="-1" aria-hidden="true">{{ post.content | striptags | truncate(length=220) | safe }}</a>
     {% endif %}
     <a class="tile-title" href="{{ post.url }}">{{ post.title }}</a>
     <div class="meta">

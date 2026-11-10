@@ -31,6 +31,7 @@
 
     {% include "templates/post_nav.html" %}
 
+    {{ subscribe_form | safe }}
     {% if comments_enabled %}
     {% include "templates/comments.html" %}
     {% endif %}

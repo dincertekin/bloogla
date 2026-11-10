@@ -96,6 +96,13 @@ pub async fn create(
     let Some(role) = Role::parse(&form.role) else {
         return alert(me.lang, "error", "Choose a role.");
     };
+    if name.is_empty() {
+        return alert(
+            me.lang,
+            "error",
+            "Add their name. It's shown on their posts.",
+        );
+    }
     if !email.contains('@') {
         return alert(me.lang, "error", "Enter a valid email address.");
     }

@@ -1,6 +1,6 @@
 name = "Story"
 author = "Bloogla Team"
-version = "1.1.9"
+version = "1.1.12"
 description = "A calm reading theme in the style of Medium: big sans-serif titles, a serif text column and a feed with thumbnails."
 preview_image = "static/preview.svg"
 
@@ -45,3 +45,17 @@ name = "show_powered_by"
 label = "Show “Powered by Bloogla”"
 type = "checkbox"
 default = true
+
+[[options]]
+name = "show_sidebar"
+label = "Show the column beside the posts"
+type = "checkbox"
+default = true
+hint = "Your site's description and tags, next to the list of posts."
+
+[[options]]
+name = "text_size"
+label = "Text size of posts"
+type = "select"
+choices = ["Normal", "Large"]
+default = "Normal"

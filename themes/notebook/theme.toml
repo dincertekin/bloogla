@@ -1,6 +1,6 @@
 name = "Notebook"
 author = "Bloogla Team"
-version = "1.0.5"
+version = "1.0.7"
 description = "One quiet column for writing: every title listed by year, and roomy serif text for reading."
 preview_image = "static/preview.svg"
 
@@ -46,3 +46,10 @@ name = "show_powered_by"
 label = "Show “Powered by Bloogla”"
 type = "checkbox"
 default = true
+
+[[options]]
+name = "group_by_year"
+label = "Group posts by year"
+type = "checkbox"
+default = true
+hint = "Off: one list, newest first, each with its date."

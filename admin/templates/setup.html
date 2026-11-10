@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
     <title>{{ lang.t("Set up your site") }}</title>
     <link rel="stylesheet" href="/static/css/style.css" />
 </head>
@@ -91,7 +91,7 @@
                 <section class="setup-step" data-step="2">
                     <div class="form-group">
                         <label for="name">{{ lang.t("Your name") }}</label>
-                        <input type="text" id="name" name="name" class="form-control" value="{{ name }}"
+                        <input type="text" id="name" name="name" class="form-control" required value="{{ name }}"
                             autocomplete="name" placeholder="{{ lang.t("Shown on your posts") }}" />
                     </div>
 

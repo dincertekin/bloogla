@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="feed-layout">
+<div class="feed-layout{% if theme_options.show_sidebar %}{% else %} no-sidebar{% endif %}">
     <section class="feed">
         {% if search_query %}
         <header class="feed-header">
@@ -30,6 +30,6 @@
         {% include "templates/pagination.html" %}
     </section>
 
-    {% include "templates/sidebar.html" %}
+    {% if theme_options.show_sidebar %}{% include "templates/sidebar.html" %}{% endif %}
 </div>
 {% endblock %}

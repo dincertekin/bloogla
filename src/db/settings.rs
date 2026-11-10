@@ -86,10 +86,25 @@ pub struct Settings {
     /// Sender address.
     pub smtp_from: String,
     pub notify_comments: bool,
+    /// Readers may subscribe to new posts by email (Settings → Subscribers).
+    /// Off at first; needs email.
+    pub subscriptions_on: bool,
 
     // Backup (Settings → Backup)
     /// Save a copy of the database in `data/backups/` every day.
     pub auto_backup: bool,
+    /// Copy a backup of the whole site to S3-compatible storage every day
+    /// (`services/storage.rs`). Off at first.
+    pub storage_on: bool,
+    pub storage_endpoint: String,
+    pub storage_region: String,
+    pub storage_bucket: String,
+    pub storage_access_key: String,
+    pub storage_secret_key: String,
+    /// When the last copy arrived (UTC), and why the last one failed (English,
+    /// translated when shown; empty when it worked).
+    pub storage_last_copied: String,
+    pub storage_last_problem: String,
 
     // Updates (Settings → Updates)
     /// Check GitHub for a new version once a day.
@@ -148,8 +163,21 @@ impl Settings {
                 .unwrap_or_default(),
             smtp_from: text("smtp_from", ""),
             notify_comments: flag("notify_comments", true),
+            subscriptions_on: flag("subscriptions_on", false),
 
             auto_backup: flag("auto_backup", true),
+            storage_on: flag("storage_on", false),
+            storage_endpoint: text("storage_endpoint", ""),
+            storage_region: text("storage_region", ""),
+            storage_bucket: text("storage_bucket", ""),
+            storage_access_key: text("storage_access_key", ""),
+            // Encrypted like the mail password.
+            storage_secret_key: rows
+                .get("storage_secret_key")
+                .and_then(|stored| crate::app::secrets::decrypt(stored))
+                .unwrap_or_default(),
+            storage_last_copied: text("storage_last_copied", ""),
+            storage_last_problem: text("storage_last_problem", ""),
 
             update_check_daily: flag("update_check_daily", false),
             update_install_auto: flag("update_install_auto", false),
@@ -217,7 +245,7 @@ pub async fn load(pool: &SqlitePool) -> Arc<Settings> {
 }
 
 /// Settings stored encrypted (see `app/secrets.rs`).
-const SECRET_KEYS: &[&str] = &["smtp_password"];
+const SECRET_KEYS: &[&str] = &["smtp_password", "storage_secret_key"];
 
 /// Save several settings at once (all or nothing), then refresh the cache.
 pub async fn save(pool: &SqlitePool, values: &[(&str, String)]) -> Result<(), sqlx::Error> {

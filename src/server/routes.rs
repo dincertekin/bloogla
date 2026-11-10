@@ -81,8 +81,10 @@ fn public_routes() -> Router<AppState> {
             header::CACHE_CONTROL,
             HeaderValue::from_static("public, max-age=31536000, immutable"),
         ));
+    // A theme's own files, or the shared ones it doesn't have (see
+    // `services/themes`, `SHARED`).
     let theme_assets = Router::new()
-        .fallback_service(ServeDir::new("themes"))
+        .fallback_service(ServeDir::new("themes").fallback(get(site::feeds::shared_theme_file)))
         .layer(from_fn(middleware::theme_static_only));
 
     Router::new()
@@ -99,7 +101,17 @@ fn public_routes() -> Router<AppState> {
             "/post/{slug}/comments",
             post(site::comments::submit).layer(DefaultBodyLimit::max(64 * 1024)),
         )
+        .route(
+            "/post/{slug}/subscribe",
+            post(site::subscribe::submit).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route("/subscribe/{token}", get(site::subscribe::confirm))
+        .route(
+            "/unsubscribe/{token}",
+            get(site::subscribe::unsubscribe_page).post(site::subscribe::unsubscribe),
+        )
         .route("/tag/{slug}", get(site::pages::tag))
+        .route("/tag/{slug}/rss.xml", get(site::feeds::tag_rss))
         .route("/preview/{token}", get(site::pages::preview))
         .route("/rss.xml", get(site::feeds::rss))
         .route("/sitemap.xml", get(site::feeds::sitemap))
@@ -135,6 +147,7 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         )
         .route("/admin/backup.zip", get(admin::backup::download))
         .route("/admin/settings/backup", post(admin::backup::save_settings))
+        .route("/admin/settings/storage", post(admin::backup::save_storage))
         .route(
             "/admin/backup/restore/check",
             // A whole site's backup can be large.
@@ -174,6 +187,14 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
         .route(
             "/admin/checklist/hide",
             post(admin::dashboard::hide_checklist),
+        )
+        .route(
+            "/admin/settings/subscribers",
+            post(admin::subscribers::save_settings),
+        )
+        .route(
+            "/admin/subscribers/{id}",
+            delete(admin::subscribers::delete),
         )
         .route("/admin/redirects", post(admin::redirects::create))
         .route("/admin/redirects/{id}", delete(admin::redirects::delete))
@@ -239,6 +260,10 @@ fn admin_routes(state: &AppState) -> Result<Router<AppState>, String> {
     let upload_limit = DefaultBodyLimit::max(admin::media::MAX_UPLOAD_REQUEST_BYTES);
     let writers = Router::new()
         .route("/admin", get(admin::dashboard::page))
+        .route(
+            "/admin/dashboard/layout",
+            post(admin::dashboard::save_layout),
+        )
         .route(
             "/admin/profile",
             get(admin::profile::page).post(admin::profile::update),

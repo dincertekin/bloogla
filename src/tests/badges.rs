@@ -45,7 +45,7 @@ async fn admins_hear_about_a_new_version() {
     });
     let dashboard = site.get("/admin").await.body;
     assert!(dashboard.contains("Bloogla 9.0.0 is available."));
-    assert!(dashboard.contains("/releases/tag/v9.0.0"));
+    assert!(dashboard.contains("/admin/settings#updates"));
     assert!(
         !dashboard.contains(r#"id="badge-update" data-live hidden"#),
         "menu badge shown"

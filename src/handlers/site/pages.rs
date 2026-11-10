@@ -37,6 +37,8 @@ pub struct PostQuery {
     comment: Option<String>,
     /// Result of sending the contact form (`sent`, `slow`, `invalid`).
     contact: Option<String>,
+    /// Result of subscribing (`check`, `slow`, `invalid`).
+    subscribe: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -387,18 +389,23 @@ pub async fn tag(
 
     let mut context = base_context(&state, &site).await;
     let address = with_page(&base_path, query.page.unwrap_or(1));
-    context.insert(
-        "seo_head",
-        &listing_head(
-            &state,
-            &site,
-            &tag.name,
-            &site
-                .language
-                .tv2("Posts about {tag} on {site}.", &tag.name, &site.blog_name),
-            &address,
-        ),
+    let mut head = listing_head(
+        &state,
+        &site,
+        &tag.name,
+        &site
+            .language
+            .tv2("Posts about {tag} on {site}.", &tag.name, &site.blog_name),
+        &address,
     );
+    // Feed readers find the tag's own feed next to the whole site's.
+    head.push_str(&format!(
+        "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"{}\" href=\"{}{}\">\n",
+        escape_html(&format!("{} · {}", tag.name, site.blog_name)),
+        escape_html(&state.config.base_url),
+        escape_html(&super::feeds::tag_feed_path(&tag.slug)),
+    ));
+    context.insert("seo_head", &head);
     context.insert("tag_name", &tag.name);
     context.insert("posts", &posts);
     context.insert("pagination", &pagination);
@@ -554,6 +561,14 @@ async fn render_post(
     };
     context.insert("previous_post", &previous_post);
     context.insert("next_post", &next_post);
+
+    // The subscribe form, for posts (not pages or private previews).
+    if site.subscriptions_on && !post.is_page && !preview {
+        context.insert(
+            "subscribe_form",
+            &super::subscribe::form(lang, &path, notices.subscribe.as_deref()),
+        );
+    }
 
     // Comments are for posts only. Themes check `comments_enabled`.
     let comments_enabled = !post.is_page && !preview && site.comments != CommentMode::Off;

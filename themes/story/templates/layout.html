@@ -9,12 +9,12 @@
     {{ seo_head | safe }}
     {# The two fonts nearly every page shows first. #}
     <link rel="preload" href="{{ theme_url }}/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="{{ theme_url }}/static/fonts/source-serif-4-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ theme_url }}/static/fonts/source-serif-4-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ theme_url }}/static/css/style.css?v={{ asset_version }}">
     {% include "templates/colors.html" %}
 </head>
 
-<body>
+<body{% if theme_options.text_size == "Large" %} class="text-large"{% endif %}>
     <a class="skip-link" href="#main">{{ t.skip_to_content }}</a>
     <header class="site-header">
         <div class="header-content">

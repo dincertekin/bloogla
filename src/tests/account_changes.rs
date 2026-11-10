@@ -303,3 +303,59 @@ async fn new_recovery_codes_need_your_password() {
     assert!(codes.body.contains("Save your recovery codes"));
     assert!(!signed_in(&mut site, &other).await);
 }
+
+/// A name is needed everywhere one is typed: at setup, in Profile and for a
+/// new person. It's shown on posts, so it can't be left empty.
+#[tokio::test]
+async fn a_name_is_always_needed() {
+    let mut site = TestSite::new().await;
+    let page = site
+        .post(
+            "/setup",
+            &[
+                ("code", super::SETUP_CODE),
+                ("language", "en"),
+                ("blog_name", "Test Blog"),
+                ("name", "  "),
+                ("email", ADMIN_EMAIL),
+                ("password", ADMIN_PASSWORD),
+                ("confirm_password", ADMIN_PASSWORD),
+            ],
+        )
+        .await;
+    assert!(page.body.contains("Add your name."), "{}", page.body);
+    assert!(
+        page.body.contains(r#"data-start-step="2""#),
+        "back on the account step"
+    );
+    // Test sites take turns, so this one goes before the next starts.
+    drop(site);
+
+    let mut site = TestSite::with_owner().await;
+    let profile = site
+        .post("/admin/profile", &[("name", ""), ("email", ADMIN_EMAIL)])
+        .await;
+    assert!(profile.body.contains("Add your name."));
+    let name: String = sqlx::query_scalar("SELECT name FROM users WHERE id = 1")
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    assert_eq!(name, "Owner", "nothing changed");
+
+    let person = site
+        .post(
+            "/admin/users",
+            &[
+                ("name", ""),
+                ("email", "new@example.com"),
+                ("role", "author"),
+            ],
+        )
+        .await;
+    assert!(person.body.contains("Add their name."));
+    let added: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&site.pool)
+        .await
+        .unwrap();
+    assert_eq!(added, 1);
+}

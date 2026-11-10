@@ -292,6 +292,10 @@ pub struct PostForm {
     /// Names of tags typed in the editor; created when they don't exist yet.
     #[serde(default)]
     pub new_tags: Vec<String>,
+    /// "Email this post to subscribers", ticked. Only read when
+    /// `email_choice` says the editor showed the box.
+    pub email_subscribers: Option<String>,
+    pub email_choice: Option<String>,
 }
 
 impl PostForm {

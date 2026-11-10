@@ -1,14 +1,15 @@
 //! Machine-readable addresses: RSS feed, sitemap, robots.txt, favicon and
 //! the health check.
 
+use crate::app::models::Post;
 use crate::app::state::AppState;
 use crate::content::markdown::excerpt;
-use crate::content::text::{escape_html, to_rfc2822};
-use crate::db::posts;
-use crate::db::settings;
+use crate::content::text::{escape_html, to_rfc2822, url_encode};
+use crate::db::{posts, settings, tags};
+use crate::handlers::site::not_found;
 use crate::server::routes::post_path;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 
@@ -21,19 +22,64 @@ const FEED_SIZE: i64 = 20;
 /// GET /rss.xml -> RSS 2.0 feed with the full text of the newest posts.
 pub async fn rss(State(state): State<AppState>) -> Response {
     let posts = posts::newest_listed(&state.pool, FEED_SIZE).await;
-
     let site = settings::load(&state.pool).await;
+    let description = if site.blog_description.is_empty() {
+        site.language
+            .tv("Latest posts from {site}", &site.blog_name)
+    } else {
+        site.blog_description.clone()
+    };
+    let xml = feed(&state, posts, &site.blog_name, &description, "/rss.xml").await;
+    (XML, xml).into_response()
+}
+
+/// GET /tag/:slug/rss.xml -> The same feed with only the posts of one tag,
+/// for readers who follow a single topic.
+pub async fn tag_rss(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
+    let Some(tag) = tags::find_listed_by_slug(&state.pool, &slug).await else {
+        return not_found(&state).await;
+    };
+    let posts = posts::newest_listed_with_tag(&state.pool, tag.id, FEED_SIZE).await;
+    let site = settings::load(&state.pool).await;
+    let title = format!("{} · {}", tag.name, site.blog_name);
+    let description = site
+        .language
+        .tv2("Posts about {tag} on {site}.", &tag.name, &site.blog_name);
+    let xml = feed(
+        &state,
+        posts,
+        &title,
+        &description,
+        &tag_feed_path(&tag.slug),
+    )
+    .await;
+    (XML, xml).into_response()
+}
+
+/// Address of a tag's feed, percent-encoded like the tag page's.
+pub fn tag_feed_path(slug: &str) -> String {
+    format!("/tag/{}/rss.xml", url_encode(slug))
+}
+
+/// An RSS 2.0 document for `posts`. `self_path` is the feed's own address.
+async fn feed(
+    state: &AppState,
+    posts: Vec<Post>,
+    title: &str,
+    description: &str,
+    self_path: &str,
+) -> String {
     let base_url = &state.config.base_url;
 
     let mut items = String::new();
     for post in posts {
-        let title = escape_html(&post.title);
+        let item_title = escape_html(&post.title);
         let link = escape_html(&format!("{base_url}{}", post_path(&post.slug, false)));
-        let description = escape_html(&excerpt(&post.content, 300));
+        let summary = escape_html(&excerpt(&post.content, 300));
         let pub_date = escape_html(&to_rfc2822(&post.published_at));
         // Feed readers show the whole post; root-relative links must become absolute.
         let mut html = crate::content::absolute_links(
-            &crate::content::render(&state, &post.content).await,
+            &crate::content::render(state, &post.content).await,
             base_url,
         );
         if let Some(cover) = &post.cover_image {
@@ -44,41 +90,31 @@ pub async fn rss(State(state): State<AppState>) -> Response {
 
         items.push_str(&format!(
             r#"<item>
-                <title>{title}</title>
+                <title>{item_title}</title>
                 <link>{link}</link>
                 <guid isPermaLink="true">{link}</guid>
-                <description>{description}</description>
+                <description>{summary}</description>
                 <content:encoded><![CDATA[{content}]]></content:encoded>
                 <pubDate>{pub_date}</pubDate>
             </item>"#
         ));
     }
 
-    let blog_name = escape_html(&site.blog_name);
-    let description = if site.blog_description.is_empty() {
-        escape_html(
-            &site
-                .language
-                .tv("Latest posts from {site}", &site.blog_name),
-        )
-    } else {
-        escape_html(&site.blog_description)
-    };
-
-    let xml = format!(
+    let title = escape_html(title);
+    let description = escape_html(description);
+    let self_url = escape_html(&format!("{base_url}{self_path}"));
+    format!(
         r#"<?xml version="1.0" encoding="UTF-8" ?>
         <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
             <channel>
-                <title>{blog_name}</title>
+                <title>{title}</title>
                 <link>{base_url}</link>
-                <atom:link href="{base_url}/rss.xml" rel="self" type="application/rss+xml" />
+                <atom:link href="{self_url}" rel="self" type="application/rss+xml" />
                 <description>{description}</description>
                 {items}
             </channel>
         </rss>"#
-    );
-
-    (XML, xml).into_response()
+    )
 }
 
 /// GET /sitemap.xml -> Every public post and page, for search engines.
@@ -139,15 +175,29 @@ pub async fn robots_txt(State(state): State<AppState>) -> Response {
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body).into_response()
 }
 
-/// GET /favicon.ico -> The site icon chosen in Settings.
+/// GET /favicon.ico -> The site icon chosen in Settings, or Bloogla's logo.
 pub async fn favicon(State(state): State<AppState>) -> Response {
     let site = settings::load(&state.pool).await;
-    // No icon: "no content" rather than "not found", which browsers log as an
-    // error on every page. (A redirect also needs a valid header value.)
+    // A redirect needs a valid header value, so an unusual address gets the logo too.
     if site.site_icon.is_empty() || !site.site_icon.is_ascii() {
-        return StatusCode::NO_CONTENT.into_response();
+        return Redirect::temporary(crate::content::seo::DEFAULT_ICON_PNG).into_response();
     }
     Redirect::temporary(&site.site_icon).into_response()
+}
+
+/// GET /theme-assets/:theme/static/* when the theme hasn't got that file:
+/// the shared copy built into Bloogla (`themes/_shared/static/`), if any.
+pub async fn shared_theme_file(uri: axum::http::Uri) -> Response {
+    // The path inside `/theme-assets`: `/<theme>/static/<file>`.
+    let file = uri
+        .path()
+        .trim_start_matches('/')
+        .split_once('/')
+        .and_then(|(_, rest)| rest.strip_prefix("static/"));
+    let Some((bytes, kind)) = file.and_then(crate::services::themes::shared_static) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    ([(header::CONTENT_TYPE, kind)], bytes).into_response()
 }
 
 /// GET /health -> 200 OK while the server is running (for uptime monitors).

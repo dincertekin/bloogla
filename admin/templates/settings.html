@@ -13,6 +13,7 @@
     <a href="#site" role="tab" data-tab="site">{{ me.t("Site") }}</a>
     <a href="#reading" role="tab" data-tab="reading">{{ me.t("Reading") }}</a>
     <a href="#email" role="tab" data-tab="email">{{ me.t("Email") }}</a>
+    <a href="#subscribers" role="tab" data-tab="subscribers">{{ me.t("Subscribers") }}</a>
     <a href="#backup" role="tab" data-tab="backup">{{ me.t("Backup") }}</a>
     <a href="#import-export" role="tab" data-tab="import-export">{{ me.t("Import & export") }}</a>
     <a href="#redirects" role="tab" data-tab="redirects">{{ me.t("Redirects") }}</a>
@@ -89,7 +90,7 @@
                 <button type="button" class="btn btn-ghost btn-sm" id="icon-remove" {% if site_icon.is_empty() %}hidden{% endif %}>{{ me.t("Remove") }}</button>
             </div>
             <input type="hidden" id="site_icon" name="site_icon" value="{{ site_icon }}" />
-            <span class="form-hint">{{ me.t("Shown in browser tabs and bookmarks. A square image works best.") }}</span>
+            <span class="form-hint">{{ me.t("Shown in browser tabs and bookmarks. A square image works best. Without one, Bloogla's logo is shown.") }}</span>
         </div>
 
         <div class="form-group">
@@ -279,6 +280,48 @@
 </form>
 </div>
 
+<div data-tab-panel="subscribers">
+<form hx-post="/admin/settings/subscribers" hx-target="find .form-status" hx-swap="innerHTML">
+<section class="card">
+    <h2 class="section-title">{{ me.t("Subscribers") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Readers type their email address under a post and confirm it with a link. When you publish a post with “Email this post to subscribers” ticked, they get its title, its beginning and a link to read it.") }}
+    </p>
+    {% if !subscribers.email_ready %}
+    <div class="alert alert-info" role="status">{{ me.t("Set up email first (Settings → Email): new posts are sent from it.") }}</div>
+    {% endif %}
+    <label class="check-row" style="margin-bottom: 1.25rem">
+        <input type="checkbox" name="subscriptions_on" value="1" {% if subscribers.on %}checked{% endif %} />
+        <span>
+            {{ me.t("Let readers subscribe to new posts by email") }}
+            <small>{{ me.t("Some email providers send only a few hundred emails a day. Ask yours if you expect many subscribers.") }}</small>
+        </span>
+    </label>
+    <div class="form-status"></div>
+    <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
+</section>
+</form>
+
+<div id="subscriber-list" class="item-list" data-empty-text="{{ me.t("No subscribers yet.") }}" {% if subscribers.rows.is_empty() %}hidden{% endif %}>
+    {% for row in subscribers.rows %}
+    <div class="list-row" id="subscriber-{{ row.id }}" data-item>
+        <div class="row-main">
+            <span class="row-title">{{ row.email }}</span>
+            <div class="row-meta"><span>{{ me.tv("Since {date}", row.since) }}</span></div>
+        </div>
+        <div class="row-actions">
+            <button type="button" class="btn btn-ghost-danger btn-sm" data-delete-url="/admin/subscribers/{{ row.id }}"
+                data-delete-target="#subscriber-{{ row.id }}" data-confirm-title="{{ me.tv("Remove {email} from your subscribers?", row.email) }}"
+                data-confirm-text="{{ me.t("They won't get new posts anymore. They can subscribe again under any post.") }}">
+                {{ me.t("Remove") }}
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+<p class="empty-state" data-empty-for="subscriber-list" {% if !subscribers.rows.is_empty() %}hidden{% endif %}>{{ me.t("No subscribers yet.") }}</p>
+</div>
+
 <div data-tab-panel="backup">
 <section class="card">
     <h2 class="section-title">{{ me.t("Backup") }}</h2>
@@ -302,6 +345,66 @@
         <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
     </form>
 </section>
+
+<form hx-post="/admin/settings/storage" hx-target="find .form-status" hx-swap="innerHTML">
+<section class="card" style="margin-top: 1.5rem">
+    <h2 class="section-title">{{ me.t("Copy backups to storage") }}</h2>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("Backups on this server are lost if the server is. Bloogla can send a backup of the whole site to storage you rent elsewhere (Backblaze B2, Cloudflare R2, Amazon S3 or any S3-compatible service) every day. The last 7 days are kept there.") }}
+    </p>
+    {% if storage.on %}
+    {% if let Some(problem) = storage.last_problem %}
+    <div class="alert alert-error" role="status">{{ me.t("The last copy failed.") }} {{ me.lang.t_owned(problem) }}</div>
+    {% else if let Some(when) = storage.last_copied %}
+    <p class="form-hint" style="margin-bottom: 1.25rem">{{ me.tv("Last copy: {date}.", when) }}</p>
+    {% endif %}
+    {% endif %}
+
+    <label class="check-row" style="margin-bottom: 1.25rem">
+        <input type="checkbox" name="storage_on" value="1" {% if storage.on %}checked{% endif %} />
+        <span>{{ me.t("Copy a backup of the whole site to my storage every day") }}</span>
+    </label>
+
+    <div class="form-group">
+        <label for="storage_endpoint">{{ me.t("Storage address") }}</label>
+        <input type="url" id="storage_endpoint" name="storage_endpoint" class="form-control" value="{{ storage.endpoint }}"
+            placeholder="https://s3.eu-central-003.backblazeb2.com" autocomplete="off" style="max-width: 480px" />
+        <span class="form-hint">{{ me.t("Your provider shows it as the S3 endpoint.") }}</span>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="storage_bucket">{{ me.t("Bucket") }}</label>
+            <input type="text" id="storage_bucket" name="storage_bucket" class="form-control" value="{{ storage.bucket }}"
+                autocomplete="off" />
+            <span class="form-hint">{{ me.t("Make a private bucket just for these backups.") }}</span>
+        </div>
+        <div class="form-group">
+            <label for="storage_region">{{ me.t("Region") }}</label>
+            <input type="text" id="storage_region" name="storage_region" class="form-control" value="{{ storage.region }}"
+                placeholder="eu-central-003" autocomplete="off" />
+            <span class="form-hint">{{ me.t("Usually part of the address. For Cloudflare R2, type auto.") }}</span>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="storage_access_key">{{ me.t("Access key ID") }}</label>
+            <input type="text" id="storage_access_key" name="storage_access_key" class="form-control"
+                value="{{ storage.access_key }}" autocomplete="off" />
+        </div>
+        <div class="form-group">
+            <label for="storage_secret_key">{{ me.t("Secret key") }}</label>
+            <input type="password" id="storage_secret_key" name="storage_secret_key" class="form-control"
+                autocomplete="new-password"
+                placeholder="{% if storage.has_secret_key %}{{ me.t("Saved; leave empty to keep it") }}{% endif %}" />
+        </div>
+    </div>
+    <p class="form-hint" style="margin-bottom: 1.25rem">
+        {{ me.t("To restore, download a backup from your storage's website and choose it under Restore below.") }}
+    </p>
+    <div class="form-status"></div>
+    <button type="submit" class="btn btn-primary">{{ me.t("Save Changes") }}</button>
+</section>
+</form>
 {% include "restore.html" %}
 </div>
 

@@ -17,7 +17,7 @@ async fn every_bundled_theme_shows_every_page() {
         (
             "story",
             &["feed-item", "feed-thumb", "topics"][..],
-            "source-serif-4-latin-wght-normal.woff2",
+            "source-serif-4-latin-opsz-normal.woff2",
         ),
         (
             "gazette",
@@ -294,4 +294,187 @@ async fn the_light_dark_button_shows_only_when_visitors_can_choose() {
     // It starts by following the device, the first of its three choices.
     assert!(home.contains(r#"aria-label="Light or dark: same as your device""#));
     assert!(home.contains(r#"data-dark="Light or dark: always dark""#));
+}
+
+/// The parts every bundled theme shares (`themes/_shared/`) are kept once:
+/// pages still draw them and their files are still served at each theme's
+/// own address, but `_shared` isn't a theme anyone can open.
+#[tokio::test]
+async fn shared_theme_parts_are_kept_once_and_used_by_every_theme() {
+    let mut site = TestSite::with_owner().await;
+    let url = site.publish("Talk About It", "published").await;
+    for theme in ["default", "story"] {
+        site.post("/admin/themes/activate", &[("theme", theme)])
+            .await;
+        // `templates/comments.html` and `pagination.html` come from `_shared`.
+        assert!(
+            site.get(&url).await.body.contains(r#"class="comments""#),
+            "{theme}"
+        );
+        let script = site
+            .get(&format!("/theme-assets/{theme}/static/js/prism.js"))
+            .await;
+        assert_eq!(script.status, StatusCode::OK, "{theme}");
+        assert!(script.header("content-type").contains("javascript"));
+        assert!(script.header("cache-control").contains("max-age"));
+    }
+    for path in [
+        "/theme-assets/_shared/static/js/prism.js",
+        "/theme-assets/story/static/js/not-a-file.js",
+        "/theme-assets/story/static/../theme.toml",
+    ] {
+        assert_eq!(site.get(path).await.status, StatusCode::NOT_FOUND, "{path}");
+    }
+    assert!(!site.get("/admin/themes").await.body.contains("_shared"));
+}
+
+/// Every bundled theme prints only the writing and balances long titles.
+#[test]
+fn every_bundled_theme_prints_cleanly_and_balances_titles() {
+    for theme in [
+        "atelier", "brief", "default", "folio", "gazette", "notebook", "story",
+    ] {
+        let css = std::fs::read_to_string(format!(
+            "{}/themes/{theme}/static/css/style.css",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        assert!(css.contains("@media print"), "{theme}: print styles");
+        assert!(
+            css.contains("text-wrap: balance"),
+            "{theme}: balanced titles"
+        );
+    }
+}
+
+/// Each theme's own options change what they say (Appearance → Customize).
+#[tokio::test]
+async fn each_themes_own_options_change_its_pages() {
+    let mut site = TestSite::with_owner().await;
+    // Enough for Gazette's grid below its lead story and the three beside it.
+    for title in [
+        "First Story",
+        "Second Story",
+        "Third Story",
+        "Fourth Story",
+        "Fifth Story",
+        "Sixth Story",
+    ] {
+        site.post(
+            "/admin/posts",
+            &[
+                ("title", title),
+                ("content", "Text"),
+                ("status", "published"),
+                ("new_tags", "News"),
+            ],
+        )
+        .await;
+    }
+    let pool = site.pool.clone();
+    let set = |key: &'static str, value: &'static str| {
+        let pool = pool.clone();
+        async move {
+            crate::db::settings::save(&pool, &[(key, value.to_string())])
+                .await
+                .unwrap()
+        }
+    };
+
+    // (theme, page, what it shows at first, the option, its other value, what it shows then)
+    let cases = [
+        (
+            "default",
+            "/",
+            r#"class="featured""#,
+            "theme.default.show_featured",
+            "false",
+            "card-grid",
+        ),
+        (
+            "story",
+            "/",
+            r#"class="sidebar""#,
+            "theme.story.show_sidebar",
+            "false",
+            "no-sidebar",
+        ),
+        (
+            "story",
+            "/post/first-story",
+            "<body>",
+            "theme.story.text_size",
+            "Large",
+            r#"class="text-large""#,
+        ),
+        (
+            "gazette",
+            "/",
+            r#"class="grid""#,
+            "theme.gazette.front_columns",
+            "Three",
+            "grid-three",
+        ),
+        (
+            "folio",
+            "/",
+            r#"class="tiles""#,
+            "theme.folio.tile_shape",
+            "Square",
+            "tiles-square",
+        ),
+        (
+            "notebook",
+            "/",
+            r#"class="year""#,
+            "theme.notebook.group_by_year",
+            "false",
+            r#"class="entries""#,
+        ),
+    ];
+    for (theme, page, before, key, value, after) in cases {
+        site.post("/admin/themes/activate", &[("theme", theme)])
+            .await;
+        let shown = site.get(page).await;
+        assert_eq!(shown.status, StatusCode::OK, "{theme} {page}");
+        assert!(shown.body.contains(before), "{theme}: {before}");
+        set(key, value).await;
+        let changed = site.get(page).await.body;
+        assert!(changed.contains(after), "{theme}: {key} = {value}");
+    }
+    // Notebook without years shows no year headings.
+    assert!(!site.get("/").await.body.contains(r#"class="year""#));
+    // Story without its column.
+    site.post("/admin/themes/activate", &[("theme", "story")])
+        .await;
+    assert!(!site.get("/").await.body.contains(r#"class="sidebar""#));
+}
+
+/// Folio's picture-less tiles show apostrophes as apostrophes, not `&apos;`.
+#[tokio::test]
+async fn folio_tiles_show_text_escaped_once() {
+    let mut site = TestSite::with_owner().await;
+    site.post(
+        "/admin/posts",
+        &[
+            ("title", "Quotes"),
+            ("content", "It's <b>bold</b> & “quoted”."),
+            ("status", "published"),
+        ],
+    )
+    .await;
+    // Older, so it's a tile and not the large lead story.
+    sqlx::query("UPDATE posts SET published_at = datetime('now', '-1 day') WHERE slug = 'quotes'")
+        .execute(&site.pool)
+        .await
+        .unwrap();
+    site.publish("Newest", "published").await;
+    site.post("/admin/themes/activate", &[("theme", "folio")])
+        .await;
+    let home = site.get("/").await.body;
+    assert!(
+        !home.contains("&amp;apos;") && !home.contains("&amp;#x27;"),
+        "escaped twice"
+    );
+    assert!(!home.contains("<b>bold</b>"), "tags are stripped");
 }

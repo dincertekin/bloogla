@@ -86,6 +86,9 @@ async fn create_site(
     if blog_name.is_empty() {
         return Err("Give your site a title.".into());
     }
+    if name.is_empty() {
+        return Err("Add your name. It's shown on your posts.".into());
+    }
     if !email.contains('@') {
         return Err("Enter a valid email address.".into());
     }
@@ -102,11 +105,10 @@ async fn create_site(
 
     let password_hash = hash_password(password)?;
 
-    let publisher_name = if name.is_empty() { blog_name } else { name };
     let first_settings = [
         ("blog_name", blog_name),
         ("publisher_type", "Person"),
-        ("publisher_name", publisher_name),
+        ("publisher_name", name),
     ];
     match crate::db::users::create_owner(pool, name, email, &password_hash, &first_settings).await {
         Ok(Some(user_id)) => Ok(user_id),
@@ -276,6 +278,10 @@ pub async fn submit(
         Ok(id) => id,
         Err(e) => return render_error(&e),
     };
+    // `cargo run` (a development build) fills the new site with demo
+    // content. Release builds and tests don't.
+    #[cfg(all(debug_assertions, not(test)))]
+    crate::services::demo::add(&state.pool, user_id).await;
 
     let mut values = vec![("language", lang.code().to_string())];
     if form.timezone.parse::<chrono_tz::Tz>().is_ok() {
@@ -287,14 +293,10 @@ pub async fn submit(
 
     state.setup_pending.store(false, Ordering::Release);
     crate::app::security::log_event("setup_completed", &[("user", form.email.trim())]);
-    let welcome = match form.name.trim() {
-        "" => form.email.trim(),
-        name => name,
-    };
     crate::app::console::activity_tv(
         crate::app::console::Kind::Done,
         "Setup finished. Welcome, {name}!",
-        welcome,
+        form.name.trim(),
     );
     // A brand-new account starts at session version 0.
     super::auth::sign_in(&session, user_id, 0).await;

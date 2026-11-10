@@ -17,8 +17,12 @@ const BACKUP_DIR: &str = "data/theme-backups";
 /// `data/theme-backups/<name>-<version>`, so local edits are never lost.
 /// Returns a line per theme installed or upgraded.
 pub fn install_bundled() -> std::io::Result<Vec<String>> {
+    // The shared parts stay built in; they aren't a theme to install.
     let names: HashSet<String> = BundledThemes::iter()
         .filter_map(|path| path.split('/').next().map(str::to_string))
+        .filter(|name| name != super::SHARED)
+        // Only folders that are themes.
+        .filter(|name| BundledThemes::get(&format!("{name}/theme.toml")).is_some())
         .collect();
 
     let mut report = Vec::new();

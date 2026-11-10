@@ -81,13 +81,13 @@ HTTPS comes from Let's Encrypt by itself. More in
 |                     |                                                                                              |
 | ------------------- | -------------------------------------------------------------------------------------------- |
 | **Writing**         | Visual editor, drafts and scheduling, a private link to share a draft, pages, tags, images and short videos, revisions, a trash, changing many posts at once, YouTube and Vimeo embeds, formulas (`$E = mc^2$`, drawn with KaTeX) |
-| **Your site**       | Seven themes with light and dark mode (visitors can switch), a page or your latest posts as the home page, menus, search, comments and a contact form with spam protection, an archive of every post by year, RSS, sitemap |
+| **Your site**       | Seven themes with light and dark mode (visitors can switch), a page or your latest posts as the home page, menus, search, comments and a contact form with spam protection, email subscriptions for new posts, an archive of every post by year, RSS (also for each tag), sitemap |
 | **Found on Google** | Meta tags, Open Graph, structured data, clean addresses with automatic redirects (and your own, for old addresses), verification tags for Google, Bing and Mastodon |
 | **Analytics**       | Views and referring sites per day, without cookies or personal data                          |
 | **People**          | Admins, editors and authors, two-factor login, password reset by email, light or dark admin for each person |
 | **Languages**       | English, Deutsch, Français, Lietuvių and Türkçe, for the admin panel, the theme and emails  |
 | **Moving in and out** | Import from WordPress (posts, pages, tags, comments, images, old addresses), export as a WordPress file or Markdown |
-| **Peace of mind**   | Built-in HTTPS, daily backups, one-click `.zip` backup and restore, signed updates you can install from Settings |
+| **Peace of mind**   | Built-in HTTPS, daily backups (copied to S3-compatible storage if you like), one-click `.zip` backup and restore, a site health check on the Dashboard, signed updates you can install from Settings |
 
 ## Themes
 

@@ -169,6 +169,7 @@ fn send_email(state: &AppState, to: String, link: String) {
             text,
             html,
             reply_to: None,
+            unsubscribe: None,
         };
         if let Err(e) = crate::services::email::send(&state, &email).await {
             tracing::warn!("Password reset email to {} failed: {e}", email.to);

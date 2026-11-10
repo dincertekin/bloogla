@@ -6,11 +6,11 @@ Key facts:
 
 - Runs as a single program on Linux (x86_64, ARM) and Windows, or with Docker (also on a Mac). Gets HTTPS certificates from Let's Encrypt by itself.
 - Writing: visual editor, drafts and scheduling, private draft links, pages, tags, images and short videos, revisions, a trash, YouTube and Vimeo embeds, formulas with KaTeX.
-- Sites: seven bundled themes with light and dark mode, menus, search, comments and a contact form with spam protection, RSS, sitemap. Themes are plain HTML and CSS (Tera templates).
+- Sites: seven bundled themes with light and dark mode, menus, search, comments and a contact form with spam protection, email subscriptions for new posts, RSS (also per tag), sitemap. Themes are plain HTML and CSS (Tera templates).
 - SEO: meta tags, Open Graph, structured data, clean addresses with automatic redirects.
 - Privacy: analytics without cookies or stored IP addresses; public pages load nothing from other servers.
 - Moving: imports WordPress exports (posts, pages, drafts, tags, comments, images, old addresses); exports a WordPress file or Markdown.
-- Safety: daily backups, one-click backup and restore, signed updates installed from the admin panel, two-factor login.
+- Safety: daily backups (optionally copied to S3-compatible storage), one-click backup and restore, a site health check, signed updates installed from the admin panel, two-factor login.
 - Languages: English, German, French, Lithuanian and Turkish.
 
 ## Docs

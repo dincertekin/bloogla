@@ -43,6 +43,10 @@ pub struct SettingsTemplate {
     pub head_code: String,
     /// Settings → Backup: the daily copy on the server.
     pub auto_backup: bool,
+    /// Settings → Subscribers.
+    pub subscribers: super::subscribers::SubscribersCard,
+    /// Settings → Backup: copying backups to storage elsewhere.
+    pub storage: super::backup::StorageCard,
     /// Settings → Backup → Restore (always the upload form here).
     pub restore: super::backup::RestoreCard,
     /// Settings → Import & export → Import.
@@ -185,6 +189,8 @@ pub async fn page(
         site_icon: site.site_icon.clone(),
         head_code: site.head_code.clone(),
         auto_backup: site.auto_backup,
+        storage: super::backup::StorageCard::new(&site, &me),
+        subscribers: super::subscribers::SubscribersCard::load(&state, &site, &me).await,
         restore: Default::default(),
         import: super::import_export::ImportCard::now(),
         redirects: super::redirects::rows(&state).await,
@@ -441,6 +447,7 @@ pub async fn send_test_email(
             "",
         ),
         reply_to: None,
+        unsubscribe: None,
     };
     match crate::services::email::send(&state, &email).await {
         Ok(()) => alert(

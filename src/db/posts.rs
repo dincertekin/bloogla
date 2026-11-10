@@ -278,6 +278,81 @@ pub async fn newest_listed(pool: &SqlitePool, limit: i64) -> Vec<Post> {
     )
 }
 
+/// The newest listed posts with one tag, for that tag's feed.
+pub async fn newest_listed_with_tag(pool: &SqlitePool, tag_id: i64, limit: i64) -> Vec<Post> {
+    or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE {LISTED_POST_FILTER}
+               AND id IN (SELECT post_id FROM post_tags WHERE tag_id = ?)
+             ORDER BY published_at DESC LIMIT ?"
+        ))
+        .bind(tag_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await,
+        "tag feed posts",
+    )
+}
+
+/// Whether a post is to be emailed to subscribers (the editor's checkbox),
+/// and whether it already was: `(ticked, sent)`.
+pub async fn email_state(pool: &SqlitePool, id: i64) -> (bool, bool) {
+    or_log(
+        sqlx::query_as(
+            "SELECT email_subscribers != 0, emailed_at IS NOT NULL FROM posts WHERE id = ?",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await,
+        "post email state",
+    )
+    .unwrap_or((false, false))
+}
+
+/// Save the editor's "Email this post to subscribers" checkbox. A post
+/// that was already sent, and a page, keep theirs.
+pub async fn set_email_subscribers(pool: &SqlitePool, id: i64, ticked: bool) {
+    let result = sqlx::query(
+        "UPDATE posts SET email_subscribers = ? WHERE id = ? AND emailed_at IS NULL AND is_page = 0",
+    )
+    .bind(ticked)
+    .bind(id)
+    .execute(pool)
+    .await;
+    if let Err(e) = result {
+        tracing::error!("Could not save the subscribers checkbox: {e}");
+    }
+}
+
+/// Posts ticked for subscribers that are public now and weren't sent yet.
+/// Only posts published in the last day: turning subscriptions on later
+/// never sends old posts.
+pub async fn due_for_subscribers(pool: &SqlitePool) -> Vec<Post> {
+    or_log(
+        sqlx::query_as::<_, Post>(&format!(
+            "{POST_SELECT} WHERE {LISTED_POST_FILTER}
+               AND email_subscribers != 0 AND emailed_at IS NULL
+               AND datetime(published_at) >= datetime('now', '-1 day')
+             ORDER BY published_at"
+        ))
+        .fetch_all(pool)
+        .await,
+        "posts for subscribers",
+    )
+}
+
+/// Mark a post as sent to subscribers. `false` when it already was, so a
+/// post never goes out twice (even if two rounds overlap).
+pub async fn mark_emailed(pool: &SqlitePool, id: i64) -> bool {
+    let result = sqlx::query(
+        "UPDATE posts SET emailed_at = CURRENT_TIMESTAMP WHERE id = ? AND emailed_at IS NULL",
+    )
+    .bind(id)
+    .execute(pool)
+    .await;
+    or_log(result.map(|r| r.rows_affected() > 0), "mark post emailed")
+}
+
 /// Every listed post for the archive page, newest first:
 /// `(title, slug, published_at)`. Only what the list shows is read.
 pub async fn for_archive(pool: &SqlitePool) -> Vec<(String, String, String)> {
