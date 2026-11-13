@@ -81,7 +81,7 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 
 # Command line and logging
-dialoguer = { version = "0.11", default-features = false, features = ["password"] }
+dialoguer = { version = "0.12", default-features = false, features = ["password"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 
