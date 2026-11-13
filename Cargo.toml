@@ -27,7 +27,7 @@ futures-util = "0.3"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
 
 # Templates: askama for the admin panel (compiled in), tera for themes (loaded at runtime)
-askama = "0.12"
+askama = "0.16"
 # Stay on Tera 1: Tera 2 changes the template language and would break
 # existing themes.
 tera = "1.19"
