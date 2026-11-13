@@ -24,7 +24,7 @@ rustls-acme = { version = "0.15", default-features = false, features = ["ring", 
 futures-util = "0.3"
 
 # Database
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
 
 # Templates: askama for the admin panel (compiled in), tera for themes (loaded at runtime)
 askama = "0.12"
