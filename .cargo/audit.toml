@@ -5,11 +5,6 @@ ignore = [
     # of sqlx's MySQL driver. Bloogla uses SQLite, so rsa is never compiled
     # (`cargo tree -i rsa` prints nothing). Re-check when upgrading sqlx.
     "RUSTSEC-2023-0071",
-    # webpki-roots 0.26 (via rustls-acme, for built-in HTTPS) holds no
-    # certificates of its own: its code is only `pub use parent::TLS_SERVER_ROOTS`
-    # from webpki-roots 1.x, which is 1.0.10 or newer in Cargo.lock (the fixed
-    # list). Re-check when rustls-acme moves to webpki-roots 1.
-    "RUSTSEC-2026-0381",
     # SQLite before 3.54 (bundled by libsqlite3-sys before 0.39) can return
     # stale memory when it opens a database together with a crafted `-wal`
     # file beside it. Bloogla only opens its own data/bloogla.db; Restore
